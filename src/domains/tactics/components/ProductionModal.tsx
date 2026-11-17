@@ -32,7 +32,7 @@ export const ProductionModal: React.FC<ProductionModalProps> = ({
 }) => {
   const facilityType = facilityTile?.type === 'airport' ? 'airport' : facilityTile?.type === 'port' ? 'port' : 'factory';
 
-  // Catálogo completo según tipo de instalación militar (Sin restricciones de mazo)
+  // Catálogo completo según tipo de instalación militar (Doble Llave: Fondos $G + Hangar Físico)
   const availableUnits = Object.entries(CANONICAL_UNIT_PRODUCTION_CATALOG).filter(
     ([code, unit]) => unit.facility === facilityType && code !== 'missile'
   );

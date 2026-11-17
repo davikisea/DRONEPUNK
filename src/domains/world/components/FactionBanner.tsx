@@ -39,7 +39,7 @@ const LOBBY_COMMANDER_REPORTS = [
   {
     stamp: '¡RATATAT!',
     stampColor: 'bg-[#E65100] text-[#F2E8D5]',
-    text: '¡El Mazo de 10 Cartas está cebado en el Hangar! Cero enfriamientos artificiales, pura cadencia de fuego.',
+    text: '¡El Almacén Físico de 16 Chasis está cebado en el Hangar! Cero enfriamientos artificiales, pura cadencia de fuego.',
   },
   {
     stamp: '¡ALERT!',

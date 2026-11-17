@@ -17,8 +17,17 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { audioManager } from '@domains/game-feel';
-import { UnitHangarEntry, PatentRegistryEntry, MASTER_METAGAME_CONSTANTS } from '@shared';
+import {
+  UnitHangarEntry,
+  PatentRegistryEntry,
+  MASTER_METAGAME_CONSTANTS,
+  type DroneGambitProgram,
+  type DoctrinePresetId,
+  type DoctrineCodePayload,
+  type GambitSlotRule,
+} from '@shared';
 import { useUserHangar } from '../hooks/useUserHangar';
+import { calculateAdministrativeOverloadFuelMultiplier } from '../core/upkeepEngine';
 
 export interface UnitHangarModalProps {
   isOpen: boolean;
@@ -29,6 +38,57 @@ export interface UnitHangarModalProps {
   userComposites?: number;
   onUpdateResources?: (delta: { ec?: number; steel?: number; rareEarth?: number; composites?: number }) => void;
   onDeployToReinforcements?: (units: UnitHangarEntry[]) => void;
+}
+
+const HANGAR_GAMBIT_PRESETS: Record<DoctrinePresetId, DoctrineCodePayload> = {
+  NIGHT_PAINTER: {
+    name: 'Pintor Nocturno',
+    version: 1,
+    recommendedUnit: 'recon_explorer',
+    maxSlots: 4,
+    rules: [
+      { slot: 1, condition: 'SUPERIOR_ENEMY_IN_RANGE', action: 'FLEE_OPPOSITE_TO_FOREST_OR_MOUNTAIN' },
+      { slot: 2, condition: 'FUEL_LT_20', action: 'RETREAT_TO_NEAREST_APC_OR_REPAIR' },
+      { slot: 3, condition: 'HEX_NEUTRAL', action: 'CAPTURE_HEX_UNTIL_DONE' },
+      { slot: 4, condition: 'ALWAYS', action: 'FOLLOW_WAYPOINTS_LOOP' },
+    ],
+  },
+  WATCHDOG: {
+    name: 'Perro Guardián',
+    version: 1,
+    recommendedUnit: 'medium_tank',
+    maxSlots: 4,
+    rules: [
+      { slot: 1, condition: 'HP_LT_30', action: 'RETREAT_TO_NEAREST_APC_OR_REPAIR' },
+      { slot: 2, condition: 'ENEMY_NEAR_ALLY_FACTORY_2', action: 'INTERCEPT_AND_ATTACK' },
+      { slot: 3, condition: 'WEAK_ENEMY_IN_RANGE', action: 'ATTACK_WEAKEST' },
+      { slot: 4, condition: 'ALWAYS', action: 'PATROL_PING_PONG' },
+    ],
+  },
+  SABOTEUR: {
+    name: 'Saboteador',
+    version: 1,
+    recommendedUnit: 'infantry_swarm',
+    maxSlots: 4,
+    rules: [
+      { slot: 1, condition: 'ENEMY_IN_RANGE', action: 'IGNORE_COMBAT_STEALTH' },
+      { slot: 2, condition: 'HEX_HAS_ENEMY_FACTORY', action: 'SABOTAGE_OR_CAPTURE_BUILDING' },
+      { slot: 3, condition: 'MUNICIPALITY_ENEMY_OVER_70', action: 'RETURN_TO_ALLY_FACTORY' },
+      { slot: 4, condition: 'ALWAYS', action: 'FOLLOW_WAYPOINTS_LOOP' },
+    ],
+  },
+};
+
+function encodeDoctrineLocal(payload: DoctrineCodePayload): string {
+  const json = JSON.stringify(payload);
+  return `DP-DOC-${globalThis.btoa(unescape(encodeURIComponent(json)))}`;
+}
+
+function decodeDoctrineLocal(code: string): DoctrineCodePayload {
+  const trimmed = code.trim();
+  if (!trimmed.startsWith('DP-DOC-')) throw new Error('Formato inválido');
+  const json = decodeURIComponent(escape(globalThis.atob(trimmed.slice(7))));
+  return JSON.parse(json) as DoctrineCodePayload;
 }
 
 interface UnitBlueprint {
@@ -117,6 +177,34 @@ const UNIT_CATALOG: UnitBlueprint[] = [
     rangeMax: 1,
     description: 'Aeronave de ala rotatoria antitanque. Ignora restricciones de terreno terrestre.',
   },
+  {
+    code: 'NEOTANK',
+    name: 'Neotanque Pesado (Árbol Corporativo)',
+    category: 'armor',
+    baseSteelCost: 130,
+    baseRareEarthCost: 65,
+    baseCompositesCost: 90,
+    baseEcCost: 420,
+    baseAtk: 118,
+    baseDef: 95,
+    rangeMin: 1,
+    rangeMax: 1,
+    description: 'Desbloqueado al controlar >= 1 municipio. Blindaje pesado dentro del Hangar Físico de 16 Chasis.',
+  },
+  {
+    code: 'BOMBER',
+    name: 'Bombardero Estratégico (Árbol Corporativo)',
+    category: 'aviation',
+    baseSteelCost: 145,
+    baseRareEarthCost: 85,
+    baseCompositesCost: 110,
+    baseEcCost: 480,
+    baseAtk: 125,
+    baseDef: 65,
+    rangeMin: 1,
+    rangeMax: 1,
+    description: 'Desbloqueado al controlar >= 1 municipio. Supresión masiva contra tanques y fábricas.',
+  },
 ];
 
 export const UnitHangarModal: React.FC<UnitHangarModalProps> = ({
@@ -149,6 +237,20 @@ export const UnitHangarModal: React.FC<UnitHangarModalProps> = ({
   const [selectedCraftLevel, setSelectedCraftLevel] = useState<number>(1);
   const [craftQuantity, setCraftQuantity] = useState<number>(1);
   const [craftSuccessMessage, setCraftSuccessMessage] = useState<string | null>(null);
+  const [gambitTargetPriority, setGambitTargetPriority] = useState<DroneGambitProgram['targetPriorityRule']>('neutral_cells_first');
+  const [gambitRetreatVsTank, setGambitRetreatVsTank] = useState<boolean>(true);
+  const [gambitMaxEnemyControl, setGambitMaxEnemyControl] = useState<number>(70);
+  const [gambitSavedMsg, setGambitSavedMsg] = useState<string | null>(null);
+  const [selectedPresetId, setSelectedPresetId] = useState<DoctrinePresetId>('NIGHT_PAINTER');
+  const [activeDoctrineRules, setActiveDoctrineRules] = useState<GambitSlotRule[]>(
+    HANGAR_GAMBIT_PRESETS.NIGHT_PAINTER.rules
+  );
+  const [doctrineCodeInput, setDoctrineCodeInput] = useState<string>(() =>
+    encodeDoctrineLocal(HANGAR_GAMBIT_PRESETS.NIGHT_PAINTER)
+  );
+  const [dryRunResult, setDryRunResult] = useState<
+    Array<{ hours: 4 | 8 | 12; remainingFuel: number; remainingHp10: number; capturedHexes: number }> | null
+  >(null);
 
   if (!isOpen) return null;
 
@@ -648,6 +750,210 @@ export const UnitHangarModal: React.FC<UnitHangarModalProps> = ({
                 <span className="text-xs font-mono px-3 py-1 bg-[#161712] border border-[#00FF66] text-[#00FF66] rounded font-bold">
                   {battlegroup.length} / 6 SLOTS ASIGNADOS
                 </span>
+              </div>
+
+              {/* Programador Visual de Gambits de Patrulla (8 Horas) */}
+              <div className="p-3 bg-[#1E2219] border-2 border-[#00FF66]/60 rounded-[8px_2px_8px_2px] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-display font-black text-xs uppercase text-[#00FF66]">
+                      PROGRAMADOR DE GAMBITS OFFLINE (TURNO DE 8 HORAS)
+                    </h4>
+                    <p className="text-[10px] font-mono text-[#A9B87A]">
+                      Asigna reglas de patrulla A ↔ B, retirada ante Tanques y filtrado territorial antes de desconectarte.
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 bg-[#161712] border border-[#00FF66] text-[#00FF66] rounded font-bold">
+                    SHIFT: 8H
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[10px] font-mono">
+                  <div className="p-2 bg-[#161712] border border-[#2E3323] rounded">
+                    <span className="text-[#A9B87A] block mb-1">PRIORIDAD DE OBJETIVO</span>
+                    <select
+                      value={gambitTargetPriority}
+                      onChange={(e) =>
+                        setGambitTargetPriority(
+                          e.target.value as DroneGambitProgram['targetPriorityRule']
+                        )
+                      }
+                      className="w-full bg-[#2B2C24] border border-[#46521F] text-[#F2E8D5] p-1 rounded text-[10px]"
+                    >
+                      <option value="neutral_cells_first">Priorizar celdas neutrales</option>
+                      <option value="enemy_extractors_first">Sabotear extractores rivales</option>
+                      <option value="border_roads_first">Patrullar carreteras fronterizas</option>
+                    </select>
+                  </div>
+
+                  <div className="p-2 bg-[#161712] border border-[#2E3323] rounded flex flex-col justify-between">
+                    <span className="text-[#A9B87A] block">REGLA DE AMENAZA (FFXII)</span>
+                    <label className="flex items-center gap-1.5 text-[#F2E8D5] cursor-pointer mt-1">
+                      <input
+                        type="checkbox"
+                        checked={gambitRetreatVsTank}
+                        onChange={(e) => setGambitRetreatVsTank(e.target.checked)}
+                      />
+                      <span>Atacar Scout / Retirarse ante Tanque</span>
+                    </label>
+                  </div>
+
+                  <div className="p-2 bg-[#161712] border border-[#2E3323] rounded">
+                    <span className="text-[#A9B87A] block mb-1">
+                      ABORTAR SI CONTROL ENEMIGO &gt; {gambitMaxEnemyControl}%
+                    </span>
+                    <input
+                      type="range"
+                      min={50}
+                      max={90}
+                      step={5}
+                      value={gambitMaxEnemyControl}
+                      onChange={(e) => setGambitMaxEnemyControl(Number(e.target.value))}
+                      className="w-full accent-[#00FF66]"
+                    />
+                  </div>
+                </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      audioManager.playCue('ui_tile_confirm');
+                      setGambitSavedMsg(
+                        `Gambit 8h guardado: ${gambitTargetPriority} | Retirada ante Tanque=${gambitRetreatVsTank ? 'ON' : 'OFF'} | Límite enemigo=${gambitMaxEnemyControl}%`
+                      );
+                    }}
+                    className="px-3 py-1.5 bg-[#00FF66] hover:bg-[#33ff85] text-black font-display font-black text-[10px] uppercase rounded border border-[#0A0B08] cursor-pointer"
+                  >
+                    GUARDAR RUTINA DE PATRULLA (8H)
+                  </button>
+                  {gambitSavedMsg && (
+                    <span className="text-[10px] font-mono text-[#00FF66] truncate">
+                      {gambitSavedMsg}
+                    </span>
+                  )}
+                </div>
+
+                {/* Zonas A, B y C: Presets H3, Cartuchos Gambits, Código de Doctrina y Simulador Dry-Run */}
+                <div className="pt-2.5 border-t border-[#2E3323] space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[10px] font-mono font-bold text-amber-300 uppercase">
+                      ZONA A/B/C • CARTUCHOS H3 (4-6 RANURAS) + CÓDIGO DE DOCTRINA + DRY-RUN
+                    </span>
+                    <div className="flex items-center gap-1">
+                      {(['NIGHT_PAINTER', 'WATCHDOG', 'SABOTEUR'] as const).map((presetKey) => (
+                        <button
+                          key={presetKey}
+                          type="button"
+                          onClick={() => {
+                            audioManager.playHoverTick();
+                            const preset = HANGAR_GAMBIT_PRESETS[presetKey];
+                            setSelectedPresetId(presetKey);
+                            setActiveDoctrineRules(preset.rules);
+                            setDoctrineCodeInput(encodeDoctrineLocal(preset));
+                          }}
+                          className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold border cursor-pointer ${
+                            selectedPresetId === presetKey
+                              ? 'bg-amber-400 text-black border-[#0A0B08]'
+                              : 'bg-[#161712] text-[#F2E8D5] border-[#2E3323]'
+                          }`}
+                        >
+                          {HANGAR_GAMBIT_PRESETS[presetKey].name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Pila de Prioridades (Zona B) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                    {activeDoctrineRules.map((rule) => (
+                      <div
+                        key={rule.slot}
+                        className="p-1.5 bg-[#161712] border border-[#2E3323] rounded text-[10px] font-mono flex items-center justify-between gap-2"
+                      >
+                        <span className="text-amber-300 font-bold">SLOT {rule.slot}:</span>
+                        <span className="text-[#F2E8D5] truncate">
+                          SI [{rule.condition}] → {rule.action}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Exportador / Importador de Código de Doctrina + Botón Dry-Run (Zona C) */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={doctrineCodeInput}
+                      onChange={(e) => setDoctrineCodeInput(e.target.value)}
+                      className="flex-1 px-2 py-1 bg-[#161712] border border-[#46521F] text-[#00FF66] font-mono text-[10px] rounded"
+                      aria-label="Código de Doctrina"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        try {
+                          const decoded = decodeDoctrineLocal(doctrineCodeInput);
+                          setActiveDoctrineRules(decoded.rules);
+                          setGambitSavedMsg(`Doctrina "${decoded.name}" importada (${decoded.rules.length} slots).`);
+                          audioManager.playCue('ui_tile_confirm');
+                        } catch {
+                          setGambitSavedMsg('Código de Doctrina inválido.');
+                          audioManager.playCue('ui_cancel_rollback');
+                        }
+                      }}
+                      className="px-2.5 py-1 bg-[#2B2C24] hover:bg-[#383A2E] border border-[#7B8A4A] text-amber-300 font-mono font-bold text-[10px] uppercase rounded cursor-pointer"
+                    >
+                      IMPORTAR DOCTRINA
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        audioManager.playHoverTick();
+                        const overload = calculateAdministrativeOverloadFuelMultiplier({
+                          controlledStatesCount: 2,
+                        });
+                        const burnPerHour =
+                          (selectedPresetId === 'NIGHT_PAINTER' ? 4 : selectedPresetId === 'WATCHDOG' ? 8 : 1) *
+                          overload.netFuelMultiplier;
+                        const conquestPerHour =
+                          selectedPresetId === 'NIGHT_PAINTER' ? 25 : selectedPresetId === 'WATCHDOG' ? 10 : 15;
+                        const maxFuel = 40;
+                        setDryRunResult(
+                          ([4, 8, 12] as const).map((h) => {
+                            const remFuel = Math.max(0, Number((maxFuel - burnPerHour * h).toFixed(1)));
+                            const hpLoss = remFuel <= 0 ? (h - maxFuel / Math.max(1, burnPerHour)) * 2 : 0;
+                            return {
+                              hours: h,
+                              remainingFuel: remFuel,
+                              remainingHp10: Math.max(0, Number((10 - hpLoss).toFixed(1))),
+                              capturedHexes: Math.round(conquestPerHour * Math.min(h, maxFuel / Math.max(1, burnPerHour))),
+                            };
+                          })
+                        );
+                      }}
+                      className="px-2.5 py-1 bg-[#E65100] hover:bg-amber-400 text-black font-display font-black text-[10px] uppercase rounded border border-[#0A0B08] cursor-pointer"
+                    >
+                      SIMULAR DRY-RUN (4H / 8H / 12H)
+                    </button>
+                  </div>
+
+                  {dryRunResult && (
+                    <div className="grid grid-cols-3 gap-2">
+                      {dryRunResult.map((cp) => (
+                        <div
+                          key={cp.hours}
+                          className="p-2 bg-[#161712] border border-[#2E3323] rounded text-[10px] font-mono"
+                        >
+                          <div className="text-amber-300 font-bold">PROYECCIÓN {cp.hours}H</div>
+                          <div className="text-[#00FF66]">+{cp.capturedHexes} hex H3</div>
+                          <div className={cp.remainingFuel <= 0 ? 'text-red-400' : 'text-sky-300'}>
+                            CB: {cp.remainingFuel} • {cp.remainingHp10}/10 HP
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {battlegroup.length === 0 ? (

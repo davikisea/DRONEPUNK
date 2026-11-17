@@ -406,7 +406,7 @@ export class RealtimeConnectionManager {
  * ==============================================================================
  * TOPOLOGÍA HÍBRIDA REALTIME (POSTGRES CHANGES + BROADCAST CHANNELS)
  * ==============================================================================
- * Especificación Canónica: docs/architecture/PROPUESTA_REINGENIERIA_MIGRACION_16.md
+ * Especificación Canónica: docs/05_MASTER_GAME_ENGINE_AND_NETWORKING.md & docs/04_MASTER_DATABASE_AND_SECURITY_SPEC.md
  * - Postgres Changes: Escucha cambios de estado persistentes en active_matches.
  * - Broadcast Channels: Tráfico efímero de baja latencia sin impacto en WAL/DB (CURSOR_MOVE, pings).
  */

@@ -17,6 +17,7 @@ export * from './types/index';
 export * from './types/database.types';
 export * from './types/metagame';
 export * from './types/network';
+export * from './types/stateSovereigntyTypes';
 
 // Shared Services & Auth
 export { catalogRegistry, type CatalogChangeListener } from './services/catalogRegistryService';
@@ -24,6 +25,6 @@ export { useAuth } from './auth/useAuth';
 
 // Asset Optimization & QA Harness
 export * from './lib/shopData';
-export { assetLoader } from './lib/assetLoader';
+export { assetLoader, UNIT_GREEN_SPRITE_PATHS, resolveUnitSpriteKey } from './lib/assetLoader';
 export { AssetOptimizationEngine, type PerformanceCheckItem, type WebPOptimizationReport } from './lib/assetOptimization';
 export { initQABridge, updateQASnapshot, type QAGameSnapshot } from './utils/qaHarness';

@@ -2,7 +2,7 @@
  * ==============================================================================
  * SUITE DE PRUEBAS FASE 3: EXPANSIÓN TERRITORIAL DINÁMICA (TERRITORIAL.IO) Y NODOS
  * ==============================================================================
- * Ejecución: npx tsx src/engine/territorialExpansionEngine.test.ts
+ * Ejecución: npx tsx src/domains/world/__tests__/territorialExpansionEngine.test.ts
  * ==============================================================================
  */
 
@@ -11,8 +11,19 @@ import {
   executeTerritorialExpansion,
   calculateIndustrialYieldWithNodes,
   recalculateSovereignty,
+  initializeMunicipalMicroGrid,
+  evaluateSignalCaptureTick,
+  lngLatToMunicipalMicroCell,
+  TacticalBitMap,
+  latLngToH3Res9,
+  h3GridDisk,
+  executeFifteenMinuteTickPipeline,
+  type H3PersistentDroneState,
+  type H3PersistentBuildingState,
 } from '@domains/world';
 import { StrategicNode } from '@domains/economy';
+import { CANONICAL_GAMBIT_PRESETS } from '@domains/tactics';
+import type { DroneSignalProjection, SparseMapHexRecord } from '@shared';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -153,7 +164,168 @@ assert(
   'Test 4.5: Velocidad de forja en cola física acelerada en +10%'
 );
 
+// ------------------------------------------------------------------------------
+// SUITE 5: MALLA MUNICIPAL DE 500 MICRO-CELDAS (100x100m) Y CAPTURA POR SEÑAL
+// ------------------------------------------------------------------------------
+console.log('\n--- SUITE 5: MALLA MUNICIPAL DE 500 MICRO-CELDAS (100x100m) Y CAPTURA POR SEÑAL ---');
+
+const cabimasGrid = initializeMunicipalMicroGrid(
+  'MUN_ZULIA_CABIMAS',
+  'REG_VE_02',
+  [-71.4539, 10.3994],
+  null
+);
+assert(cabimasGrid.cells.length === 500, `Test 5.1: Malla municipal posee exactamente 500 micro-celdas (obtenido: ${cabimasGrid.cells.length})`);
+assert(cabimasGrid.cellSizeMeters === 100, 'Test 5.2: Tamaño de micro-celda verificado en 100m');
+assert(cabimasGrid.controllingClanId === null && !cabimasGrid.publicSlotsUnlocked, 'Test 5.3: Municipio neutral inicia sin soberanía ni ranuras públicas');
+
+const projectedCell = lngLatToMunicipalMicroCell([-71.4539, 10.3994], [-71.4539, 10.3994]);
+assert(projectedCell.cellIndex >= 0 && projectedCell.cellIndex < 500, 'Test 5.4: Proyección O(1) de coordenada WGS84 cae dentro de [0, 499]');
+
+const microBitmap = TacticalBitMap.createMunicipalMicroGridBitmap();
+assert(microBitmap.bytes.length === 63, `Test 5.5: TacticalBitMap de 500 micro-celdas comprimido en 63 bytes (obtenido: ${microBitmap.bytes.length})`);
+microBitmap.setBit(0, true);
+microBitmap.setBit(250, true);
+assert(microBitmap.countSetBits() === 2, 'Test 5.6: countSetBits() contabiliza exactamente 2 micro-celdas activas');
+
+// Desplegar escuadrón de Scouts cubriendo >50% de la malla en varios puntos para simular consolidación
+const scoutSquad: DroneSignalProjection[] = [];
+for (let row = 2; row <= 17; row += 5) {
+  for (let col = 3; col <= 22; col += 5) {
+    const idx = row * 25 + col;
+    scoutSquad.push({
+      unitId: `scout-${idx}`,
+      clanId: 'clan-ferro',
+      unitRole: 'recon_scout',
+      centerCellIndex: idx,
+      coordinates: cabimasGrid.cells[idx]!.lngLat,
+      hp: 100,
+      signalRadiusCells: 4,
+      captureRatePerTick: 120,
+    });
+  }
+}
+
+const tick1 = evaluateSignalCaptureTick(cabimasGrid, scoutSquad, 10, 1.0);
+assert(tick1.cellsConverted > 250, `Test 5.7: Proyección de señal convierte >250 celdas (convertidas: ${tick1.cellsConverted})`);
+assert(cabimasGrid.controllingClanId === 'clan-ferro', 'Test 5.8: Al superar el 50% de celdas, clan-ferro obtiene soberanía municipal');
+assert(cabimasGrid.publicSlotsUnlocked === true, 'Test 5.9: Ranuras de infraestructura estratégica desbloqueadas tras mayoría >50%');
+
+// ------------------------------------------------------------------------------
+// SUITE 6: PIPELINE DE TICK 15 MINUTOS (5 FASES H3: LOGÍSTICA, IA, COMBATE, CAPTURA, MACRO)
+// ------------------------------------------------------------------------------
+console.log('\n--- SUITE 6: PIPELINE DE TICK CADA 15 MINUTOS (5 FASES H3) ---');
+
+const h3Center = latLngToH3Res9(10.3994, -71.4539);
+const h3Neighbors = h3GridDisk(h3Center, 1);
+const sparseMap = new Map<string, SparseMapHexRecord>();
+
+const dronesTick: H3PersistentDroneState[] = [
+  {
+    id: 'drone-tank-1',
+    ownerUserId: 'user-alpha',
+    corpId: 'corp-ferro',
+    unitType: 'medium_tank',
+    tier: 2,
+    currentH3: h3Center,
+    hp10: 8.0,
+    fuel: 40,
+    maxFuel: 40,
+    waypoints: [h3Neighbors[1]!],
+    currentWpIndex: 0,
+    ticksOnBuilding: 0,
+    ticksDeployed: 1,
+    aiRules: CANONICAL_GAMBIT_PRESETS.WATCHDOG.rules,
+  },
+  {
+    id: 'drone-inf-rival',
+    ownerUserId: 'user-beta',
+    corpId: 'corp-orinoco',
+    unitType: 'infantry_swarm',
+    tier: 1,
+    currentH3: h3Neighbors[1]!,
+    hp10: 10.0,
+    fuel: 20,
+    maxFuel: 20,
+    waypoints: [],
+    currentWpIndex: 0,
+    ticksOnBuilding: 0,
+    ticksDeployed: 1,
+    aiRules: CANONICAL_GAMBIT_PRESETS.SABOTEUR.rules,
+  },
+  {
+    id: 'drone-bomber-rival',
+    ownerUserId: 'user-beta',
+    corpId: 'corp-orinoco',
+    unitType: 'bomber_drone',
+    tier: 3,
+    currentH3: h3Neighbors[2]!,
+    hp10: 10.0,
+    fuel: 100,
+    maxFuel: 100,
+    waypoints: [],
+    currentWpIndex: 0,
+    ticksOnBuilding: 0,
+    ticksDeployed: 1,
+    aiRules: CANONICAL_GAMBIT_PRESETS.WATCHDOG.rules,
+  },
+];
+
+const buildingsTick: H3PersistentBuildingState[] = [
+  {
+    id: 'bld-aa-ferro',
+    h3Index: h3Center,
+    municipalityId: 'MUN_ZULIA_CABIMAS',
+    ownerUserId: 'user-alpha',
+    corpId: 'corp-ferro',
+    buildingType: 'FIXED_AA_BATTERY',
+    hp10: 20,
+    isDisabled: false,
+  },
+  {
+    id: 'bld-factory-ferro',
+    h3Index: h3Neighbors[3]!,
+    municipalityId: 'MUN_ZULIA_CABIMAS',
+    ownerUserId: 'user-alpha',
+    corpId: 'corp-ferro',
+    buildingType: 'PRIVATE_FACTORY',
+    hp10: 20,
+    isDisabled: false,
+    grossOutputPerTick: { alloys: 100, fuel: 100, microchips: 50 },
+    alliedTaxRate: 0.1,
+  },
+];
+
+const tickOut = executeFifteenMinuteTickPipeline({
+  tickNumber: 1,
+  drones: dronesTick,
+  buildings: buildingsTick,
+  sparseHexes: sparseMap,
+  municipalities: [
+    {
+      municipalityId: 'MUN_ZULIA_CABIMAS',
+      stateId: 'REG_VE_02',
+      totalHexes: 500,
+      ownerCorpId: 'corp-orinoco',
+    },
+  ],
+  corporations: {
+    'corp-ferro': { corpId: 'corp-ferro', controlledStatesCount: 2, activeStatePerks: [] },
+    'corp-orinoco': { corpId: 'corp-orinoco', controlledStatesCount: 2, activeStatePerks: [] },
+  },
+  terrainResolver: (h3) => ({
+    terrain: h3 === h3Neighbors[1]! ? 'URBAN' : 'PLAIN',
+  }),
+});
+
+assert(tickOut.aaInterceptionsCount === 1, 'Test 6.1: Batería Antiaérea Fija interceptó al Bombardero enemigo');
+assert(tickOut.destroyedDrones.some((d) => d.droneId === 'drone-bomber-rival' && d.reason === 'aa_battery'), 'Test 6.2: Bombardero destruido por AA con retorno de 35% tech_scrap');
+assert(tickOut.combatEventsCount >= 1, 'Test 6.3: Fase 3 ejecutó combate determinista entre drones');
+assert(tickOut.playerResourceSettlements['user-alpha']!.alloys === 50, `Test 6.4: Fábrica en municipio rival retiene 50% al dueño municipal (neto jugador: ${tickOut.playerResourceSettlements['user-alpha']!.alloys})`);
+assert(tickOut.corpVaultTaxCredits['corp-orinoco']!.alloys === 50, 'Test 6.5: Bóveda de corporación rival recibe el 50% retenido');
+assert(tickOut.sparseHexCount >= 1, 'Test 6.6: Fase 4 registró progreso de conquista en el Sparse Map');
+
 console.log('\n------------------------------------------------------------------------------');
-console.log('RESUMEN FASE 3 (EXPANSIÓN TERRITORIAL.IO Y CONTROL DE NODOS): 13/13 PASARON');
-console.log('✅ TODAS LAS PRUEBAS DETERMINISTAS DE FASE 3 SUPERADAS AL 100%');
+console.log('RESUMEN FASE 3 + PIPELINE H3 DE 15 MINUTOS: 28/28 PASARON');
+console.log('✅ TODAS LAS PRUEBAS DETERMINISTAS DE EXPANSIÓN Y TICK H3 SUPERADAS AL 100%');
 console.log('==============================================================================');

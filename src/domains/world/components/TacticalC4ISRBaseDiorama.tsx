@@ -1,11 +1,11 @@
 /**
  * ==============================================================================
- * DIORAMA ISOMÉTRICO MILITAR C4ISR & KINETIC COMIC WAR-ROOM (v4.0.0)
+ * DIORAMA ISOMÉTRICO MILITAR C4ISR & KINETIC COMIC WAR-ROOM (DRONEPUNK 0.0.1)
  * ==============================================================================
- * Conforme a @tactical-command-intel (v4.0.0) e @indie-game-ui-architect:
+ * Conforme a @tactical-command-intel e @indie-game-ui-architect (DRONEPUNK 0.0.1):
  * - Entintado cómic pesado (#0A0B08 stroke 3px), sombreado cel-shaded y tramas Ben-Day.
  * - 4 Complejos Interactivos con Etiquetas Espaciales Cómic (Astillero Naval, Silos,
- *   Hangar de 10 Cartas y Estación Única de Radar Polar 360°).
+ *   Hangar Físico de 16 Chasis y Estación Única de Radar Polar 360°).
  * - Alarma DEFCON-1 conectada en el Helipuerto con Capa Meta de viñeta roja pulsante.
  * - Cámara reactiva con enfoque (Zoom & Pan con resorte) según la estación activa.
  */
@@ -729,7 +729,7 @@ export const TacticalC4ISRBaseDiorama: React.FC<TacticalC4ISRBaseDioramaProps> =
           id="hangar-armor-bay"
           role="button"
           tabIndex={0}
-          aria-label="Hangar Blindado y Mazo de 10 Cartas"
+          aria-label="Hangar Blindado y Almacén Físico de 16 Chasis"
           className="cursor-pointer group"
           transform="translate(275, 470)"
           onMouseEnter={() => audioManager.playHoverTick()}
@@ -850,7 +850,7 @@ export const TacticalC4ISRBaseDiorama: React.FC<TacticalC4ISRBaseDioramaProps> =
               fontFamily="var(--font-display)"
               fontWeight="800"
             >
-              🪖 HANGAR // MAZO (10)
+              🪖 HANGAR // CHASIS (16)
             </text>
           </g>
         </g>

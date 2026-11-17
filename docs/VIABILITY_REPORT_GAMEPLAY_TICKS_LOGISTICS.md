@@ -2,7 +2,8 @@
 **Documento Rector:** `docs/VIABILITY_REPORT_GAMEPLAY_TICKS_LOGISTICS.md`  
 **Referencia SSOT del Proyecto:** `docs/00_ARBOL_CANONICO_DE_SISTEMAS_Y_DESARROLLO.md`  
 **Autoría de Auditoría:** Enjambre de 10 Agentes Especializados de Antigravity  
-**Fecha de Emisión:** Noviembre 2026 | Versión de Arquitectura: `5.0.0-CANON-AUDITED`  
+**Proyecto y Versión Canónica:** `DRONEPUNK 0.0.1`  
+**Fecha de Emisión:** Noviembre 2026 | Versión Canónica: `DRONEPUNK 0.0.1`  
 **Estado de Validación Determinista:** 13/13 Suites `test:all` y 93/93 Tests `test:geotactics` Certificados (100% Éxito)
 
 ---
@@ -17,7 +18,7 @@
   Tras la deliberación interdisciplinaria del enjambre de 10 agentes y la calibración interactiva mediante `/grill-me`, **se ratifica la viabilidad técnica y lúdica del documento tras aplicar las siguientes adaptaciones canónicas vinculantes**:
   1. **Blindaje del Pilar 4:** Se descarta el salto vertical de combustible T1 (50 PA) vs T3 (300 PA). La autonomía base se calibra por **Arquetipo Militar**, mientras que los Tiers T1 a T5 otorgan una mejora horizontal estricta del **+2% por nivel (máx. +8% de eficiencia o capacidad en T5)**.
   2. **Arquitectura de Netcode Vectorial:** Se descartan los ticks continuos de 2s con escritura directa a PostgreSQL. Se adopta el **Modelo Autoritativo Vectorial (Waypoints A $\rightarrow$ B)** con interpolación fluida a 60 FPS en el cliente MapLibre y despacho de eventos discretos a Supabase, reduciendo el 98% de I/O en base de datos.
-  3. **Preservación del Pilar 1 (Cero Cartas / Hangar de 16 Tropas):** Las torretas y muros no consumen cupo del Hangar militar del jugador; son reclasificados como **Infraestructura Territorial de Feudo/Clan**, sujetos a un límite físico estricto (Hard Cap) por sector vial y a un sistema de **Decaimiento (Decay)** por inanición energética para erradicar el *wall-spamming*.
+  3. **Preservación del Pilar 1 (Almacén Físico de 16 Chasis Militares):** Las torretas y muros no consumen cupo del Hangar militar del jugador (4 slots en vanguardia + 12 en reserva, munición descartable forjada); son reclasificados como **Infraestructura Territorial de Feudo/Clan**, sujetos a un límite físico estricto (Hard Cap) por sector vial y a un sistema de **Decaimiento (Decay)** por inanición energética para erradicar el *wall-spamming*.
   4. **Armonización del Combate Táctico y Pilar 7:** Las torretas ejecutan fuego continuo de interdicción y desgaste balístico (1 a 100 HP enteros) sobre columnas en marcha en el mapa macro; si las fuerzas penetran el perímetro de un Búnker o Cuartel General (HQ), se activa formalmente el **Human Handshake de 120 segundos** para el duelo táctico por turnos Fischer.
 
 ---
@@ -233,18 +234,18 @@ Para incorporar este diseño al código fuente sin generar regresiones en el ár
 
 ```
 FASE 1: CONTRATOS Y TIPOS (SEMANA 1)
-├── Actualización de @src/shared/types/metagame.ts (MovementVector, Infrastructure)
-└── Validación de compatibilidad con database.types.ts
+├── Actualización de src/shared/types/metagame.ts (MovementVector, Infrastructure)
+└── Validación de compatibilidad con src/shared/types/database.types.ts
 
 FASE 2: ORÁCULO DE LOGÍSTICA DETERMINISTA (SEMANA 1-2)
-├── Creación de src/domains/economy/engine/fuelLogisticsEngine.ts
+├── Integración en src/domains/tactics/core/fuelLogistics.ts y src/domains/economy/core/upkeepEngine.ts
 ├── Incorporación de la matriz de consumo de combustible por terreno y chasis
-└── Suite de tests: src/domains/economy/__tests__/fuelLogisticsEngine.test.ts
+└── Suite de tests: src/domains/economy/__tests__/industrialEngine.test.ts y src/domains/tactics/__tests__/advancedWarsWorldSystems.test.ts
 
 FASE 3: REDES VIALES Y TORRETAS (SEMANA 2)
-├── Ampliación de roadNetworkEngine.ts con propagación de suministro A*
-├── Integración de torretas territoriales en territorialSiegeOrchestrator.ts
-└── Suite de tests: src/domains/world/__tests__/turretInfrastructure.test.ts
+├── Ampliación de src/domains/world/core/roadNetworkEngine.ts con propagación de suministro A*
+├── Integración de defensas territoriales en src/domains/world/core/territorialSiegeOrchestrator.ts
+└── Suite de tests: src/domains/world/__tests__/territorialSiege.test.ts y src/domains/world/__tests__/roadGarrisonEngine.test.ts
 
 FASE 4: GOLPE DE CALIDAD TOTAL Y CERTIFICACIÓN DETERMINISTA (SEMANA 3)
 ├── Ejecución de npm run test:geotactics (93/93 tests en verde)
@@ -265,5 +266,5 @@ FASE 4: GOLPE DE CALIDAD TOTAL Y CERTIFICACIÓN DETERMINISTA (SEMANA 3)
 ## 7. Veredicto Final y Cierre de Auditoría
 
 > [!IMPORTANT] DICTAMEN DEL ENJAMBRE DE 10 AGENTES
-> La propuesta de GDD queda **OFICIALMENTE INTEGRADA COMO ESPECIFICACIÓN CANÓNICA ADAPTADA** para GEOTACTICS ONLINE bajo la referencia `docs/VIABILITY_REPORT_GAMEPLAY_TICKS_LOGISTICS.md`.
+> La propuesta de GDD queda **OFICIALMENTE INTEGRADA COMO ESPECIFICACIÓN CANÓNICA ADAPTADA** para **DRONEPUNK 0.0.1** bajo la referencia `docs/VIABILITY_REPORT_GAMEPLAY_TICKS_LOGISTICS.md`.
 > Queda blindada contra Pay-to-Win, optimizada para infraestructura Supabase sin saturación de I/O, enlazada a la proyección analítica WGS84 $O(1)$ de MapLibre GL JS v6 y en armonía total con los 7 Pilares Canónicos del proyecto.

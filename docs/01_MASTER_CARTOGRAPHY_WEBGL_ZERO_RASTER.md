@@ -1,7 +1,7 @@
 # VOLUMEN 1: ARQUITECTURA CARTOGRÁFICA WEBGL 2.0 ZERO-RASTER
 **Documento Canónico Unificado:** `01_MASTER_CARTOGRAPHY_WEBGL_ZERO_RASTER.md`  
-**Proyecto:** *GEOTACTICS: ONLINE (Wars of Legacy)*  
-**Versión:** 2.1.0-PROD (Zero-Raster, OpenPlace Bridge & Dominio Modular `world`)  
+**Proyecto:** *DRONEPUNK 0.0.1*  
+**Versión:** 0.0.1 (Zero-Raster, Topología TopoJSON Bottom-Up, OpenPlace Bridge & Dominio Modular `world`)  
 **Estado:** Documento de Verdad Absoluta (SSOT - Single Source of Truth)  
 **Archivos Consolidados y Reemplazados:**  
 - `WARERA_MAP_ARCHITECTURE_DEEP_DIVE.md` (Arquitectura de alto rendimiento inspirada en WarEra)  
@@ -16,25 +16,27 @@ La mayoría de los juegos web de estrategia militar o geopolítica y las aplicac
 1. **Sobrecarga de Tiles Raster (PNG/JPG):** Descargar cientos de imágenes cuadradas (`{z}/{x}/{y}.png`) mediante peticiones HTTP concurrentes cada vez que el usuario hace pan o zoom. Esto satura el ancho de banda, genera parpadeos y consume decenas de megabytes de RAM.
 2. **Sobrecarga de DOM/SVG:** Renderizar miles de nodos `<path>` o `<svg>` en el árbol del navegador. Cuando hay más de 500 regiones, cada evento de `mousemove` o cambio de color fuerza un *reflow* y *recalculation* de estilos en la CPU, derrumbando los FPS a menos de 15 FPS.
 
-### La Solución Canónica de GEOTACTICS:
-GEOTACTICS opera bajo una arquitectura **WebGL Vectorial Híbrida Zero-Raster** implementada sobre **MapLibre GL JS v6.16.0** dentro del dominio modular `src/domains/world/` (`@domains/world`):
+### La Solución Canónica de DRONEPUNK 0.0.1:
+DRONEPUNK opera bajo una arquitectura **WebGL Vectorial Híbrida Zero-Raster** implementada sobre **MapLibre GL JS v6.16.0** dentro del dominio modular `src/domains/world/` (`@domains/world`):
 - **Aislamiento de Red 100% Local:** Cero peticiones de red a servidores externos (`cartodb.com`, `mapbox.com`, `openstreetmap.org`). Cero API Keys comerciales.
-- **Geometrías Vectoriales Servidas Localmente (`public/map/`):**
-  - Masa continental global (`/map/world_land.json`).
-  - Polígonos soberanos del teatro de operaciones (`/map/theatre_regions.json`).
-  - Red vial troncal nacional (`/map/theatre_roads.json`).
-  - Red vial urbana de alta densidad (`/map/theatre_urban_roads.json`, activa en `minzoom: 10.0`).
-  - Nodos urbanos y metrópolis reales (`/map/theatre_cities.json`, activa entre `minzoom: 9.0` y `maxzoom: 15.0`).
+- **Geometrías Vectoriales Servidas Localmente (`public/map/`) desde Fuente Única Topológica (TopoJSON):**
+  - Masa continental global (`/map/world_land.json`, ~542.2 KB): combina Natural Earth 50m (32 países de América/Caribe + `GUF`/`BES`) y 110m (resto del mundo) sustituyendo la geometría de Venezuela (`VEN`) por la masa disuelta bit-a-bit idéntica al teatro TopoJSON.
+  - Polígonos soberanos del teatro de operaciones (`/map/theatre_regions.json`, ~321.5 KB): 25 entidades (`REG_VE_01`..`REG_VE_24` disueltas con `topojsonClient.merge` + `BUF_MARITIME_CARIBE` para Dependencias Federales).
+  - Malla de fronteras deduplicadas en GPU (`/map/theatre_borders_mesh.json`, ~214.1 KB): `FeatureCollection` con 3 capas topológicas (`mesh_state_internal`, `mesh_theatre_exterior`, `mesh_federal_dependencies`) y `10,585` segmentos únicos sin duplicados.
+  - Delimitaciones geográficas reales de los 21 municipios del Estado Zulia (`/map/zulia_municipalities.json`, ~65.4 KB, activa en Estrato 2 desde `minzoom: 8.5` hasta `maxzoom: ZOOM_TACTICO - 0.5 = 14.5`).
+  - Red vial troncal nacional (`/map/theatre_roads.json`, ~403.8 KB).
+  - Red vial urbana de alta densidad (`/map/theatre_urban_roads.json`, ~16.2 KB, activa en `minzoom: 9.5`).
+  - Nodos urbanos, metrópolis y las 21 cabeceras municipales del Zulia (`/map/theatre_cities.json`, ~20.4 KB, activa entre `minzoom: 8.5` y `maxzoom: 15.0`).
 - **Fondo Táctico Búnker:** Fondo de pantalla de vacío militar (`#0E100C`) con masas de tierra entintadas (`#1C1E17`) y bordes de camuflaje oliva (`#46521F`).
 - **Worker Autónomo Desacoplado y Zero-SSR:** Importación dinámica (`await import('maplibre-gl')`) dentro de `useEffect` y configuración explícita de `setWorkerUrl('/maplibre-gl-worker.mjs')` desde `public/maplibre-gl-worker.mjs`, garantizando carga local inmediata con código 200 OK sin colapsos de CORS, ni fallos de SSR en Vite.
-- **Picking Analítico WGS84 O(1):** Resolución instantánea de coordenadas geográficas a sectores Web Mercator y baldosas tácticas de $20 \times 20$ en $<0.001\text{ ms}$ (`src/domains/world/core/coordinates.ts`).
-- **WebGL Canvas Pump Hack y Standby 0% GPU:** El `CanvasSource` táctica se mantiene pausado por defecto y solo se bombea a la GPU cuando existen mutaciones reales (*dirty checking* vía `pumpCanvasToWebGL`), entrando en congelación total (`0% CPU/GPU`) tras 5 minutos de inactividad (`ACTIVITY_TIMEOUT_MS = 300_000`) o al perder el foco de la ventana (`window.blur`).
+- **Picking Analítico WGS84 O(1) y Malla Vectorial Continua de Viewport Completo:** Resolución instantánea de coordenadas geográficas a sectores Web Mercator y baldosas tácticas de $20 \times 20$ en $<0.001\text{ ms}$ (`src/domains/world/core/coordinates.ts`), acoplada a la malla vectorial GPU de viewport completo (`tactical-viewport-grid` + `tactical-viewport-grid-hover`) en Estrato 3 que dibuja simultáneamente todas las celdas visibles sin parches ni borrados al desplazar la cámara.
+- **Standby Automático 0% GPU:** El motor entra en modo ahorro (`0% CPU/GPU`) tras 5 minutos de inactividad (`ACTIVITY_TIMEOUT_MS = 300_000`) o al perder el foco de la ventana (`window.blur`).
 
 ### Topología de Archivos del Dominio `src/domains/world/`
 | Ruta Modular Canónica (`src/domains/world/...`) | Responsabilidad Arquitectónica |
 | :--- | :--- |
 | `src/domains/world/components/TacticalWorldMap.tsx` | Renderizador principal WebGL 2.0 C4ISR (exportado también como alias `WorldMapCanvas` en `src/domains/world/index.ts`, consolidando y reemplazando al antiguo `StrategicGlobeMap.tsx`). |
-| `src/domains/world/components/TacticalMapControls.tsx` | Selector de las 4 vistas especializadas C4ISR (`V1_SOVEREIGNTY`, `V2_LOGISTICS`, `V3_RESOURCES`, `V4_THREATS`) y barra de sellos tácticos colaborativos WPlace (`recon`, `danger_mine`, `claim`, `rally_strike`). |
+| `src/domains/world/components/TacticalMapControls.tsx` | Panel C4ISR desvinculado del lienzo principal de `TacticalWorldMap.tsx` (preservado como módulo opcional en `@domains/world` para no romper exportaciones del barril, sin montaje sobre el mapa táctico). |
 | `src/domains/world/core/coordinates.ts` | Motor de conversión analítica $O(1)$ WGS84 (`LngLat`) $\leftrightarrow$ Sectores Web Mercator $\leftrightarrow$ Cuadrícula Táctica $20 \times 20$ y trazado de líneas logísticas de Bresenham. |
 | `src/domains/world/core/tacticalBitmap.ts` | Empaquetado binario ultraligero (`TacticalBitMap` sobre `Uint8Array`) con serialización Base64 para Niebla de Guerra ($20 \times 20 = 400\text{ bits} = 50\text{ bytes}$) y estados macro-regionales. |
 | `src/domains/world/core/worldMapEngine.ts` | Motor geopolítico de adyacencia territorial, validación de asaltos fronterizos, cálculo de mantenimiento corporativo superlineal, resolución de TCP y conectividad logística BFS (`validateSupplyLineConnectivity`). |
@@ -80,10 +82,15 @@ const ZERO_RASTER_MILITARY_STYLE: StyleSpecification = {
       id: 'world-land-border',
       type: 'line',
       source: 'world-land',
+      maxzoom: 7.5,
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'round',
+      },
       paint: {
         'line-color': '#46521F', // --color-military-olive (bisel militar exterior)
         'line-width': 1.2,
-        'line-opacity': 0.65,
+        'line-opacity': ['interpolate', ['linear'], ['zoom'], 4.5, 0.65, 7.5, 0],
       },
     },
   ],
@@ -101,57 +108,75 @@ En `src/domains/world/components/TacticalWorldMap.tsx`, el color de cada polígo
 
 ---
 
-# 3. ESTRATIFICACIÓN EN GPU DE CAPAS VECTORIALES Y RED VIAL (VENEZUELA & CABIMAS)
+# 3. ESTRATIFICACIÓN EN GPU DE CAPAS VECTORIALES, RED VIAL Y DELIMITACIONES DEL ZULIA
 
-Al dispararse el evento `map.on('load')`, `src/domains/world/components/TacticalWorldMap.tsx` monta una jerarquía de **9 fuentes GeoJSON vectoriales** y **1 fuente `CanvasSource` dinámica** en la GPU:
+Al dispararse el evento `map.on('load')`, `src/domains/world/components/TacticalWorldMap.tsx` monta una jerarquía limpia de **fuentes GeoJSON vectoriales** en la GPU, erradicando el panel flotante superior izquierdo (`TacticalMapControls`), las capas de testeo (`cabimas-road-network`, `cabimas-pois`, `tactical-marks-source`, `fief-buildings-source`, `operational-units-source`) y las nubes de diálogo sobre coordenadas del mapa (`worldBarks`):
 
-### 3.1. Capas de Soberanía Provincial (`source: 'tactical-provinces'` — `/map/theatre_regions.json`)
-1. **`provinces-fill` (`type: 'fill'`, `maxzoom: ZOOM_TACTICO - 0.5` = `14.5`):**
+### 3.1. Capas de Soberanía Provincial, Malla de Fronteras Deduplicadas y Precisión `tolerance: 0`
+En `map.on('load')`, las tres fuentes cartográficas críticas se registran con `tolerance: 0` y `buffer: 64` (desactivando la simplificación `geojson-vt` por tesela, que causaba desalineaciones entre polígonos adyacentes) y se mantiene un **orden Z estricto** en la GPU:
+
+1. **Fuentes GeoJSON con `tolerance: 0, buffer: 64`:**
+   - `'tactical-provinces'` (`/map/theatre_regions.json` vía `provincesGeoJSONRef.current`)
+   - `'tactical-borders-mesh'` (`/map/theatre_borders_mesh.json`)
+   - `'zulia-municipalities'` (`/map/zulia_municipalities.json`)
+2. **`provinces-fill` (`type: 'fill'`, `source: 'tactical-provinces'`, `maxzoom: ZOOM_TACTICO - 0.5` = `14.5`):**
    - `fill-color`: `['get', 'ownerColor']`.
    - `fill-opacity`: `0.92` si `isSelected`, `0.84` si `isUnderSiege`, `0.68` por defecto.
-2. **`provinces-borders` (`type: 'line'`):**
-   - `line-color`: `#00FF66` (Verde Fósforo CRT) si `isSelected`, `#EF4444` (Rojo DEFCON 1) si `isUnderSiege`, `#7B8A4A` (`--color-metal-edge`) por defecto.
-   - `line-width`: `3.2` si `isSelected`, `1.5` por defecto (`line-opacity: 0.95`).
-3. **`provinces-vulnerable-halo` (`type: 'line'`, `maxzoom: 14.5`):**
-   - Filtro: `['==', ['get', 'isVulnerableActive'], true]`.
+3. **`tactical-borders-mesh` (`type: 'line'`, `source: 'tactical-borders-mesh'`, `maxzoom: ZOOM_TACTICO - 0.5` = `14.5`):**
+   - Renderiza en **una sola pasada GPU** todos los bordes internos estado-estado (`mesh_state_internal`), el contorno exterior del teatro (`mesh_theatre_exterior`) y las Dependencias Federales (`mesh_federal_dependencies`), eliminando el doble dibujado de aristas compartidas.
+   - `layout`: `{ 'line-join': 'round', 'line-cap': 'round' }`.
+   - `paint`: `'line-color': '#7B8A4A'`, `'line-width': ['interpolate', ['linear'], ['zoom'], 3.5, 1.2, 10, 1.5]`, `'line-opacity': 0.95`.
+4. **`provinces-borders` (`type: 'line'`, `source: 'tactical-provinces'`, `maxzoom: ZOOM_TACTICO - 0.5` = `14.5`):**
+   - Restringida **exclusivamente** a estados seleccionados o bajo asedio mediante `filter: ['any', ['boolean', ['get', 'isSelected'], false], ['boolean', ['get', 'isUnderSiege'], false]]`.
+   - `layout`: `{ 'line-join': 'round', 'line-cap': 'round' }`.
+   - `paint`: `'line-color': ['case', ['boolean', ['get', 'isSelected'], false], '#00FF66', '#EF4444']`, `'line-width': ['case', ['boolean', ['get', 'isSelected'], false], 3.2, 2.2]`, `'line-opacity': 0.95`.
+5. **`provinces-vulnerable-halo` (`type: 'line'`, `source: 'tactical-provinces'`, `maxzoom: ZOOM_TACTICO - 0.5` = `14.5`):**
+   - Filtro: `['==', ['get', 'isVulnerableActive'], true]`, `layout`: `{ 'line-join': 'round', 'line-cap': 'round' }`.
    - Halo pulsante ámbar (`#F59E0B`, `line-width: 4.5`, `line-opacity: 0.85`, `line-blur: 3.0`) para regiones en ventana de vulnerabilidad activa (Anti-Offline Raiding).
 
-### 3.2. Red Vial Troncal Nacional (`source: 'tactical-roads'` — `/map/theatre_roads.json`)
-Las carreteras troncales se renderizan como una triple capa vectorial en la GPU con estética de novela gráfica militar:
-1. **Sombra de Tinta Cómic (`roads-ink-shadow`):**  
+> [!IMPORTANT] ORDEN Z ESTRICTO DE CAPAS EN `TacticalWorldMap.tsx`
+> `background` $\rightarrow$ `world-land-mass` $\rightarrow$ `world-land-border` (`maxzoom: 7.5`) $\rightarrow$ `provinces-fill` $\rightarrow$ `zulia-municipalities-fill` $\rightarrow$ `tactical-borders-mesh` $\rightarrow$ `zulia-municipalities-border` $\rightarrow$ `provinces-borders` $\rightarrow$ `provinces-vulnerable-halo` $\rightarrow$ `roads-*` (`roads-ink-shadow`, `roads-glow`, `roads-core`) $\rightarrow$ `urban-roads-*` (`urban-roads-shadow`, `urban-roads-glow`, `urban-roads-core`) $\rightarrow$ `cities-*` (`cities-glow`, `cities-point`, `cities-labels`) $\rightarrow$ `tactical-viewport-grid-*` (`tactical-viewport-grid-lines`, `tactical-viewport-grid-hover-fill`, `tactical-viewport-grid-hover-line`) $\rightarrow$ `tactical-rts-units-*` (`tactical-rts-units-circle`, `tactical-rts-units-labels`).
+
+### 3.2. Red Vial Troncal y Avenidas Principales en Naranja Exclusivo (`tactical-roads` y `tactical-urban-roads`)
+Tanto las carreteras troncales (`/map/theatre_roads.json`, `403.8 KB`) como las arterias y avenidas urbanas principales (`/map/theatre_urban_roads.json`, `16.2 KB`, `minzoom: 9.5`) se renderizan exclusivamente con **líneas naranjas/ámbar nítidas sobre sombra oscura** (erradicando los trazos cian/azules/verdes de prueba):
+1. **Sombra de Tinta Cómic (`roads-ink-shadow` / `urban-roads-shadow`):**  
    - Color: `#0A0B08` (`line-opacity: 0.85`).  
-   - Ancho interpolado por zoom: `['interpolate', ['linear'], ['zoom'], 4, 1.8, 8, 4.2, 14, 7.0]`.  
-   - Propósito: Separación visual de alto contraste sobre la masa continental.
-2. **Resplandor Radar Militar (`roads-glow`):**  
-   - Desenfoque: `line-blur: 2.0`, `line-opacity: 0.35`, ancho `['interpolate', ['linear'], ['zoom'], 4, 1.4, 8, 3.6, 14, 6.0]`.  
-   - Autopistas (`highway === 'motorway'`): Resplandor Verde CRT Fósforo (`#00FF66`).  
-   - Troncales y vías nacionales (fallback): Resplandor Ámbar Militar C4ISR (`#F59E0B`).
-3. **Núcleo de Precisión (`roads-core`):**  
-   - Ancho fino nítido: `['interpolate', ['linear'], ['zoom'], 4, 0.8, 8, 1.8, 14, 3.2]` (`line-opacity: 0.95`).  
-   - Color en el fragment shader: `#00FF66` para `motorway` y `#FBBF24` (Ámbar Radar brillante) para el resto de troncales nacionales.
+   - Propósito: Separación visual de alto contraste sobre la masa continental y polígonos municipales.
+2. **Resplandor Naranja Táctico (`roads-glow` / `urban-roads-glow`):**  
+   - Color: `#F97316` (`line-opacity: 0.38`–`0.42`, `line-blur: 1.5`–`2.0`).
+3. **Núcleo de Precisión (`roads-core` / `urban-roads-core`):**  
+   - Troncales nacionales (`roads-core`): `#F97316` para `motorway` y `#F59E0B` para el resto de troncales.
+   - Avenidas urbanas (`urban-roads-core`): `#FBBF24` para `primary` y `#F97316` para vías secundarias.
 
-> [!NOTE] NOTA DE OPTIMIZACIÓN EN CURSO
-> La versión actual de `theatre_roads.json` (2.21 MB, 9,093 line features) se encuentra en proceso de reducción mediante simplificación Douglas-Peucker a $\le 95\text{ KB}$ para optimizar la carga en navegadores móviles.
+### 3.3. Delimitaciones Municipales Reales del Estado Zulia, Ciudades y Malla de Viewport Completo
+4. **Delimitación Geográfica Real de los 21 Municipios del Estado Zulia (`source: 'zulia-municipalities'` — `/map/zulia_municipalities.json`, `tolerance: 0`, `buffer: 64`, `minzoom: 8.5`, `maxzoom: ZOOM_TACTICO - 0.5` = `14.5`):**
+   - Contiene los polígonos geográficos reales (`Polygon` / `MultiPolygon`) de los **21 municipios del Estado Zulia** (`MUN_ZULIA_MARACAIBO`, `MUN_ZULIA_SAN_FRANCISCO`, `MUN_ZULIA_CABIMAS`, `MUN_ZULIA_SANTA_RITA`, `MUN_ZULIA_MIRANDA`, `MUN_ZULIA_LAGUNILLAS`, `MUN_ZULIA_VALMORE_RODRIGUEZ`, `MUN_ZULIA_BARALT`, `MUN_ZULIA_SIMON_BOLIVAR`, `MUN_ZULIA_MARA`, `MUN_ZULIA_GUAJIRA`, `MUN_ZULIA_JESUS_ENRIQUE_LOSSADA`, `MUN_ZULIA_LA_CANADA_DE_URDANETA`, `MUN_ZULIA_MACHIQUES_DE_PERIJA`, `MUN_ZULIA_ROSARIO_DE_PERIJA`, `MUN_ZULIA_COLON`, `MUN_ZULIA_FRANCISCO_JAVIER_PULGAR`, `MUN_ZULIA_CATATUMBO`, `MUN_ZULIA_JESUS_MARIA_SEMPRUM`, `MUN_ZULIA_SUCRE`, `MUN_ZULIA_ALMIRANTE_PADILLA`).
+   - Capa `zulia-municipalities-fill`: relleno táctico semitransparente que se ilumina en `#F59E0B` (`fill-opacity: 0.34`) al seleccionarse el municipio.
+   - Capa `zulia-municipalities-border` (`minzoom: 8.5`, `maxzoom: ZOOM_TACTICO - 0.5`, `'line-join': 'round'`, `'line-cap': 'round'`): contorno geográfico real que resalta en `#00FF66` (`line-width: 3.2`, `line-opacity: 0.98`) cuando está seleccionado.
+5. **Ciudades, Metrópolis y Cabeceras Municipales (`source: 'tactical-cities'` — `/map/theatre_cities.json`, `minzoom: 8.5`, `maxzoom: 15.0`):**
+   - Capas `cities-glow` (`#F59E0B`), `cities-point` y etiquetas `cities-labels` en mayúsculas con halo `#0A0B08`.
+   - En la segunda vista (Estrato 2), hacer clic sobre el nombre (`cities-labels`), el punto (`cities-point`) o el polígono (`zulia-municipalities-fill`) selecciona e ilumina inmediatamente la delimitación geográfica real del municipio correspondiente vía `municipalityId`.
+6. **Cuadrícula Táctica Vectorial de Viewport Completo (`source: 'tactical-viewport-grid'` & `'tactical-viewport-grid-hover'`, `minzoom: 14.0`):**
+   - Sustituye al renderizador parcial de un solo `CanvasSource` por una malla vectorial continua en GPU calculada sobre todo `map.getBounds()` (expandido 1 sector de margen) con líneas continuas horizontales y verticales generadas mediante `tileFractionToLngLat`.
+   - Capa `tactical-viewport-grid-lines`: renderiza simultáneamente el 100% de las celdas visibles en pantalla (`#A3E635`, `line-opacity: 0.28`) y bordes de sector (`#00FF66`, `line-width: 1.6`), sin parches vacíos ni borrados al desplazar la cámara.
+   - Capas `tactical-viewport-grid-hover-fill` y `tactical-viewport-grid-hover-line`: resaltan en `#FACC15` la celda bajo cursor o seleccionada.
 
-### 3.3. Red Vial Urbana, Ciudades, Corredor Cabimas, Edificios y Unidades Operacionales
-4. **Grafo Vial Activo del Teatro Cabimas (`source: 'cabimas-road-network'` & `'cabimas-pois'`):**
-   - Alimentado dinámicamente por `roadNetworkEngine.toGeoJSON()` y `roadNetworkEngine.getAllNodes()` (`src/domains/world/core/roadNetworkEngine.ts`).
-   - Capa `cabimas-roads-highlight`: Línea táctica cuyo color muta según el modo de vista C4ISR seleccionado en `TacticalMapControls.tsx`:
-     - `V1_SOVEREIGNTY`: `#06B6D4` (Cian Táctico)
-     - `V2_LOGISTICS`: `#22C55E` (Verde Suministro)
-     - `V3_RESOURCES`: `#E5A93C` (Ámbar Petrolero; incrementa además `circle-opacity` de `fief-buildings-glow` a `0.75`)
-     - `V4_THREATS`: `#EF4444` (Rojo Amenaza FLIR)
-   - Capa `cabimas-pois-circle`: Nodos estratégicos (Puente Gral. Rafael Urdaneta, Terminal La Salina, Pozo El Barroso II, Complejo Punta Gorda, Campos Tía Juana, Ciudad Ojeda, etc.).
-5. **Marcas Tácticas Colaborativas WPlace (`source: 'tactical-marks-source'`, capa `'tactical-marks-layer'`):**
-   - Sellos georreferenciados con expiración de 1 hora (`recon` `#06B6D4`, `danger_mine` `#EAB308`, `claim` `#3B82F6`, `rally_strike` `#EF4444`) que disparan bocadillos diegéticos *World-Space Barks* (`worldBarks`) proyectados en pantalla mediante `map.project(b.lngLat)`.
-6. **Estructuras Industriales de Feudos (`source: 'fief-buildings-source'`):**
-   - Alimentado por `fiefBuildingService.toGeoJSON()`. Renderiza triple capa: resplandor `fief-buildings-glow`, núcleo `fief-buildings-circle` (`refinery` `#E5A93C`, `microchip_foundry` `#06B6D4`, `weapons_factory` `#EF4444`, `logistics_silo` `#22C55E`, `radar_station` `#A855F7`) y etiquetas `fief-buildings-labels` (`minzoom: 11.0`).
-7. **Red Vial Urbana Real (`source: 'tactical-urban-roads'` — `/map/theatre_urban_roads.json`, `minzoom: 10.0`):**
-   - Triple capa urbana: `urban-roads-shadow` (`#0A0B08`), `urban-roads-glow` (`primary` `#00FF66`, resto `#06B6D4`) y `urban-roads-core` (`primary` `#6EE7B7`, resto `#38BDF8`).
-8. **Ciudades y Metrópolis (`source: 'tactical-cities'` — `/map/theatre_cities.json`, `minzoom: 9.0`, `maxzoom: 15.0`):**
-   - Capas `cities-glow` (`#F59E0B`), `cities-point` (`#F2E8D5`) y etiquetas `cities-labels` en mayúsculas con halo `#0A0B08`.
-9. **Unidades Desplegadas Operacionales (`source: 'operational-units-source'`, `minzoom: 10.0`):**
-   - Alimentado en vivo por `operationalUnitsService.toGeoJSON()`. Capas `operational-units-glow`, `operational-units-circle` y etiquetas `operational-units-labels` que muestran `callsign • {hp}HP` en verde fósforo `#00FF66`.
+### 3.4. Pipeline Topológico Bottom-Up (Single Topological Source of Truth — TopoJSON)
+Para erradicar las brechas y solapamientos de 0.21–2.39 km entre estados adyacentes, municipios del Zulia y la línea de costa continental, la generación cartográfica unifica todas las capas en **una sola topología TopoJSON compartida** mediante `topojson-server@^3.0.1`, `topojson-client@^3.1.0` y `topojson-simplify@^3.0.3`:
+
+1. **`scripts/build-theatre-vector-data.mjs` (Generador Bottom-Up Canónico):**
+   - Descarga los municipios oficiales de Venezuela a resolución completa (`geoBoundaries-VEN-ADM2.geojson`) y `geoBoundaries-VEN-ADM1_simplified.geojson` únicamente para: (a) clasificar los 334 municipios válidos (excluyendo `'Zona en Reclamación'`) en su estado padre `REG_VE_01`..`REG_VE_24` mediante muestreo de puntos interiores (`classifyMunicipalityState`) conservando `shapeISO`, y (b) extraer `Dependencias Federales` (`BUF_MARITIME_CARIBE`, `shapeISO: 'VE-W'`).
+   - Mapea los 21 municipios de `REG_VE_02` a sus IDs canónicos `MUN_ZULIA_*` y `cityName` sincronizados con `/map/theatre_cities.json`, soportando exportación parametrizada (`--states=REG_VE_02` por defecto o `--states=ALL`), `--min-weight=1.5e-5`, `--skip-roads` y `--rebuild-roads` (preservando `theatre_roads.json` existente salvo `--rebuild-roads`).
+   - Pre-ajusta coordenadas (`COORD_DECIMALS = 5`, `cleanGeometry`), construye **una única topología** (`topojsonServer.topology({ municipalities, federal_dependencies }, 1e5)`), ejecuta `topojsonSimplify.presimplify` + `preserveClosedArcs` (protege islas de arco único con $\ge 4$ vértices) + `topojsonSimplify.simplify(..., 1.5e-5)`, y antes de extraer GeoJSON ejecuta `decodeAndSnapTopoArcs(topo, 5)` (decodifica arcos, redondea a 5 decimales, elimina duplicados consecutivos manteniendo $\ge 2$ puntos y ejecuta `delete topo.transform`).
+   - Exporta bit-a-bit desde el mismo `topo` validado por `verifyTopologyInvariants`:
+     - `/map/theatre_regions.json`: 25 polígonos (`REG_VE_01`..`REG_VE_24` disueltos mediante `topojsonClient.merge` + `BUF_MARITIME_CARIBE`).
+     - `/map/zulia_municipalities.json`: 21 municipios de `REG_VE_02`.
+     - `/map/theatre_borders_mesh.json`: `FeatureCollection` de `MultiLineString` con 3 features (`mesh_state_internal`, `mesh_theatre_exterior`, `mesh_federal_dependencies`) sin segmentos duplicados.
+2. **`scripts/download-world-land.mjs` (Masa Continental Global Sincronizada):**
+   - Descarga `ne_50m_admin_0_countries.geojson` (32 códigos de América/Caribe + `GUF` de `FRA` y `BES` de `NLD`) y `ne_110m_admin_0_countries.geojson` para el resto del globo, excluyendo el polígono grueso de Venezuela en Natural Earth.
+   - Invoca `buildTheatreTopology({ targetStates: ['REG_VE_02'] })` e inyecta `theatre.venezuelaLandGeometry` como feature `VEN`, garantizando coincidencia bit-a-bit (`0.000 m`) con `/map/theatre_regions.json` y `/map/theatre_borders_mesh.json`.
+3. **`scripts/optimize-regions.mjs` (Deprecado / Delegado):**
+   - Queda prohibida la simplificación Douglas-Peucker independiente por anillo. Al ejecutarse, `optimize-regions.mjs` emite advertencia `[DEPRECATION]` y delega directamente a `runBuildPipeline({ ...cliOptions, skipRoads: true })`.
 
 ---
 
@@ -243,18 +268,39 @@ El teatro inicial de operaciones cubre la totalidad de la República de Venezuel
 La cámara de MapLibre GL se inicializa sobre el **Epicentro Operacional del Teatro Cabimas (Zulia)** en `center: [-71.455, 10.395]` con `zoom: 9.8` (`minZoom: 2.0`, `maxZoom: 18.0`). El método `getStratumForZoom(z)` en `src/domains/world/components/TacticalWorldMap.tsx` y las constantes de `src/domains/world/core/coordinates.ts` gobiernan 3 estratos de nivel de detalle semántico (*Semantic LOD*), disparando una transición cinética de enfoque (`tactical-stratum-blur` durante $260\text{ ms}$) al cruzar cada umbral:
 
 1. **Estrato 1 — Vista Macro-Estratégica (`z < 10.0`, `ZOOM_GLOBAL = 3.5`):**
-   - Polígonos de soberanía estadal (`provinces-fill`, `provinces-borders`, `provinces-vulnerable-halo`) coloreados según facción (`resolveFactionColor`), red vial troncal nacional (`tactical-roads`) y corredor estratégico de Cabimas (`cabimas-road-network`).
-   - A partir de `z >= 9.0` emergen los nodos y etiquetas de ciudades (`tactical-cities`).
+   - Polígonos de soberanía estadal (`provinces-fill` y resaltados `provinces-borders` filtrados exclusivamente a estados `isSelected || isUnderSiege`) más la malla única de fronteras (`tactical-borders-mesh`) y red vial troncal nacional en naranja (`tactical-roads`).
+   - El contorno continental exterior `world-land-border` aplica `maxzoom: 7.5` con interpolación de opacidad (`4.5 -> 0.65`, `7.5 -> 0`), desvaneciéndose antes del Estrato Operacional para impedir líneas duplicadas de baja resolución.
+   - A partir de `z >= 8.5` emergen las delimitaciones municipales reales del Estado Zulia (`zulia-municipalities`) y los nodos/etiquetas de ciudades (`tactical-cities`).
    - En la Capa 1 Geopolítica (`useTerritoryMap.ts` y `politicalAliceEngine.ts`), las declaraciones de ataque y asedios regionales también pueden ejecutarse mediante resolución política determinista sobre los Puntos de Control Territorial (`TCP`).
 
-2. **Estrato 2 — Teatro Operacional y Red Vial (`10.0 <= z < 15.0`, `ZOOM_OPERACIONAL = 10.0`):**
-   - Activación automática de la malla vial urbana real (`tactical-urban-roads`, `minzoom: 10.0`), unidades operacionales desplegadas en el mapa con indicador de salud `1-100 HP` (`operational-units-source`, `minzoom: 10.0`) y etiquetas de complejos industriales de feudo (`fief-buildings-labels`, `minzoom: 11.0`).
-   - Navegación rápida mediante el botón **CABIMAS** (`flyTo` a `[-71.455, 10.395]`, `zoom: 11.2`, `duration: 1800ms`).
+2. **Estrato 2 — Teatro Operacional, Avenidas Naranjas y Municipios del Zulia (`10.0 <= z < 15.0`, `ZOOM_OPERACIONAL = 10.0`):**
+   - Activación de la malla vial urbana real exclusivamente en tonos naranjas/ámbar (`tactical-urban-roads`, `minzoom: 9.5`) sin marcadores o unidades de prueba sobre el mapa.
+   - Visibilidad completa de las 21 cabeceras municipales y ciudades del Zulia (`tactical-cities`, `minzoom: 8.5`): al hacer clic en el nombre de cualquier ciudad/municipio se selecciona e ilumina su delimitación geográfica poligonal real en `zulia-municipalities` (`#F59E0B` relleno / `#00FF66` contorno).
 
-3. **Estrato 3 — Cuadrícula de Combate C4ISR y Microjuego Espacial (`z >= 15.0`, `ZOOM_TACTICO = 15.0`):**
-   - El relleno de polígonos macro (`provinces-fill` y `provinces-vulnerable-halo`) se apaga en `maxzoom: 14.5` para despejar el terreno táctico.
-   - `syncTileCanvasLifecycle` ancla dinámicamente un `CanvasSource` (`tile-canvas-source-${sectorX}_${sectorY}`) de `1000x1000 px` (`TILE_SIZE = 1000`) subdividido en una cuadrícula táctica de **$20 \times 20$ celdas** (`TACTICAL_GRID_DIMENSION = 20`, $50 \times 50\text{ px}$ por celda) mediante `getTileBounds`.
-   - `renderTacticalBattleCanvas` dibuja a 10 ticks/s (`TacticalRtsEngine`, `tickIntervalMs: 100`) con *dirty checking*:
-     - **Niebla de Guerra Binaria:** Decodificada desde `TacticalBitMap.fromBase64(fogOfWarBase64)`.
-     - **Unidades con Escala Continua de 1 a 100 HP Enteros (Pilar Canónico 2):** Chasis por facción, retícula de selección C4ISR, indicador de recarga (`CD`) y trazadoras balísticas (`BallisticTracer`).
+3. **Estrato 3 — Cuadrícula Vectorial de Viewport Completo y Microjuego Espacial (`z >= 15.0`, `ZOOM_TACTICO = 15.0`):**
+   - **Corte estricto de LOD:** Todas las capas macro y operacionales de polígonos y fronteras (`provinces-fill`, `provinces-borders`, `provinces-vulnerable-halo`, `tactical-borders-mesh`, `zulia-municipalities-fill`, `zulia-municipalities-border`) declaran `maxzoom: ZOOM_TACTICO - 0.5` (`14.5`), dejando el terreno táctico completamente limpio al cruzar `z >= 14.5` (y `world-land-border` ya está apagado desde `z >= 7.5`).
+   - `syncViewportGrid` actualiza en `load`, `move`, `moveend` y `zoom` las fuentes vectoriales GPU `tactical-viewport-grid` y `tactical-viewport-grid-hover` cubriendo el 100% del viewport actual (`map.getBounds()` + 1 sector de margen) con cuadrícula continua de $20 \times 20$ celdas por sector, sin parches vacíos ni borrado de sectores adyacentes al desplazar la cámara.
    - **Despliegue y Construcción In-Situ (`spatialDeploymentService.ts`):** Al seleccionar cualquier celda a `z >= 15.0`, el HUD inferior (`MicroTacticalDeckHUD`) expone las coordenadas `SEC [x,y] • CELL [x,y]`, el tipo de micro-terreno (`urban_asphalt`, `industrial_compound`, `defensive_ridge`, `open_plains`), las estrellas de defensa y permite abrir el `TacticalUnitDeployModal` o el `TacticalConstructionDrawer` sincronizados en tiempo real con Supabase CDC.
+
+---
+
+# 7. AUDITORÍA TOPOLÓGICA DETERMINISTA (`0.000 m`) Y VERIFICACIÓN E2E PLAYWRIGHT
+
+La integridad matemática de la cartografía vectorial y su cumplimiento estricto de Semantic LOD se auditan en dos niveles automatizados:
+
+### 7.1. Auditoría Determinista CLI y Suite TypeScript (`npm run test:cartography`)
+Implementada en `scripts/verify-map-topology.mjs` (CLI `node scripts/verify-map-topology.mjs [--json]`) y ejecutada en conjunto con `coordinatesAndBitmap.test.ts` mediante `src/domains/world/__tests__/cartographyTopologyAudit.test.ts`:
+- **Pre-check SSOT (`@domains/world`):** Verifica constantes (`ZOOM_GLOBAL === 3.5`, `ZOOM_OPERACIONAL === 10.0`, `ZOOM_TACTICO === 15.0`), los 24 IDs `REG_VE_01`..`REG_VE_24` + `BUF_MARITIME_CARIBE`, los 21 IDs `MUN_ZULIA_*`, `signedShoelaceArea` y `pointToSegmentDistKm`.
+- **Test 1 (`auditCanonicalIdsAndGeometry`):** Valida las 25 features en `theatre_regions.json`, 21 features (`stateId === 'REG_VE_02'`) en `zulia_municipalities.json`, $\ge 4$ vértices por anillo, anillos cerrados, cero vértices consecutivos duplicados y área Shoelace no nula.
+- **Test 2 (`auditStateToStateBoundaries`):** Audita la coherencia estado-estado bit-a-bit (`0.000 m`): cero colisiones en el mismo sentido, devanado opuesto `(u -> v)` vs `(v -> u)` en las aristas internas compartidas, cero near-misses internos (`0.0001–2.5 km`), cero huecos/slivers en el grafo disuelto e igualdad del 100% con `mesh_state_internal` en `theatre_borders_mesh.json`.
+- **Test 3 (`auditZuliaMunicipalitiesCoherence`):** Verifica coincidencia al 100% de segmentos y vértices exteriores (`multiplicidad === 1`) entre `zulia_municipalities.json` y `REG_VE_02` en `theatre_regions.json`.
+- **Test 4 (`auditBordersMeshUniqueness`):** Verifica cero segmentos no dirigidos duplicados y cero segmentos de longitud cero entre `mesh_state_internal`, `mesh_theatre_exterior` y `mesh_federal_dependencies` en `theatre_borders_mesh.json`.
+- **Test 5 (`auditWorldLandVenezuelaCoherence`):** Valida que la única feature `VEN` de `world_land.json` coincide al 100% (`0.000 m`) con el perímetro exterior de `theatre_regions.json` y con `mesh_theatre_exterior + mesh_federal_dependencies`.
+- **Test 6 (`auditTacticalWorldMapInvariants`):** Auditoría estática read-only de `TacticalWorldMap.tsx` que verifica cero URLs externas `http(s)` / capas `raster`, `maxzoom` en las 4 capas de contorno (`world-land-border`, `provinces-borders`, `tactical-borders-mesh`, `zulia-municipalities-border`), `tolerance: 0` en las 3 fuentes tácticas (`tactical-provinces`, `tactical-borders-mesh`, `zulia-municipalities`), filtro exclusivo de `provinces-borders` (`isSelected` / `isUnderSiege`) y el orden Z estricto de capas.
+
+### 7.2. Verificación E2E en Chromium WebGL (`npm run test:qa`)
+La suite `tests/e2e/game-playtester.spec.ts` inspecciona `window.__TACTICAL_MAP_INSTANCE__` y `window.__TACTICAL_QA_BRIDGE__` sobre el renderizador real en Chromium comprobando:
+- Carga completa de fuentes locales (`world-land`, `tactical-provinces`, `tactical-borders-mesh`, `zulia-municipalities`) con `tolerance === 0`, `buffer === 64`, `maxzoom` esperados (`7.5` y `14.5`) y orden Z estricto.
+- **Estrato Global (`zoom 5.5`, `[-66.5, 8.2]`):** `provinces-fill`, `tactical-borders-mesh` y `world-land-border` visibles; `zulia-municipalities-*` inactivos.
+- **Estrato Operacional (`zoom 10.5`, Lago de Maracaibo `[-71.35, 9.95]` y Cabimas `[-71.455, 10.395]`):** `world-land-border` apagado (`0` features); `zulia-municipalities-fill`, `zulia-municipalities-border` y `tactical-borders-mesh` activos con Cabimas, Mene Grande y Bobures visibles.
+- **Estrato Táctico (`zoom 15.5`, Cabimas `[-71.455, 10.395]`):** `tactical-viewport-grid-lines` activo cubriendo el viewport $20 \times 20$; `0` features renderizadas en `world-land-border`, `provinces-fill`, `provinces-borders`, `tactical-borders-mesh`, `zulia-municipalities-fill` y `zulia-municipalities-border`, con `0` errores de consola/red y `0` peticiones a servidores externos de teselas raster.

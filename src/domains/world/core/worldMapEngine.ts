@@ -2,7 +2,7 @@
  * ==============================================================================
  * MOTOR GEOPOLÍTICO Y TOPOLOGÍA TERRITORIAL (WORLD MAP ENGINE)
  * ==============================================================================
- * Especificación Canónica: METAGAME_DESIGN/MASTER_METAGAME_SPEC_V1.md §3 y §4
+ * Especificación Canónica: docs/00_GEOTACTICS_ONLINE_MASTER_SPEC.md §3 y docs/01_MASTER_CARTOGRAPHY_WEBGL_ZERO_RASTER.md
  * Pilares: Risk.io + Victoria 3 Macro-Economy
  * ==============================================================================
  */

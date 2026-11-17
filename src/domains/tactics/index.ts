@@ -6,7 +6,9 @@
 // Core Motors
 export {
   CanonicalCombatEngine,
+  resolveDeterministicH3Combat,
   type CanonicalCombatOptions,
+  type DeterministicH3CombatResult,
 } from './core/canonicalCombat';
 export {
   CombatEngine,
@@ -26,13 +28,27 @@ export {
 } from './core/coSystem';
 export {
   GarrisonAIEngine,
+  evaluateDroneGambitTick,
+  CANONICAL_GAMBIT_PRESETS,
+  serializeDoctrineCode,
+  deserializeDoctrineCode,
+  evaluateCartridgeGambitRules,
+  simulateDroneDryRun,
   type GarrisonLevelSpec,
   type GarrisonInvestmentRebalance,
+  type GambitDetectedContact,
+  type GambitEvaluationContext,
+  type GambitTickDecision,
+  type CartridgeSensorContext,
+  type DryRunCheckpoint,
+  type DryRunSimulationResult,
 } from './core/garrisonAIEngine';
 export {
   CANONICAL_DAMAGE_CHART,
   COMBAT_EFFECTIVENESS_MATRIX,
+  H3_DRONE_BASE_DAMAGE_MATRIX,
   getCanonicalBaseDamage,
+  getH3DroneBaseDamageRatio,
   normalizeUnitCode,
   isIndirectFireUnit,
   canDirectlyAttack,
@@ -70,6 +86,8 @@ export {
 export {
   getUnitTurnFuelConsumption,
   processTurnFuelConsumption,
+  calculateSupplyLineHourlyFuelBurn,
+  type SupplyLineHourlyFuelResult,
 } from './core/fuelLogistics';
 export {
   executeBlackBombExplosion,
@@ -93,7 +111,12 @@ export {
 export {
   OperationalUnitsEngine,
   operationalUnitsEngine,
+  CANONICAL_H3_DRONE_CATALOG,
+  CANONICAL_DRONE_ROLE_PROFILES,
+  resolveDroneRoleFromUnitCode,
+  buildDroneSignalProjection,
   type OperationalDeployedUnit,
+  type DroneRoleProfile,
 } from './core/operationalUnitsEngine';
 export {
   TacticalBotAI,
@@ -202,4 +225,4 @@ export { ProductionModal } from './components/ProductionModal';
 export { ComicVignetteOverlay } from './components/ComicVignetteOverlay';
 export { CombatTheaterView } from './components/CombatTheaterView';
 export { ReinforcementRequestModal } from './components/ReinforcementRequestModal';
-export { GeotacticsLoadingScreen } from './components/GeotacticsLoadingScreen';
+export { GeotacticsLoadingScreen, DronepunkLoadingScreen } from './components/GeotacticsLoadingScreen';

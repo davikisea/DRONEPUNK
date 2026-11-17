@@ -62,7 +62,7 @@ export const MATCH_FORMAT_CONFIGS: Record<MatchFormat, MatchFormatConfig> = {
 /**
  * Calcula el multiplicador decreciente para partidas offline según la curva Soft Cap:
  * mu(k) = [0.60 (k<=3), 0.30 (4<=k<=6), 0.10 (7<=k<=10), 0.02 (k>=11)]
- * Referencia: docs/orchestration/02_ECONOMY_AND_RETENTION_REBALANCE.md
+ * Referencia: docs/02_MASTER_METAGAME_INDUSTRY_ECONOMY.md
  */
 export function calculateOfflineRewardMultiplier(dailyMatchesCount: number): number {
   const matchIndex = dailyMatchesCount + 1;
@@ -266,7 +266,6 @@ export class AutonomousTurnOrchestrator {
         const u = units[unitIndex];
         const newTacticalUnit: TacticalUnit = {
           id: `reinf-${Date.now()}-${unitIndex}`,
-          name: u.unitCode,
           unitCode: u.unitCode,
           displayName: u.unitCode,
           ownerId: player,
@@ -274,25 +273,18 @@ export class AutonomousTurnOrchestrator {
           y: tile.y,
           hp: u.hp > 10 ? u.hp : u.hp * 10,
           maxHp: MASTER_METAGAME_CONSTANTS.CANONICAL_MAX_HP,
-          movePoints: 4,
-          moveType: 'treads',
-          rangeMin: 1,
-          rangeMax: 1,
+          ammo: 6,
+          fuel: 60,
+          movementPoints: 4,
+          movementType: 'treads',
           minRange: 1,
           maxRange: 1,
-          ammo: 6,
-          maxAmmo: 6,
-          fuel: 60,
-          maxFuel: 60,
-          vision: 3,
+          visionRange: 3,
+          baseAttack: 70,
           productionCost: 3000,
           hasMoved: false,
           hasActed: false,
-          canCapture: false,
-          isDiving: false,
-          baseAttack: 70,
-          armorType: 'vehicle',
-          weaponType: 'cannon',
+          skinId: 'default',
         };
         this.units.push(newTacticalUnit);
         unitIndex++;

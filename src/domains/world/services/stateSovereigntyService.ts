@@ -9,7 +9,69 @@
  * ==============================================================================
  */
 
-import { supabase, isSupabaseConfigured } from '@shared';
+import {
+  supabase,
+  isSupabaseConfigured,
+  MASTER_METAGAME_CONSTANTS,
+  type MunicipalManagerRole,
+  type MunicipalAuditActionType,
+  type MunicipalAuditLogEntry,
+  type StateLevelPerkState,
+  type CorporateMacroPrivilegeState,
+  type StatePerkId,
+  type StatePerkSpec,
+} from '@shared';
+
+export const STATE_PERKS_CATALOG: Record<StatePerkId, StatePerkSpec> = {
+  VANGUARD_LOGISTICS: {
+    id: 'VANGUARD_LOGISTICS',
+    branch: 'EXPANSION',
+    name: 'Logística de Vanguardia',
+    description: '-30% consumo de CB/h para drones en estados fronterizos al estado controlado.',
+  },
+  BLITZKRIEG_DOCTRINE: {
+    id: 'BLITZKRIEG_DOCTRINE',
+    branch: 'EXPANSION',
+    name: 'Doctrina Relámpago',
+    description: 'Recons y Tanques Medios ganan +1 hex de movimiento por tick durante sus primeras 6h (24 ticks).',
+  },
+  ASYMMETRIC_WARFARE: {
+    id: 'ASYMMETRIC_WARFARE',
+    branch: 'EXPANSION',
+    name: 'Guerra Asimétrica',
+    description: 'Drones Infantería tardan 1h (4 ticks) en vez de 2h en capturar/sabotear fábricas adyacentes.',
+  },
+  MICROCHIP_SUBSIDY: {
+    id: 'MICROCHIP_SUBSIDY',
+    branch: 'INDUSTRIAL',
+    name: 'Subsidio de Microchips',
+    description: '+25% producción de Microchips (MC) en fábricas de la corporación dentro del estado.',
+  },
+  CORPORATE_FREE_ZONE: {
+    id: 'CORPORATE_FREE_ZONE',
+    branch: 'INDUSTRIAL',
+    name: 'Zona Franca Corporativa',
+    description: 'Reduce impuesto de extracción del 10% al 0% para miembros (mantiene hasta 50% para rivales).',
+  },
+  CENTRALIZED_SUPPLY: {
+    id: 'CENTRALIZED_SUPPLY',
+    branch: 'INDUSTRIAL',
+    name: 'Suministro Centralizado',
+    description: 'Los APC fabricados duplican max_fuel y reparan +25% HP/h en lugar de 15%.',
+  },
+  CIVIL_MOBILIZATION: {
+    id: 'CIVIL_MOBILIZATION',
+    branch: 'FORTRESS',
+    name: 'Movilización Civil',
+    description: 'Hexágonos del estado regeneran +5% de control/h hacia la corporación si no hay enemigos presentes.',
+  },
+  INTEGRATED_DEFENSE_NET: {
+    id: 'INTEGRATED_DEFENSE_NET',
+    branch: 'FORTRESS',
+    name: 'Red de Defensa Integrada',
+    description: '+1 hex de alcance de disparo a Artillerías, Lanzamisiles y Baterías AA dentro del estado.',
+  },
+};
 import type {
   StateSovereigntyRecord,
   UserRoleContext,
@@ -21,6 +83,11 @@ type StateChangeListener = (updatedState: StateSovereigntyRecord) => void;
 
 class StateSovereigntyService {
   private statesMap: Map<string, StateSovereigntyRecord> = new Map();
+  private municipalManagers: Map<string, MunicipalManagerRole> = new Map();
+  private corporateDiplomacy: Map<
+    string,
+    { nonAggressionPacts: string[]; customTariffTreaties: Record<string, number> }
+  > = new Map();
   private listeners: Set<StateChangeListener> = new Set();
   private isInitialized = false;
   private realtimeChannel: any = null;
@@ -438,6 +505,307 @@ class StateSovereigntyService {
     this.notifyListeners(updated);
 
     return { success: true, state: updated };
+  }
+
+  // ============================================================================
+  // POLÍTICA MACRO ESCALADA: GESTOR MUNICIPAL, PERKS ESTATALES (>60%) Y DIPLOMACIA
+  // ============================================================================
+
+  /**
+   * Nombra un Gestor Municipal exclusivo para un municipio donde la Corporación
+   * ya haya consolidado mayoría simple (>50% de las micro-celdas).
+   */
+  public appointMunicipalManager(params: {
+    municipalityId: string;
+    stateId: string;
+    municipalityControllingClanId: string | null;
+    majorityRatio: number;
+    managerUserId: string;
+    managerUserName: string;
+    actorContext: UserRoleContext;
+    initialTaxRate?: number;
+  }): { success: boolean; manager?: MunicipalManagerRole; error?: string } {
+    if (params.majorityRatio <= MASTER_METAGAME_CONSTANTS.MUNICIPAL_MAJORITY_THRESHOLD) {
+      return {
+        success: false,
+        error: `Mayoría insuficiente: se requiere >50% de las micro-celdas del municipio (actual: ${(params.majorityRatio * 100).toFixed(1)}%).`,
+      };
+    }
+
+    if (
+      !params.municipalityControllingClanId ||
+      params.municipalityControllingClanId !== params.actorContext.clanId
+    ) {
+      return {
+        success: false,
+        error: 'Solo la Corporación que ostenta la soberanía municipal puede nombrar al Gestor Municipal.',
+      };
+    }
+
+    const canAppoint =
+      params.actorContext.clanRole === 'leader' ||
+      params.actorContext.clanRole === 'officer' ||
+      params.actorContext.isFactionManager;
+    if (!canAppoint) {
+      return {
+        success: false,
+        error: 'Permisos RBAC insuficientes: solo Líderes, Oficiales o Gestores de Facción nombran Gestores Municipales.',
+      };
+    }
+
+    const localTaxRate = Math.max(
+      MASTER_METAGAME_CONSTANTS.ALLIED_TAX_RATE_MIN,
+      Math.min(
+        MASTER_METAGAME_CONSTANTS.RIVAL_RETENTION_RATE_MAX,
+        params.initialTaxRate ?? 0.08
+      )
+    );
+
+    const manager: MunicipalManagerRole = {
+      managerUserId: params.managerUserId,
+      managerUserName: params.managerUserName,
+      municipalityId: params.municipalityId,
+      stateId: params.stateId,
+      appointedByClanId: params.municipalityControllingClanId,
+      publicBuildingsState: {
+        earlyWarningRadarActive: true,
+        rapidRepairWorkshopActive: true,
+        samBatteryActive: true,
+      },
+      localTaxRate,
+      corruptionRiskScore: 0,
+      auditTrailLogs: [],
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.municipalManagers.set(params.municipalityId, manager);
+    return { success: true, manager };
+  }
+
+  public getMunicipalManager(municipalityId: string): MunicipalManagerRole | undefined {
+    return this.municipalManagers.get(municipalityId);
+  }
+
+  /**
+   * Ejecuta una orden exclusiva del Gestor Municipal (Radares, Talleres, Baterías SAM o Impuesto)
+   * registrando trazabilidad completa en bitácora C4ISR contra corrupción/sabotaje interno.
+   */
+  public executeMunicipalManagerAction(params: {
+    municipalityId: string;
+    actorUserId: string;
+    actorUserName: string;
+    actionType: MunicipalAuditActionType;
+    buildingEnabled?: boolean;
+    newLocalTaxRate?: number;
+    isPreIncursionWindow?: boolean;
+  }): {
+    success: boolean;
+    manager?: MunicipalManagerRole;
+    auditEntry?: MunicipalAuditLogEntry;
+    error?: string;
+  } {
+    const manager = this.municipalManagers.get(params.municipalityId);
+    if (!manager) {
+      return { success: false, error: 'El municipio no tiene un Gestor Municipal asignado.' };
+    }
+
+    if (manager.managerUserId !== params.actorUserId) {
+      return {
+        success: false,
+        error: `RBAC DENEGADO: Solo el Gestor asignado (${manager.managerUserName}) puede operar la infraestructura municipal.`,
+      };
+    }
+
+    let previousValue = '';
+    let newValue = '';
+    let isSuspiciousCorruption = false;
+
+    if (params.actionType === 'toggle_radar' || params.actionType === 'sabotage_radar_pre_incursion') {
+      previousValue = String(manager.publicBuildingsState.earlyWarningRadarActive);
+      const nextActive =
+        params.actionType === 'sabotage_radar_pre_incursion'
+          ? false
+          : (params.buildingEnabled ?? !manager.publicBuildingsState.earlyWarningRadarActive);
+      manager.publicBuildingsState.earlyWarningRadarActive = nextActive;
+      newValue = String(nextActive);
+      if (!nextActive && (params.isPreIncursionWindow || params.actionType === 'sabotage_radar_pre_incursion')) {
+        isSuspiciousCorruption = true;
+      }
+    } else if (params.actionType === 'toggle_workshop') {
+      previousValue = String(manager.publicBuildingsState.rapidRepairWorkshopActive);
+      const nextActive = params.buildingEnabled ?? !manager.publicBuildingsState.rapidRepairWorkshopActive;
+      manager.publicBuildingsState.rapidRepairWorkshopActive = nextActive;
+      newValue = String(nextActive);
+    } else if (params.actionType === 'toggle_sam_battery') {
+      previousValue = String(manager.publicBuildingsState.samBatteryActive);
+      const nextActive = params.buildingEnabled ?? !manager.publicBuildingsState.samBatteryActive;
+      manager.publicBuildingsState.samBatteryActive = nextActive;
+      newValue = String(nextActive);
+    } else if (params.actionType === 'adjust_local_tax' || params.actionType === 'fiscal_diversion_detected') {
+      previousValue = manager.localTaxRate.toFixed(2);
+      const nextRate = Math.max(
+        MASTER_METAGAME_CONSTANTS.ALLIED_TAX_RATE_MIN,
+        Math.min(
+          MASTER_METAGAME_CONSTANTS.RIVAL_RETENTION_RATE_MAX,
+          params.newLocalTaxRate ?? manager.localTaxRate
+        )
+      );
+      manager.localTaxRate = nextRate;
+      newValue = nextRate.toFixed(2);
+      if (params.actionType === 'fiscal_diversion_detected') {
+        isSuspiciousCorruption = true;
+      }
+    }
+
+    if (isSuspiciousCorruption) {
+      manager.corruptionRiskScore = Math.min(100, manager.corruptionRiskScore + 35);
+    }
+
+    const auditEntry: MunicipalAuditLogEntry = {
+      id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      municipalityId: params.municipalityId,
+      actorUserId: params.actorUserId,
+      actorUserName: params.actorUserName,
+      actionType: params.actionType,
+      previousValue,
+      newValue,
+      isSuspiciousCorruption,
+      timestamp: new Date().toISOString(),
+    };
+
+    manager.auditTrailLogs.unshift(auditEntry);
+    manager.updatedAt = auditEntry.timestamp;
+    this.municipalManagers.set(params.municipalityId, { ...manager });
+
+    return { success: true, manager, auditEntry };
+  }
+
+  /**
+   * Nivel Estado (>60% de los municipios del estado): activa Perks Estatales automáticos
+   * (-20% consumo de combustible fronterizo y +15% velocidad de conquista en municipios adyacentes).
+   */
+  public evaluateStateLevelPerks(params: {
+    stateId: string;
+    clanId: string | null;
+    controlledMunicipalitiesCount: number;
+    totalMunicipalitiesCount: number;
+  }): StateLevelPerkState {
+    const total = Math.max(1, params.totalMunicipalitiesCount);
+    const ratio = Number((params.controlledMunicipalitiesCount / total).toFixed(4));
+    const isPerkUnlocked =
+      Boolean(params.clanId) && ratio > MASTER_METAGAME_CONSTANTS.STATE_PERK_MUNICIPALITY_THRESHOLD;
+
+    return {
+      stateId: params.stateId,
+      controllingClanId: isPerkUnlocked ? params.clanId : null,
+      controlledMunicipalitiesCount: params.controlledMunicipalitiesCount,
+      totalMunicipalitiesCount: total,
+      controlRatio: ratio,
+      isPerkUnlocked,
+      borderFuelDiscountMultiplier: isPerkUnlocked
+        ? Number((1 - MASTER_METAGAME_CONSTANTS.STATE_PERK_BORDER_FUEL_DISCOUNT).toFixed(2))
+        : 1.0,
+      adjacentConquestSpeedMultiplier: isPerkUnlocked
+        ? Number((1 + MASTER_METAGAME_CONSTANTS.STATE_PERK_ADJACENT_CONQUEST_BONUS).toFixed(2))
+        : 1.0,
+    };
+  }
+
+  /**
+   * Nivel Corporación (>= 1 municipio controlado): desbloquea Árbol Tecnológico Avanzado
+   * (Neotanque y Bombardero dentro del Hangar Físico de 16 Chasis) y Diplomacia Oficial.
+   */
+  public evaluateCorporateMacroPrivileges(params: {
+    clanId: string;
+    controlledMunicipalitiesCount: number;
+    addNonAggressionPactWithClanId?: string;
+    setCustomTariffForClan?: { targetClanId: string; rate: number };
+  }): CorporateMacroPrivilegeState {
+    const unlocked = params.controlledMunicipalitiesCount >= 1;
+    const dip = this.corporateDiplomacy.get(params.clanId) ?? {
+      nonAggressionPacts: [],
+      customTariffTreaties: {},
+    };
+
+    if (unlocked && params.addNonAggressionPactWithClanId) {
+      if (!dip.nonAggressionPacts.includes(params.addNonAggressionPactWithClanId)) {
+        dip.nonAggressionPacts.push(params.addNonAggressionPactWithClanId);
+      }
+    }
+
+    if (unlocked && params.setCustomTariffForClan) {
+      const clampedRate = Math.max(
+        0,
+        Math.min(
+          MASTER_METAGAME_CONSTANTS.RIVAL_RETENTION_RATE_MAX,
+          params.setCustomTariffForClan.rate
+        )
+      );
+      dip.customTariffTreaties[params.setCustomTariffForClan.targetClanId] = clampedRate;
+    }
+
+    this.corporateDiplomacy.set(params.clanId, dip);
+
+    return {
+      clanId: params.clanId,
+      controlledMunicipalitiesCount: params.controlledMunicipalitiesCount,
+      advancedTechTreeUnlocked: unlocked,
+      unlockedHeavyChassis: unlocked ? ['neotank', 'bomber'] : [],
+      officialDiplomacyEnabled: unlocked,
+      nonAggressionPacts: [...dip.nonAggressionPacts],
+      customTariffTreaties: { ...dip.customTariffTreaties },
+    };
+  }
+
+  /**
+   * Configura los Perks Estatales por ramas (>60% = 1 perk, >85% = 2 perks, máx. 3 globales).
+   */
+  public configureCorporationStatePerks(params: {
+    clanId: string;
+    statesControlRatios: Record<string, number>;
+    requestedPerksByState: Record<string, StatePerkId[]>;
+  }): {
+    success: boolean;
+    activeGlobalPerks: StatePerkId[];
+    maxAllowedInState: Record<string, number>;
+    reason?: string;
+  } {
+    const maxAllowedInState: Record<string, number> = {};
+    const activeGlobalPerks: StatePerkId[] = [];
+
+    for (const [stateId, ratio] of Object.entries(params.statesControlRatios)) {
+      const stateCap = ratio > 0.85 ? 2 : ratio > 0.60 ? 1 : 0;
+      maxAllowedInState[stateId] = stateCap;
+      const req = params.requestedPerksByState[stateId] ?? [];
+      if (req.length > stateCap) {
+        return {
+          success: false,
+          activeGlobalPerks: [],
+          maxAllowedInState,
+          reason: `El estado ${stateId} (${Math.round(ratio * 100)}%) solo autoriza ${stateCap} Perks.`,
+        };
+      }
+      for (const perk of req) {
+        if (!activeGlobalPerks.includes(perk)) {
+          activeGlobalPerks.push(perk);
+        }
+      }
+    }
+
+    if (activeGlobalPerks.length > 3) {
+      return {
+        success: false,
+        activeGlobalPerks: activeGlobalPerks.slice(0, 3),
+        maxAllowedInState,
+        reason: `Tope global excedido: máximo 3 Perks Estatales activos simultáneamente (solicitados: ${activeGlobalPerks.length}).`,
+      };
+    }
+
+    return {
+      success: true,
+      activeGlobalPerks,
+      maxAllowedInState,
+    };
   }
 
   public subscribe(listener: StateChangeListener): () => void {

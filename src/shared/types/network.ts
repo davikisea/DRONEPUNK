@@ -1,6 +1,6 @@
 /**
- * Tactical Command: Wars of Legacy - Protocolo de Red, Sincronización y Reconexión
- * Especificación: docs/orchestration/03_NETWORKING_AND_TECHNICAL_DEBT.md
+ * DRONEPUNK 0.0.1 - Protocolo de Red, Sincronización y Reconexión
+ * Especificación: docs/05_MASTER_GAME_ENGINE_AND_NETWORKING.md
  * Contrato formal para partidas PvP Realtime y Reconstrucción de Estado (Snapshot + Deltas)
  */
 

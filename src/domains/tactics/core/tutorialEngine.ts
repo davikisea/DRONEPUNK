@@ -1,6 +1,6 @@
 /**
- * Tactical Command: Wars of Legacy - Motor de Tutorial Guiado ("Bautismo de Fuego")
- * Especificación: docs/orchestration/04_CONTENT_AND_ONBOARDING_PIPELINE.md (Sección 1)
+ * DRONEPUNK 0.0.1 - Motor de Tutorial Guiado ("Bautismo de Fuego")
+ * Especificación: docs/06_MASTER_DEVOPS_QA_AND_TELEMETRY.md
  * Máquina de estados determinista con restricción celda a celda.
  */
 
@@ -195,7 +195,7 @@ export const TUTORIAL_STEPS_FLOW: Record<TutorialStepId, TutorialStepDefinition>
     stepNumber: 7,
     totalSteps: 7,
     instructorName: 'Mayor General Stella',
-    dialogueText: '¡Misión cumplida, Comandante! Has dominado el Core Loop táctico. ¡Bienvenido a Tactical Command!',
+    dialogueText: '¡Misión cumplida, Comandante! Has dominado el Core Loop táctico. ¡Bienvenido a DRONEPUNK 0.0.1!',
     authorizedCoord: { x: 7, y: 2 },
     mandatoryAction: 'CAPTURE_HQ',
     highlightCoordinates: [],

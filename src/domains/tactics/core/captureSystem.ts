@@ -11,6 +11,7 @@
  */
 
 import { TacticalUnit, TerrainTile, TerrainType } from '../types';
+import type { DroneUnitRole } from '@shared';
 
 export const CAPTURABLE_PROPERTY_TYPES: TerrainType[] = [
   'city',
@@ -102,6 +103,89 @@ export class CaptureEngine {
       remainingCapturePoints: remaining,
       newOwnerId: tile.ownerId || null,
       message: `Captura en progreso: ${remaining}/20 puntos restantes.`,
+    };
+  }
+
+  /**
+   * Habilita exclusivamente al chasis de Infantería / Ingeniero ('infantry_engineer')
+   * para capturar o sabotear infraestructura enemiga (fábricas, extractores, torres de radar).
+   */
+  public static executeEngineerInfrastructureAction(params: {
+    unitRole: DroneUnitRole;
+    unitHp: number;
+    actorClanId: string;
+    targetBuildingId: string;
+    targetBuildingType: 'factory' | 'extractor' | 'radar_tower' | 'sam_battery';
+    targetOwnerClanId: string | null;
+    currentStructureIntegrity: number;
+    mode: 'capture' | 'sabotage';
+  }): {
+    allowed: boolean;
+    completed: boolean;
+    newOwnerClanId: string | null;
+    remainingIntegrity: number;
+    isSabotaged: boolean;
+    reason: string;
+  } {
+    if (params.unitHp <= 0) {
+      return {
+        allowed: false,
+        completed: false,
+        newOwnerClanId: params.targetOwnerClanId,
+        remainingIntegrity: params.currentStructureIntegrity,
+        isSabotaged: false,
+        reason: 'El dron ingeniero está destruido (0 HP).',
+      };
+    }
+
+    if (params.unitRole !== 'infantry_engineer') {
+      return {
+        allowed: false,
+        completed: false,
+        newOwnerClanId: params.targetOwnerClanId,
+        remainingIntegrity: params.currentStructureIntegrity,
+        isSabotaged: false,
+        reason: `Solo el chasis Infantería/Ingeniero puede capturar o sabotear infraestructura (${params.unitRole} rechazado).`,
+      };
+    }
+
+    if (params.targetOwnerClanId === params.actorClanId) {
+      return {
+        allowed: false,
+        completed: false,
+        newOwnerClanId: params.targetOwnerClanId,
+        remainingIntegrity: params.currentStructureIntegrity,
+        isSabotaged: false,
+        reason: 'La infraestructura ya pertenece a tu Corporación.',
+      };
+    }
+
+    const power = Math.max(1, Math.ceil(params.unitHp / 10));
+    const nextIntegrity = Math.max(0, params.currentStructureIntegrity - power);
+    const completed = nextIntegrity === 0;
+
+    if (params.mode === 'sabotage') {
+      return {
+        allowed: true,
+        completed,
+        newOwnerClanId: completed ? null : params.targetOwnerClanId,
+        remainingIntegrity: completed ? 20 : nextIntegrity,
+        isSabotaged: completed,
+        reason: completed
+          ? `Infraestructura ${params.targetBuildingType} (${params.targetBuildingId}) saboteada y neutralizada.`
+          : `Sabotaje en progreso: ${nextIntegrity}/20 integridad restante.`,
+      };
+    }
+
+    return {
+      allowed: true,
+      completed,
+      newOwnerClanId: completed ? params.actorClanId : params.targetOwnerClanId,
+      remainingIntegrity: completed ? 20 : nextIntegrity,
+      isSabotaged: false,
+      reason: completed
+        ? `Infraestructura ${params.targetBuildingType} (${params.targetBuildingId}) capturada para ${params.actorClanId}.`
+        : `Captura en progreso: ${nextIntegrity}/20 puntos restantes.`,
     };
   }
 }

@@ -2,7 +2,7 @@
  * ==============================================================================
  * MOTOR DE EVENT SOURCING & PERSISTENCIA DE PARTIDAS AAA (MATCH DATABASE SERVICE)
  * ==============================================================================
- * Conforme al esquema formal de Tactical Command (Migración 9 & 22 de Supabase)
+ * Conforme al esquema formal de DRONEPUNK 0.0.1 (docs/04_MASTER_DATABASE_AND_SECURITY_SPEC.md)
  * y al estándar de arquitectura de juegos de estrategia competitivos (StarCraft II /
  * Total War / Advance Wars by Web):
  *

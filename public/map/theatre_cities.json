@@ -25,6 +25,54 @@
     },
     {
       "type": "Feature",
+      "id": "CITY_MARACAIBO",
+      "properties": {
+        "id": "CITY_MARACAIBO",
+        "name": "Maracaibo",
+        "stateId": "REG_VE_02",
+        "stateName": "Zulia",
+        "type": "port_metropolis",
+        "importance": "major",
+        "population": 1650000,
+        "factionId": "blue_moon",
+        "strategicRole": "Puerto Occidental y Estrecho de Maracaibo",
+        "municipalityId": "MUN_ZULIA_MARACAIBO",
+        "municipalityName": "Maracaibo"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -71.6406,
+          10.6544
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "CITY_SAN_FRANCISCO",
+      "properties": {
+        "id": "CITY_SAN_FRANCISCO",
+        "name": "San Francisco",
+        "stateId": "REG_VE_02",
+        "stateName": "Zulia",
+        "municipalityId": "MUN_ZULIA_SAN_FRANCISCO",
+        "municipalityName": "San Francisco",
+        "type": "urban_metropolis",
+        "importance": "secondary",
+        "population": 520000,
+        "factionId": "blue_moon",
+        "strategicRole": "Corredor Sur del Estrecho y Puente General Rafael Urdaneta"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -71.6344,
+          10.5517
+        ]
+      }
+    },
+    {
+      "type": "Feature",
       "id": "CITY_CABIMAS",
       "properties": {
         "id": "CITY_CABIMAS",
@@ -35,7 +83,9 @@
         "importance": "major",
         "population": 320000,
         "factionId": "blue_moon",
-        "strategicRole": "Epicentro Petrolero Génesis • Terminal La Salina"
+        "strategicRole": "Epicentro Petrolero Génesis • Terminal La Salina",
+        "municipalityId": "MUN_ZULIA_CABIMAS",
+        "municipalityName": "Cabimas"
       },
       "geometry": {
         "type": "Point",
@@ -47,23 +97,49 @@
     },
     {
       "type": "Feature",
-      "id": "CITY_MARACAIBO",
+      "id": "CITY_SANTA_RITA",
       "properties": {
-        "id": "CITY_MARACAIBO",
-        "name": "Maracaibo",
+        "id": "CITY_SANTA_RITA",
+        "name": "Santa Rita",
         "stateId": "REG_VE_02",
         "stateName": "Zulia",
-        "type": "port_metropolis",
-        "importance": "major",
-        "population": 1650000,
+        "municipalityId": "MUN_ZULIA_SANTA_RITA",
+        "municipalityName": "Santa Rita",
+        "type": "coastal_hub",
+        "importance": "municipal",
+        "population": 75000,
         "factionId": "blue_moon",
-        "strategicRole": "Puerto Occidental y Estrecho de Maracaibo"
+        "strategicRole": "Cabecera Oriental del Puente sobre el Lago de Maracaibo"
       },
       "geometry": {
         "type": "Point",
         "coordinates": [
-          -71.6406,
-          10.6544
+          -71.5117,
+          10.5364
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "CITY_LOS_PUERTOS_DE_ALTAGRACIA",
+      "properties": {
+        "id": "CITY_LOS_PUERTOS_DE_ALTAGRACIA",
+        "name": "Los Puertos de Altagracia",
+        "stateId": "REG_VE_02",
+        "stateName": "Zulia",
+        "municipalityId": "MUN_ZULIA_MIRANDA",
+        "municipalityName": "Miranda",
+        "type": "refinery_port",
+        "importance": "municipal",
+        "population": 115000,
+        "factionId": "blue_moon",
+        "strategicRole": "Complejo Petroquímico Ana María Campos (El Tablazo)"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -71.5228,
+          10.6744
         ]
       }
     },
@@ -79,13 +155,375 @@
         "importance": "secondary",
         "population": 180000,
         "factionId": "blue_moon",
-        "strategicRole": "Complejo de Servicios Petroleros Costa Oriental"
+        "strategicRole": "Complejo de Servicios Petroleros Costa Oriental",
+        "municipalityId": "MUN_ZULIA_LAGUNILLAS",
+        "municipalityName": "Lagunillas"
       },
       "geometry": {
         "type": "Point",
         "coordinates": [
           -71.3087,
           10.2078
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "CITY_BACHAQUERO",
+      "properties": {
+        "id": "CITY_BACHAQUERO",
+        "name": "Bachaquero",
+        "stateId": "REG_VE_02",
+        "stateName": "Zulia",
+        "municipalityId": "MUN_ZULIA_VALMORE_RODRIGUEZ",
+        "municipalityName": "Valmore Rodríguez",
+        "type": "petroleum_hub",
+        "importance": "municipal",
+        "population": 95000,
+        "factionId": "blue_moon",
+        "strategicRole": "Campo Petrolero Sur de la Costa Oriental y Dique Costanero"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -71.1494,
+          9.9694
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "CITY_MENE_GRANDE",
+      "properties": {
+        "id": "CITY_MENE_GRANDE",
+        "name": "Mene Grande",
+        "stateId": "REG_VE_02",
+        "stateName": "Zulia",
+        "municipalityId": "MUN_ZULIA_BARALT",
+        "municipalityName": "Baralt",
+        "type": "petroleum_hub",
+        "importance": "municipal",
+        "population": 85000,
+        "factionId": "blue_moon",
+        "strategicRole": "Cuna Histórica del Pozo Zumaque I y Nudo Trujillo-Zulia"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -70.9253,
+          9.8167
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "CITY_TIA_JUANA",
+      "properties": {
+        "id": "CITY_TIA_JUANA",
+        "name": "Tía Juana",
+        "stateId": "REG_VE_02",
+        "stateName": "Zulia",
+        "municipalityId": "MUN_ZULIA_SIMON_BOLIVAR",
+        "municipalityName": "Simón Bolívar",
+        "type": "petroleum_hub",
+        "importance": "municipal",
+        "population": 70000,
+        "factionId": "blue_moon",
+        "strategicRole": "Estación de Flujo y Subestación Energética Costa Oriental"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -71.3667,
+          10.2583
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "CITY_SAN_RAFAEL_DEL_MOJAN",
+      "properties": {
+        "id": "CITY_SAN_RAFAEL_DEL_MOJAN",
+        "name": "San Rafael del Moján",
+        "stateId": "REG_VE_02",
+        "stateName": "Zulia",
+        "municipalityId": "MUN_ZULIA_MARA",
+        "municipalityName": "Mara",
+        "type": "coastal_hub",
+        "importance": "municipal",
+        "population": 90000,
+        "factionId": "blue_moon",
+        "strategicRole": "Paso Fluvial del Río Limón y Acceso a la Guajira"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -71.735,
+          10.96
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "CITY_SINAMAICA_PARAGUAIPOA",
+      "properties": {
+        "id": "CITY_SINAMAICA_PARAGUAIPOA",
+        "name": "Sinamaica / Paraguaipoa",
+        "stateId": "REG_VE_02",
+        "stateName": "Zulia",
+        "municipalityId": "MUN_ZULIA_GUAJIRA",
+        "municipalityName": "Guajira",
+        "type": "border_outpost",
+        "importance": "municipal",
+        "population": 68000,
+        "factionId": "blue_moon",
+        "strategicRole": "Bastión Fronterizo Norte • Laguna de Sinamaica y Troncal del Caribe"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -71.8542,
+          11.0875
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "CITY_LA_CONCEPCION",
+      "properties": {
+        "id": "CITY_LA_CONCEPCION",
+        "name": "La Concepción",
+        "stateId": "REG_VE_02",
+        "stateName": "Zulia",
+        "municipalityId": "MUN_ZULIA_JESUS_ENRIQUE_LOSSADA",
+        "municipalityName": "Jesús Enrique Lossada",
+        "type": "agro_industrial_hub",
+        "importance": "municipal",
+        "population": 120000,
+        "factionId": "blue_moon",
+        "strategicRole": "Cuenca Occidental Petrolera y Planicie Agroindustrial de Lossada"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -71.8389,
+          10.6194
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "CITY_CONCEPCION",
+      "properties": {
+        "id": "CITY_CONCEPCION",
+        "name": "Concepción",
+        "stateId": "REG_VE_02",
+        "stateName": "Zulia",
+        "municipalityId": "MUN_ZULIA_LA_CANADA_DE_URDANETA",
+        "municipalityName": "La Cañada de Urdaneta",
+        "type": "coastal_hub",
+        "importance": "municipal",
+        "population": 95000,
+        "factionId": "blue_moon",
+        "strategicRole": "Puerto Pesquero Occidental y Corredor Industrial El Bajo"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -71.6939,
+          10.4222
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "CITY_MACHIQUES",
+      "properties": {
+        "id": "CITY_MACHIQUES",
+        "name": "Machiques",
+        "stateId": "REG_VE_02",
+        "stateName": "Zulia",
+        "municipalityId": "MUN_ZULIA_MACHIQUES_DE_PERIJA",
+        "municipalityName": "Machiques de Perijá",
+        "type": "agro_industrial_hub",
+        "importance": "secondary",
+        "population": 135000,
+        "factionId": "blue_moon",
+        "strategicRole": "Capital Ganadera de Perijá y Pie de Monte Fronterizo"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.545,
+          10.0644
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "CITY_LA_VILLA_DEL_ROSARIO",
+      "properties": {
+        "id": "CITY_LA_VILLA_DEL_ROSARIO",
+        "name": "La Villa del Rosario",
+        "stateId": "REG_VE_02",
+        "stateName": "Zulia",
+        "municipalityId": "MUN_ZULIA_ROSARIO_DE_PERIJA",
+        "municipalityName": "Rosario de Perijá",
+        "type": "agro_industrial_hub",
+        "importance": "municipal",
+        "population": 98000,
+        "factionId": "blue_moon",
+        "strategicRole": "Nudo Agrícola y Troncal 6 hacia la Sierra de Perijá"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.3133,
+          10.3258
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "CITY_SAN_CARLOS_DEL_ZULIA",
+      "properties": {
+        "id": "CITY_SAN_CARLOS_DEL_ZULIA",
+        "name": "San Carlos del Zulia",
+        "stateId": "REG_VE_02",
+        "stateName": "Zulia",
+        "municipalityId": "MUN_ZULIA_COLON",
+        "municipalityName": "Colón",
+        "type": "logistics_hub",
+        "importance": "secondary",
+        "population": 145000,
+        "factionId": "blue_moon",
+        "strategicRole": "Capital del Sur del Lago • Eje Fluvial Río Escalante"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -71.9136,
+          9
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "CITY_PUEBLO_NUEVO_EL_CHIVO",
+      "properties": {
+        "id": "CITY_PUEBLO_NUEVO_EL_CHIVO",
+        "name": "Pueblo Nuevo-El Chivo",
+        "stateId": "REG_VE_02",
+        "stateName": "Zulia",
+        "municipalityId": "MUN_ZULIA_FRANCISCO_JAVIER_PULGAR",
+        "municipalityName": "Francisco Javier Pulgar",
+        "type": "agricultural_plains",
+        "importance": "municipal",
+        "population": 52000,
+        "factionId": "blue_moon",
+        "strategicRole": "Corredor Platanero del Sur del Lago y Puerto Concha"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -71.6083,
+          8.9583
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "CITY_ENCONTRADOS",
+      "properties": {
+        "id": "CITY_ENCONTRADOS",
+        "name": "Encontrados",
+        "stateId": "REG_VE_02",
+        "stateName": "Zulia",
+        "municipalityId": "MUN_ZULIA_CATATUMBO",
+        "municipalityName": "Catatumbo",
+        "type": "river_port",
+        "importance": "municipal",
+        "population": 48000,
+        "factionId": "blue_moon",
+        "strategicRole": "Terminal Fluvial del Río Catatumbo y Paso Sur-Occidental"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.2333,
+          9.0594
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "CITY_CASIGUA_EL_CUBO",
+      "properties": {
+        "id": "CITY_CASIGUA_EL_CUBO",
+        "name": "Casigua El Cubo",
+        "stateId": "REG_VE_02",
+        "stateName": "Zulia",
+        "municipalityId": "MUN_ZULIA_JESUS_MARIA_SEMPRUM",
+        "municipalityName": "Jesús María Semprúm",
+        "type": "border_fortress",
+        "importance": "municipal",
+        "population": 42000,
+        "factionId": "blue_moon",
+        "strategicRole": "Campo Petrolero Tarra-Catatumbo y Frontera Suroeste"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5197,
+          8.7536
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "CITY_BOBURES",
+      "properties": {
+        "id": "CITY_BOBURES",
+        "name": "Bobures",
+        "stateId": "REG_VE_02",
+        "stateName": "Zulia",
+        "municipalityId": "MUN_ZULIA_SUCRE",
+        "municipalityName": "Sucre",
+        "type": "lake_port",
+        "importance": "municipal",
+        "population": 45000,
+        "factionId": "blue_moon",
+        "strategicRole": "Puerto Lacustre Sureste y Enlace Panamericano"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -71.16,
+          9.235
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "CITY_EL_TORO",
+      "properties": {
+        "id": "CITY_EL_TORO",
+        "name": "El Toro",
+        "stateId": "REG_VE_02",
+        "stateName": "Zulia",
+        "municipalityId": "MUN_ZULIA_ALMIRANTE_PADILLA",
+        "municipalityName": "Almirante Padilla",
+        "type": "island_fortress",
+        "importance": "municipal",
+        "population": 18000,
+        "factionId": "blue_moon",
+        "strategicRole": "Isla de Toas • Control Naval de la Barra del Lago de Maracaibo"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -71.6561,
+          10.9575
         ]
       }
     },

@@ -2,8 +2,8 @@
  * ==============================================================================
  * MOTOR DE LADDER CLASIFICATORIO, SISTEMA ELO, ARENAS Y COLAS MULTI-MODO
  * ==============================================================================
- * Proyecto: Tactical Command: Wars of Legacy
- * Especificación Canónica Calibrada: PROPOSAL_DB_ARCHITECTURE.md (v2.0.0-CALIBRATED)
+ * Proyecto: DRONEPUNK 0.0.1
+ * Especificación Canónica Calibrada: docs/04_MASTER_DATABASE_AND_SECURITY_SPEC.md (DRONEPUNK 0.0.1)
  * Base de Datos: supabase/migrations/20261031000014_unified_matchmaking_and_ranked_ladder.sql
  *
  * Características Calibradas:
@@ -135,7 +135,7 @@ export const RANKED_ARENAS: RankedArena[] = [
     kFactor: 24,
     lossMultiplier: 1.0,
     resourceMultiplier: 2.5,
-    unlockMilestone: 'HITO: TOURNAMENT READY (Cap de Torneos N11)',
+    unlockMilestone: 'HITO: TOURNAMENT READY (Paridad Tier 1)',
   },
   {
     tier: 10,

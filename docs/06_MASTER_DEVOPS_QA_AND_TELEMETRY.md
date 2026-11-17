@@ -1,7 +1,7 @@
 # VOLUMEN 6: DEVOPS, INFRAESTRUCTURA, QA Y TELEMETRÍA CONDUCTUAL Y SENSORIAL
 **Documento Canónico Unificado:** `06_MASTER_DEVOPS_QA_AND_TELEMETRY.md`  
-**Proyecto:** *GEOTACTICS ONLINE (Tactical Command: Wars of Legacy)*  
-**Versión:** 5.0.0-MODULAR-DOMAINS-SSOT  
+**Proyecto:** *DRONEPUNK 0.0.1*  
+**Versión:** 0.0.1  
 **Estado:** Documento de Verdad Absoluta (SSOT - Single Source of Truth)  
 **Archivos Consolidados y Auditados contra Código Fuente:**  
 - `src/domains/game-feel/core/audioManager.ts` (Sintetizador Táctico Procedural Web Audio API)  
@@ -19,7 +19,7 @@ El proyecto utiliza **GitHub Actions** y scripts deterministas ejecutados median
 
 ```yaml
 # .github/workflows/ci-cd-pipeline.yml
-name: Tactical Command CI/CD Pipeline
+name: DRONEPUNK 0.0.1 CI/CD Pipeline
 
 on:
   push:
@@ -48,7 +48,7 @@ jobs:
       - name: Batería Completa de 13 Suites Deterministas (Core & Dominios)
         run: npm run test:all
 
-      - name: Batería Canónica Geotactics (7 Suites / 93 Aserciones Deterministas)
+      - name: Batería Canónica DRONEPUNK (7 Suites / 93 Aserciones Deterministas)
         run: npm run test:geotactics
 
       - name: Pruebas de Integración End-to-End CLI (13 Pasos Certificados)
@@ -70,7 +70,7 @@ Todos los pipelines de validación están definidos en `package.json` y garantiz
 | `npm run lint` | Ejecuta `npx tsc --noEmit`. Verifica la integridad estricta de tipos TypeScript en los 4 dominios (`@domains/world`, `@domains/tactics`, `@domains/economy`, `@domains/game-feel`) y `@shared`. |
 | `npm run build` | Ejecuta `npx vite build`. Compila y empaqueta la SPA de producción en `dist/` verificando resolución de alias modulares, chunk splitting y ausencia de imports rotos. |
 | `npm run test:all` | Ejecuta secuencialmente las **13 suites troncales** mediante `npx tsx`:<br>1. `subActionsAndArrow.test.ts`<br>2. `advancedTactics.test.ts`<br>3. `expandedCOs.test.ts`<br>4. `advancedWarsWorldSystems.test.ts`<br>5. `autonomousOrchestrator.test.ts`<br>6. `deckAndSupply.test.ts`<br>7. `buildingAuras.test.ts`<br>8. `proceduralMapGenerator.test.ts`<br>9. `reinforcementsEngine.test.ts`<br>10. `metagame.test.ts`<br>11. `hangarAndSupply.test.ts`<br>12. `territorialSiege.test.ts`<br>13. `coordinatesAndBitmap.test.ts` |
-| `npm run test:geotactics` | Ejecuta las **7 suites especializadas de Geotactics (93 tests deterministas en total)**:<br>1. `strategicAndProductionEngine.test.ts` (16/16)<br>2. `phase2InterfaceAndBark.test.ts` (13/13)<br>3. `territorialExpansionEngine.test.ts` (12/12)<br>4. `tacticalCombatSeamlessIntegration.test.ts` (11/11)<br>5. `territorialSiege.test.ts` (11/11)<br>6. `hangarAndSupply.test.ts` (17/17)<br>7. `coordinatesAndBitmap.test.ts` (13/13) |
+| `npm run test:geotactics` | Ejecuta las **7 suites especializadas de DRONEPUNK 0.0.1 (93 tests deterministas en total)**:<br>1. `strategicAndProductionEngine.test.ts` (16/16)<br>2. `phase2InterfaceAndBark.test.ts` (13/13)<br>3. `territorialExpansionEngine.test.ts` (12/12)<br>4. `tacticalCombatSeamlessIntegration.test.ts` (11/11)<br>5. `territorialSiege.test.ts` (11/11)<br>6. `hangarAndSupply.test.ts` (17/17)<br>7. `coordinatesAndBitmap.test.ts` (13/13) |
 | `npm run test:combat` | Ejecuta las 3 suites tácticas de terreno y refuerzos: `buildingAuras.test.ts`, `proceduralMapGenerator.test.ts` y `reinforcementsEngine.test.ts`. |
 | `npm run test:catalogs` | Ejecuta las 4 suites de auditoría de catálogos híbridos Supabase/Local: `catalogParityAudit.test.ts`, `catalogPerformanceBenchmark.test.ts`, `catalogHotReloading.test.ts` y `catalogOfflineFallback.test.ts`. |
 | `npm run test:e2e` | Ejecuta el runner CLI de integración en 13 pasos (`src/domains/tactics/__tests__/e2eIntegration.test.ts`). |
@@ -91,7 +91,7 @@ Todas las suites de pruebas están organizadas dentro de la arquitectura modular
   * `src/domains/tactics/__tests__/pathfinding.test.ts`: Algoritmo A*, costes de tracción por terreno (`foot`, `boots`, `treads`, `tires`, `air`, `sea`, `lander`, `pipe`) y regla de interrupción por emboscada `¡TRAP!`.
   * `src/domains/tactics/__tests__/fogOfWar.test.ts`: Cálculo de visión de 360°, elevación en montañas (+3 visión para infantería/mecanizada) y ocultación en bosques/arrecifes.
   * `src/domains/tactics/__tests__/subActionsAndArrow.test.ts`: Flecha táctica de trayectoria y menú contextual de sub-acciones (`attack`, `capture`, `join`, `load`, `unload`, `supply`, `launch_silo`, `explode`, `hide`, `unhide`, `wait`).
-  * `src/domains/tactics/__tests__/coSystem.test.ts` & `src/domains/tactics/__tests__/expandedCOs.test.ts`: Los 28 COs canónicos, cálculo de carga estelar ($9,000G/estrella), bonos pasivos D2D, activación COP/SCOP y efectos instantáneos.
+  * `src/domains/tactics/__tests__/coSystem.test.ts` & `src/domains/tactics/__tests__/expandedCOs.test.ts`: Los 29 COs canónicos (28 clásicos + Mayor Stella), cálculo de carga estelar ($9,000G/estrella), bonos pasivos D2D, activación COP/SCOP y efectos instantáneos.
   * `src/domains/tactics/__tests__/buildingAuras.test.ts`: Auras de edificios tácticos (búnkeres, radares, centros de mando, torres de comunicación).
   * `src/domains/tactics/__tests__/proceduralMapGenerator.test.ts`: Generador procedural de mapas tácticos con simetría garantizada y paridad de propiedades.
   * `src/domains/tactics/__tests__/reinforcementsEngine.test.ts`: Cola de refuerzos de reserva (hasta 12 unidades en reserva tras las 4 de vanguardia, cumpliendo el límite físico de 16 tropas del Pilar 1).
@@ -113,7 +113,7 @@ Todas las suites de pruebas están organizadas dentro de la arquitectura modular
   * `src/domains/world/__tests__/theatreRealtimePersistence.test.ts`: Persistencia Realtime en Supabase, suscripción a eventos de canal y reconciliación de soberanía.
 
 - **Dominio `economy` (`src/domains/economy/__tests__/`):**
-  * `src/domains/economy/__tests__/hangarAndSupply.test.ts`: Validación de **CERO CARTAS (Pilar 1)**, almacén físico de **16 tropas máximo por jugador** (4 slots de despliegue activo en vanguardia + 12 en reserva), Doble Llave ($G in-match + chasis físico en Hangar), progresión horizontal de **Tiers T1 a T5 (+2% por tier, máximo +8% en T5)** (Pilar 4), Kit de Emergencia F2P inagotable (`infantry`/`recon` T1) y Soft Cap logístico en 14 tropas ($200G/turno por unidad extra).
+  * `src/domains/economy/__tests__/hangarAndSupply.test.ts`: Validación del **Almacén Físico de 16 Chasis Militares (Pilar 1)** (4 slots de despliegue activo en vanguardia + 12 en reserva como munición descartable forjada), Doble Llave ($G in-match + chasis físico en Hangar), progresión horizontal de **Tiers T1 a T5 (+2% por tier, máximo +8% en T5)** (Pilar 4), Kit de Emergencia F2P inagotable (`infantry`/`recon` T1) y Soft Cap logístico en 14 tropas ($200G/turno por unidad extra).
   * `src/domains/economy/__tests__/deckAndSupply.test.ts`: Validación taxonómica de plantillas de escuadrón y simulaciones de estrés de suministro orgánico.
   * `src/domains/economy/__tests__/turnEconomy.test.ts`: Generación de fondos por propiedades, costes de reparación proporcionales y reabastecimiento en ciudades y bases.
   * `src/domains/economy/__tests__/industrialEngine.test.ts`: Cuadrícula de 10 parcelas territoriales, ciclo circadiano de 16h, merma suave (1.5%/h), 70% a Cargamento Varado y **Mercado P2P con impuesto total del 2% (1% quemado en Sink + 1% regalía al Clan dueño del Hub regional) y bandas de precios dinámicas VWAP Collar ±25%**.
@@ -136,7 +136,7 @@ Valida la tubería completa de juego en **13 pasos certificados** ejecutables ta
 8. **Balance de Formato Duelo Espejo y Reloj Rápido WeGo (15s):** Verificación de `MATCH_FORMAT_CONFIGS.mirror_duel` con `turnTimeLimitSec: 15` y `maxTurnsLimit: 12`.
 9. **Complejo Industrial, Hornos y Mercado P2P:** Cosecha de silos, fundición de acero acelerada con combustible y transacción atómica en el Mercado P2P (regla financiera canónica del dominio `economy`: impuesto P2P del 2% —1% Sink + 1% regalía al Clan Hub— y bandas dinámicas VWAP Collar ±25%).
 10. **Corporaciones Militares (Clanes), Bóveda T1-T3, Embargo por Deshonor y Salvaguarda Táctica:** Escalafón de bóvedas según miembros activos, auditoría de cierre de guerra de 24h, liquidación de fianza de deshonor y protección de racha mediante Salvaguarda Táctica.
-11. **Tiers Industriales Canónicos (T1-T5, +2%/tier) y Paridad Competitiva 0% P2W:** Verificación del Pilar 4 (`T1: +0%`, `T2: +2%`, `T5: +8%` máximo horizontal, con 0 cartas y 0% Pay-to-Win).
+11. **Tiers Industriales Canónicos (T1-T5, +2%/tier) y Paridad Competitiva 0% P2W:** Verificación del Pilar 4 (`T1: +0%`, `T2: +2%`, `T5: +8%` máximo horizontal, paridad 0% Tier 1 en esports, chasis físicos en hangar y 0% Pay-to-Win).
 12. **Ladder Clasificatorio Elo, 10 Arenas + 3 Ligas, Escudo de Descenso y Bóveda de Cofres:** Amortiguación en Arena 1 (+20/0), suma cero estricta desde Arena 6 (+14/-14), Escudo de Descenso de 3 cargas, Season Reset cada 28 días y escalado de cofres.
 13. **Ecosistema Social V2.0: Rescate de Camarada, Donaciones, Proyectos y Guerra Territorial 2v2:** Protocolo `ClanEngine.rescueComrade` (+150 XP al salvador), logística fraternal de clan, aporte de 200 DP (multiplicador 2.0x) en victorias 2v2 y activación de proyectos del Alto Mando (`industrial_overcharge`).
 
@@ -275,5 +275,5 @@ Para alimentar el **Bark Engine** (`src/domains/game-feel/core/barkEngine.ts`) y
 ### 5.1 Métricas Clave de Negocio y Equilibrio Canónico (KPIs de Retención)
 - **Retención D1 (Día 1):** Objetivo $> 48\%$ (impulsada por la forja industrial en las 10 parcelas territoriales, la recuperación del **35% en chatarra tecnológica `tech_scrap`** tras bajas físicas y el rescate de la Salvaguarda Táctica).
 - **Retención D7 (Día 7):** Objetivo $> 26\%$ (sostenida por las Guerras de Clanes, la conquista de Capitales con **Buff Regional del +5%**, los asedios con **Human Handshake de 120s** e IA de Guarnición Nv 1-5 y la Bóveda Corporativa T1-T3).
-- **Retención D30 (Día 30):** Objetivo $> 14\%$ (mantenida por el Ladder Clasificatorio de 10 Arenas + 3 Ligas, la especialización horizontal de **Tiers T1 a T5 (+2% por tier, máximo +8% en T5)** con almacén físico de **16 tropas máximo (4 activos + 12 en reserva, CERO CARTAS)** y el comercio en el **Mercado P2P con impuesto total del 2% (1% Sink + 1% Clan Hub) y bandas VWAP Collar ±25%**).
+- **Retención D30 (Día 30):** Objetivo $> 14\%$ (mantenida por el Ladder Clasificatorio de 10 Arenas + 3 Ligas, la especialización horizontal de **Tiers T1 a T5 (+2% por tier, máximo +8% en T5)** con almacén físico de **16 chasis militares máximo (4 activos + 12 en reserva, munición descartable forjada)** y el comercio en el **Mercado P2P 100% *player-driven* con impuesto total del 2% (1% Sink + 1% Clan Hub) y bandas VWAP Collar ±25%**).
 - **Conversión ética (0% Pay-to-Win):** Basada en cosméticos de comandantes/unidades y el Command Pass estacional, manteniendo paridad competitiva estricta en el campo de batalla.

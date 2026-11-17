@@ -6,6 +6,28 @@
  * la detección de zonas de AirDrops y la integridad del exportador canónico.
  */
 
+const describe = (_label: string, fn: () => void): void => {
+  fn();
+};
+
+const it = (label: string, fn: () => void): void => {
+  try {
+    fn();
+    console.log(`✅ [PASSED] ${label}`);
+  } catch (err) {
+    console.error(`❌ [FAILED] ${label}:`, err);
+    process.exit(1);
+  }
+};
+
+const expect = <T>(actual: T) => ({
+  toBe(expected: T): void {
+    if (actual !== expected) {
+      throw new Error(`Expected ${String(actual)} to be ${String(expected)}`);
+    }
+  },
+});
+
 describe('Tactical Studio Editor: Map Builder Engine', () => {
   it('debe calcular correctamente la simetría rotacional 180° para mapas competitivos', () => {
     const width = 10;

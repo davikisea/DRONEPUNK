@@ -135,6 +135,13 @@ export const CANONICAL_TERRAIN_PROPERTIES: Record<TerrainType, TerrainProperties
     canCapture: false,
     generatesFunds: 0,
   },
+  usedSilo: {
+    defenseStars: 3,
+    movementCosts: { foot: 1, mech: 1, wheels: 1, treads: 1, air: 1, sea: Infinity },
+    healsUnits: false,
+    canCapture: false,
+    generatesFunds: 0,
+  },
   lab: {
     defenseStars: 3,
     movementCosts: { foot: 1, mech: 1, wheels: 1, treads: 1, air: 1, sea: Infinity },
@@ -145,6 +152,20 @@ export const CANONICAL_TERRAIN_PROPERTIES: Record<TerrainType, TerrainProperties
   pipe: {
     defenseStars: 0,
     movementCosts: { foot: Infinity, mech: Infinity, wheels: Infinity, treads: Infinity, air: Infinity, sea: Infinity },
+    healsUnits: false,
+    canCapture: false,
+    generatesFunds: 0,
+  },
+  pipeSeam: {
+    defenseStars: 0,
+    movementCosts: { foot: Infinity, mech: Infinity, wheels: Infinity, treads: Infinity, air: Infinity, sea: Infinity },
+    healsUnits: false,
+    canCapture: false,
+    generatesFunds: 0,
+  },
+  rubble: {
+    defenseStars: 1,
+    movementCosts: { foot: 1, mech: 1, wheels: 2, treads: 1, air: 1, sea: Infinity },
     healsUnits: false,
     canCapture: false,
     generatesFunds: 0,

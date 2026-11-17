@@ -2,7 +2,7 @@
 ## *Arquitectura de 3 Vistas, RTS de Celda, Ventanas de Vulnerabilidad y Modelo Anti-P2W*
 
 > **Código de Documento:** `docs/03_TACTICAL_STRATEGY_SYSTEM_DESIGN.md`  
-> **Versión Canónica:** `v2.0.0-tactical-rts-modular`  
+> **Versión Canónica:** `DRONEPUNK 0.0.1`  
 > **Estado:** **ESPECIFICACIÓN DE VERDAD ARQUITECTÓNICA (SSOT / CANON APROBADO)**  
 > **Resultado de la Sesión:** Auditoría forense de gaps + Sincronización con arquitectura modular de 4 dominios (`src/domains/{world,tactics,economy,game-feel}`, `src/shared/`).
 
@@ -13,7 +13,7 @@
 Tras auditar la base de código modular (`src/domains/world/core/coordinates.ts`, `src/domains/world/services/spatialDeploymentService.ts`, `src/domains/world/services/stateSovereigntyService.ts`, `src/domains/world/components/TacticalWorldMap.tsx`, `src/domains/tactics/core/tacticalRtsEngine.ts`, `src/domains/tactics/core/canonicalCombat.ts`) y contrastarla contra la especificación maestra (`docs/00_GEOTACTICS_ONLINE_MASTER_SPEC.md`), se consolida la síntesis del bucle de juego bajo los pilares canónicos aprobados:
 
 1. **Resolución de Combate Táctico en Celda (Zoom x15 — `tacticalRtsEngine.ts` & `canonicalCombat.ts`)**: **RTS Continuo con Cooldowns Tácticos y Balística Determinista 1-100 HP**. Las unidades desplegadas sobre la cuadrícula celular operan con maniobra interpolada por intenciones de marcha (`UnitMoveIntent`) y disparo en tiempo real a **10 ticks/s ($100\text{ ms}$)**, gobernadas por cadencias de fuego (`reloadCooldownMs`), rangos de alcance balístico Manhattan y velocidades de desplazamiento según el tipo de chasis (`treads`, `wheels`, `foot`, `mech`, `air`), reutilizando la fórmula exacta de `CanonicalCombatEngine` sobre una escala continua de **1 a 100 HP enteros**.
-2. **Almacén Físico de Tropas (CERO CARTAS — Pilar 1 Canónico) y Condiciones de Derrota Inapelable (Pilar 3 Canónico)**: No existe ningún sistema de cartas coleccionables (NO TCG/CCG). Cada comandante gestiona un almacén físico de hasta **16 unidades máximo** (**4 slots de despliegue activo en vanguardia + 12 unidades en reserva** en `src/domains/tactics/core/reinforcementsEngine.ts`). En cualquier tablero o celda de combate, **quedar con 0 tropas supervivientes en el campo (`all_units_destroyed` / `army_wiped`) provoca la derrota inmediata e inapelable**, sumada a la condición de captura del Cuartel General (`src/domains/tactics/core/hqCaptureVictory.ts`).
+2. **Almacén Físico de 16 Chasis Militares (Pilar 1 Canónico) y Condiciones de Derrota Inapelable (Pilar 3 Canónico)**: Toda fuerza táctica se abastece desde un almacén físico de munición descartable forjada con capacidad máxima de **16 unidades** (**4 slots de despliegue activo en vanguardia + 12 unidades en reserva** en `src/domains/tactics/core/reinforcementsEngine.ts`). En cualquier tablero o celda de combate, **quedar con 0 tropas supervivientes en el campo (`all_units_destroyed` / `army_wiped`) provoca la derrota inmediata e inapelable**, sumada a la condición de captura del Cuartel General (`src/domains/tactics/core/hqCaptureVictory.ts`).
 3. **Defensa Territorial Offline, Ventanas de Vulnerabilidad y Human Handshake de 120s (Pilar 7 Canónico)**: Inspirado en la doctrina de soberanía de *EVE Online* y *Albion Online*, cada clan defensor programa una ventana horaria de vulnerabilidad defensiva diaria (`VulnerabilityWindowConfig` en `src/domains/world/core/territorialSiegeOrchestrator.ts`). Fuera de esta ventana, los Puntos de Control Territorial (10,000 TCP en provincias regulares, 15,000 TCP en capitales) son inmunes al daño estructural. Dentro de la ventana, todo asedio inicia con un **Human Handshake de 120 segundos** antes de que asuma el mando la **Guarnición IA escalable de Niveles 1 a 5** (`src/domains/tactics/core/garrisonAIEngine.ts`).
 4. **Bucle de Construcción, Buff de Capital (+5%) y Recolección**: **Simulación por Rendimiento Matemático en DB + Inyección Vectorial GPU (WebGL 2.0)**. La economía territorial se calcula analíticamente en Postgres/Supabase (`src/domains/economy/core/upkeepEngine.ts` y `src/domains/economy/core/industrialEngine.ts`), otorgando un **Buff Regional de $+5\%$ en recursos y logística al poseer la Capital regional (Pilar 5 Canónico)**. A Zoom x10 y x15, los edificios industriales (`FiefBuilding` en `src/domains/economy/services/fiefBuildingService.ts`) y convoyes (`src/domains/tactics/core/operationalUnitsEngine.ts`) se proyectan como instancias vectoriales en MapLibre GL, preservando 60 FPS y $< 140\text{ MB}$ de VRAM.
 5. **Invariante Ético Anti-P2W y Esport (Pilar 4 Canónico)**: **Normalización Absoluta a Tier 1 Espejo ($+0.0\%$) en Modos Competitivos (`isCompetitiveMirror = true`)** y **Progresión Horizontal Suave de Tiers T1 a T5 ($+2\%$ por Tier sobre T1, máximo $+8\%$ en T5) en Guerra Territorial**. Mercado P2P gobernado por un impuesto total del **$2\%$ ($1\%$ quemado en Sink deflacionario $+ 1\%$ regalía al Clan dueño del Hub regional)** y bandas dinámicas **VWAP Collar $\pm 25\%$**.
@@ -49,7 +49,7 @@ flowchart TD
 
     subgraph PERSISTENCIA ["ESTADO CENTRAL Y PERSISTENCIA (Supabase Postgres + Realtime)"]
         P1["Soberanía y Timers de Vulnerabilidad (territorial_vulnerability_windows)"]
-        P2["Almacén Físico de Tropas (user_unit_hangar T1-T5, CERO CARTAS)"]
+        P2["Almacén Físico de 16 Chasis Militares (user_unit_hangar T1-T5, munición descartable)"]
         P3["Liquidación de Bajas: 65% Sumidero Deflacionario / 35% Chatarra Tecnológica (tech_scrap)"]
     end
 
@@ -146,11 +146,11 @@ Para preservar 60 FPS en el navegador sin simular cientos de obreros en pantalla
   - A Zoom Nivel 2 ($6.0 \le z < 13.0$ / $10.0 \le z < 15.0$): Se renderizan marcadores pulsantes, unidades operacionales (`src/domains/tactics/core/operationalUnitsEngine.ts`) y etiquetas C4ISR de los complejos industriales activos (`fiefBuildingService.toGeoJSON()`).
   - A Zoom Nivel 3 ($z \ge 13.0$ / $15.0$): La estructura se materializa como un obstáculo físico en la celda táctica (`industrial_compound`), otorgando cobertura del $35\%$ y sirviendo como punto de despliegue o nodo de radar/suministro.
 
-### 5.2 La Ley de la Doble Llave y Almacén Físico de 16 Tropas (CERO CARTAS)
+### 5.2 La Ley de la Doble Llave y Almacén Físico de 16 Chasis Militares
 *Implementación de Referencia:* `src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts`, `src/domains/tactics/core/reinforcementsEngine.ts`, `src/domains/tactics/components/TacticalUnitDeployModal.tsx`, `src/domains/economy/hooks/useUserHangar.ts`.
 
 Para desplegar cualquier unidad militar en una fábrica o celda (`validateDoubleKeyDeployment` y `TacticalUnitDeployModal.tsx`), se cumplen estrictamente el **Pilar 1** y la **Doble Llave**:
-1. **CERO CARTAS — Almacén Físico de 16 Tropas Máximo**: Cada comandante dispone de una capacidad física máxima de **16 unidades** (**4 slots de despliegue activo inicial + 12 slots en reserva táctica**).
+1. **Almacén Físico de 16 Chasis Militares (munición descartable forjada)**: Cada comandante dispone de una capacidad física máxima de **16 unidades** (**4 slots de despliegue activo inicial + 12 slots en reserva táctica**).
 2. **Llave 1 — Fondos Tácticos In-Match ($\$G$)**: Disponibilidad de fondos generados en la partida (`availableFunds >= unitCostFunds`).
 3. **Llave 2 — Stock Físico en Hangar (`user_unit_hangar` / `faction_hangar`)**: Poseer el chasis físico real (T1 a T5) forjado en las 10 parcelas industriales del jugador (`src/domains/economy/core/industrialEngine.ts`) o autorizado desde el Arsenal del Clan.
 4. **Excepción F2P de Supervivencia (`sourceUsed: 'f2p_infinite'`)**: Las unidades básicas `infantry` (Tier 1) y `recon` (Tier 1) cuentan con dotación infinita ($\infty$), garantizando que ningún jugador quede bloqueado por bancarrota material.

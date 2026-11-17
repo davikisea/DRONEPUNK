@@ -1,5 +1,5 @@
 /**
- * MOTOR DE COMBATE CANÓNICO (ADVANCE WARS / WARSWORLD / TACTICAL COMMAND)
+ * MOTOR DE COMBATE CANÓNICO (ADVANCE WARS / WARSWORLD / DRONEPUNK 0.0.1)
  * 
  * Implementa la fórmula oficial y exacta de combate de AWBW / Intelligent Systems,
  * con soporte para:
@@ -12,9 +12,14 @@
  */
 
 import { TacticalUnit, TerrainTile } from '../types';
-import { getCanonicalBaseDamage } from './canonicalDamageChart';
+import { getCanonicalBaseDamage, getH3DroneBaseDamageRatio } from './canonicalDamageChart';
 import { getWeatherModifiers, WeatherType } from './weatherSystem';
 import { CombatAuraModifierResult } from './buildingAuras';
+import {
+  OSM_HEX_TERRAIN_CATALOG,
+  type DroneArchetypeId,
+  type OsmHexTerrainType,
+} from '@shared';
 
 export interface LuckRoll {
   goodLuck: number; // 0.0 a 1.0 (1.0 = suerte máxima)
@@ -267,4 +272,140 @@ export class CanonicalCombatEngine {
       damageReductionPercent: defenderTerrainStars * 10,
     };
   }
+}
+
+// ==============================================================================
+// RESOLUCIÓN BALÍSTICA DETERMINISTA H3 (0% RNG, ESCALA 1-10 UI / 1-100 INTERNA)
+// ==============================================================================
+
+export interface DeterministicH3CombatResult {
+  canAttack: boolean;
+  baseDamageRatio: number;
+  damageHp10: number;
+  damageHp100: number;
+  attackerHp10Before: number;
+  attackerHp10After: number;
+  attackerHp100After: number;
+  defenderHp10Before: number;
+  defenderHp10After: number;
+  defenderHp100After: number;
+  defenderEliminated: boolean;
+  counterAttackOccurred: boolean;
+  counterDamageHp10: number;
+  counterDamageHp100: number;
+  attackerEliminated: boolean;
+}
+
+const INDIRECT_OR_UNARMED_ARCHETYPES = new Set<DroneArchetypeId>([
+  'light_artillery',
+  'logistics_apc',
+  'tactical_missile',
+]);
+
+/**
+ * Ecuación Determinista (0% RNG):
+ * Daño Final = Daño Base * (HP Atacante / 10) * (1 - (Bono Terreno * HP Defensor / 10))
+ */
+export function resolveDeterministicH3Combat(params: {
+  attackerType: DroneArchetypeId;
+  defenderType: DroneArchetypeId;
+  attackerHp10: number;
+  defenderHp10: number;
+  attackerTerrain?: OsmHexTerrainType;
+  defenderTerrain: OsmHexTerrainType;
+  distanceHexes: number;
+}): DeterministicH3CombatResult {
+  const baseDamageRatio = getH3DroneBaseDamageRatio(params.attackerType, params.defenderType);
+  if (baseDamageRatio <= 0 || params.attackerHp10 <= 0 || params.defenderHp10 <= 0) {
+    return {
+      canAttack: false,
+      baseDamageRatio,
+      damageHp10: 0,
+      damageHp100: 0,
+      attackerHp10Before: params.attackerHp10,
+      attackerHp10After: params.attackerHp10,
+      attackerHp100After: Math.round(params.attackerHp10 * 10),
+      defenderHp10Before: params.defenderHp10,
+      defenderHp10After: params.defenderHp10,
+      defenderHp100After: Math.round(params.defenderHp10 * 10),
+      defenderEliminated: false,
+      counterAttackOccurred: false,
+      counterDamageHp10: 0,
+      counterDamageHp100: 0,
+      attackerEliminated: false,
+    };
+  }
+
+  // Unidades aéreas (bomber_drone) ignoran bonos de terreno defensivos (0★)
+  const defenderTerrainBonus =
+    params.defenderType === 'bomber_drone'
+      ? 0
+      : OSM_HEX_TERRAIN_CATALOG[params.defenderTerrain].defenseBonus;
+
+  const damageRatio = Math.max(
+    0,
+    baseDamageRatio *
+      (params.attackerHp10 / 10) *
+      (1 - defenderTerrainBonus * (params.defenderHp10 / 10))
+  );
+
+  const damageHp10 = Number((damageRatio * 10).toFixed(2));
+  const damageHp100 = Math.min(Math.round(params.defenderHp10 * 10), Math.round(damageRatio * 100));
+
+  const defenderHp100After = Math.max(0, Math.round(params.defenderHp10 * 10) - damageHp100);
+  const defenderHp10After = Number((defenderHp100After / 10).toFixed(2));
+  const defenderEliminated = defenderHp100After === 0;
+
+  let counterAttackOccurred = false;
+  let counterDamageHp10 = 0;
+  let counterDamageHp100 = 0;
+  let attackerHp100After = Math.round(params.attackerHp10 * 10);
+
+  // Contraataque secuencial en el mismo tick usando HP restante post-impacto
+  const canDefenderCounter =
+    !defenderEliminated &&
+    params.distanceHexes === 1 &&
+    params.attackerType !== 'bomber_drone' &&
+    !INDIRECT_OR_UNARMED_ARCHETYPES.has(params.defenderType);
+
+  if (canDefenderCounter) {
+    const counterBase = getH3DroneBaseDamageRatio(params.defenderType, params.attackerType);
+    if (counterBase > 0) {
+      counterAttackOccurred = true;
+      const attackerTerrain = params.attackerTerrain ?? 'PLAIN';
+      const attackerTerrainBonus =
+        params.attackerType === 'bomber_drone'
+          ? 0
+          : OSM_HEX_TERRAIN_CATALOG[attackerTerrain].defenseBonus;
+
+      const counterRatio = Math.max(
+        0,
+        counterBase *
+          (defenderHp10After / 10) *
+          (1 - attackerTerrainBonus * (params.attackerHp10 / 10))
+      );
+
+      counterDamageHp10 = Number((counterRatio * 10).toFixed(2));
+      counterDamageHp100 = Math.min(attackerHp100After, Math.round(counterRatio * 100));
+      attackerHp100After = Math.max(0, attackerHp100After - counterDamageHp100);
+    }
+  }
+
+  return {
+    canAttack: true,
+    baseDamageRatio,
+    damageHp10,
+    damageHp100,
+    attackerHp10Before: params.attackerHp10,
+    attackerHp10After: Number((attackerHp100After / 10).toFixed(2)),
+    attackerHp100After,
+    defenderHp10Before: params.defenderHp10,
+    defenderHp10After,
+    defenderHp100After,
+    defenderEliminated,
+    counterAttackOccurred,
+    counterDamageHp10,
+    counterDamageHp100,
+    attackerEliminated: attackerHp100After === 0,
+  };
 }

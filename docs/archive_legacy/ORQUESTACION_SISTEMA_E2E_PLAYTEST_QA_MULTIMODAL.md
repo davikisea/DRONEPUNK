@@ -1,7 +1,8 @@
 # ORQUESTACIÓN DEL SISTEMA DE PLAYTESTING AUTÓNOMO E2E Y QA MULTIMODAL
-**Documento Maestro de Implementación:** `ORQUESTACION_SISTEMA_E2E_PLAYTEST_QA_MULTIMODAL.md`  
-**Proyecto:** *Tactical Command: Wars of Legacy*  
-**Objetivo:** Establecer una suite de QA autónoma basada en Playwright y Visión Multimodal que ejecute el juego real, capture pantallas, cruce errores de consola, red y renderizado, y diagnostique bloqueos tempranos para eliminar la dependencia de pruebas manuales humanas.
+> **Estado Documental:** Especificación Histórica Archivada — Alineada a **DRONEPUNK 0.0.1**  
+> **Documento Maestro de Implementación:** `docs/archive_legacy/ORQUESTACION_SISTEMA_E2E_PLAYTEST_QA_MULTIMODAL.md`  
+> **Proyecto:** **DRONEPUNK 0.0.1**  
+> **Objetivo:** Establecer una suite de QA autónoma basada en Playwright y Visión Multimodal que ejecute el juego real, capture pantallas, cruce errores de consola, red y renderizado, y diagnostique bloqueos tempranos para eliminar la dependencia de pruebas manuales humanas.
 
 ---
 
@@ -110,11 +111,11 @@ export default defineConfig({
 
 ---
 
-### Paso 3: Inyección del "Game Test Harness" (`src/utils/qaHarness.ts`)
-Para evitar depender exclusivamente de clics frágiles en coordenadas ciegas, exponemos un puente de depuración seguro que solo se activa en modo de desarrollo (`import.meta.env.DEV`):
+### Paso 3: Inyección del "Game Test Harness" (`src/shared/utils/qaHarness.ts`)
+Para evitar depender exclusivamente de clics frágiles en coordenadas ciegas, exponemos un puente de depuración seguro en `src/shared/utils/qaHarness.ts` que expone el estado operativo de la sesión:
 
 ```typescript
-// src/utils/qaHarness.ts
+// src/shared/utils/qaHarness.ts
 export interface QAGameSnapshot {
   isReady: boolean;
   activeScreen: string;
@@ -124,45 +125,20 @@ export interface QAGameSnapshot {
   unitsCount: number;
   lastError: string | null;
   fps: number;
+  canvasRendered: boolean;
+  extra?: Record<string, unknown>;
 }
 
 declare global {
   interface Window {
     __TACTICAL_QA_BRIDGE__?: {
       getSnapshot: () => QAGameSnapshot;
-      forceEndTurn?: () => void;
-      selectTile?: (x: number, y: number) => void;
+      updateSnapshot: (partial: Partial<QAGameSnapshot>) => void;
       getConsoleErrors: () => string[];
-    };
-  }
-}
-
-const capturedErrors: string[] = [];
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('error', (event) => {
-    capturedErrors.push(`[UNCAUGHT] ${event.message} at ${event.filename}:${event.lineno}`);
-  });
-  window.addEventListener('unhandledrejection', (event) => {
-    capturedErrors.push(`[UNHANDLED_PROMISE] ${event.reason}`);
-  });
-}
-
-export function registerQABridge(getter: () => Partial<QAGameSnapshot>) {
-  if (import.meta.env.DEV) {
-    window.__TACTICAL_QA_BRIDGE__ = {
-      getSnapshot: () => ({
-        isReady: true,
-        activeScreen: 'combat-grid',
-        turnNumber: 1,
-        activePlayer: 'OS',
-        phase: 'IDLE',
-        unitsCount: 0,
-        lastError: capturedErrors[capturedErrors.length - 1] || null,
-        fps: 60,
-        ...getter(),
-      }),
-      getConsoleErrors: () => [...capturedErrors],
+      clearErrors: () => void;
+      ping: () => string;
+      launchCombat?: () => void;
+      setMainNav?: (nav: string) => void;
     };
   }
 }
@@ -185,7 +161,7 @@ interface LogEntry {
   timestamp: string;
 }
 
-test.describe('Tactical Command - Autonomous Game Playtester', () => {
+test.describe('DRONEPUNK 0.0.1 - Autonomous Game Playtester', () => {
   const screenshotsDir = path.resolve('test-results/screenshots');
   const capturedLogs: LogEntry[] = [];
   const networkFailures: string[] = [];
@@ -385,9 +361,9 @@ Para comenzar a operar este sistema ahora mismo:
    npm install -D @playwright/test
    npx playwright install chromium
    ```
-2. **Crear los archivos de configuración y scripts:**
+2. **Archivos de configuración y scripts reales en el repositorio:**
    - `playwright.config.ts`
-   - `src/utils/qaHarness.ts`
+   - `src/shared/utils/qaHarness.ts`
    - `tests/e2e/game-playtester.spec.ts`
    - `.agents/skills/game-qa-playtester/SKILL.md`
 3. **Correr la primera prueba:**
@@ -396,3 +372,6 @@ Para comenzar a operar este sistema ahora mismo:
    ```
 4. **Analizar los resultados:**
    Revisar la carpeta `test-results/screenshots/` y el archivo `test-results/qa-run-latest.json`.
+
+---
+*Especificación Histórica Archivada — Alineada a **DRONEPUNK 0.0.1**.*

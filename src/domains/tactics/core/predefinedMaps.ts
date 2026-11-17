@@ -1,7 +1,7 @@
 /**
  * MAPAS CANÓNICOS PREDEFINIDOS (ADVANCE WARS / WARSWORLD / AWBW)
  * 
- * Biblioteca de escenarios tácticos oficiales para TacticalCommand:
+ * Biblioteca de escenarios tácticos oficiales para DRONEPUNK 0.0.1:
  * - Sector Alfa (Sandbox 8x8 de pruebas rápidas)
  * - Caustic Finale (18x18 - Competitivo estándar AWBW)
  * - 1v1 Issus (21x21 - Clásico de Advance Wars 2)
@@ -28,7 +28,7 @@ export const PREDEFINED_MAPS_META: PredefinedMapMeta[] = [
   {
     id: 'mirror_arena_10x10',
     name: 'Arena Espejo Alfa (10x10)',
-    author: 'TacticalCommand Esports',
+    author: 'DRONEPUNK Esports',
     width: 10,
     height: 10,
     players: 2,
@@ -50,7 +50,7 @@ export const PREDEFINED_MAPS_META: PredefinedMapMeta[] = [
   {
     id: 'sector_alfa',
     name: 'Sector Alfa (Sandbox)',
-    author: 'TacticalCommand Core',
+    author: 'DRONEPUNK Core',
     width: 8,
     height: 8,
     players: 2,

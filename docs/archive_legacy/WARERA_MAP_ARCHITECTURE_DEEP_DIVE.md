@@ -1,37 +1,37 @@
-# Arquitectura Cartográfica de WarEra (app.warera.io)
-## Análisis Forense de Rendimiento y Guía Maestra de Replicación para GEOTACTICS-ONLINE
+# Arquitectura Cartográfica Zero-Raster (Referencia WarEra)
+## Análisis Forense de Rendimiento y Guía Histórica de Replicación para DRONEPUNK 0.0.1
+
+> **Estado Documental:** Especificación Histórica Archivada — Alineada a **DRONEPUNK 0.0.1**  
+> **Documento:** `docs/archive_legacy/WARERA_MAP_ARCHITECTURE_DEEP_DIVE.md`  
+> **Implementación Resultante en Código:** `src/domains/world/components/TacticalWorldMap.tsx`, `src/domains/world/core/coordinates.ts`, `public/map/theatre_regions.json` y `public/map/theatre_borders_mesh.json`.
 
 ---
 
-## 1. Resumen Ejecutivo: ¿Por qué el mapa de WarEra es tan ligero y fluido?
+## 1. Resumen Ejecutivo: ¿Por qué el mapa WebGL Zero-Raster es ligero y fluido?
 
-La mayoría de los juegos web de estrategia militar o geopolítica (eRepublik, Conflict of Nations, etc.) y las aplicaciones de mapas tradicionales cometen uno de estos dos errores críticos:
+Los juegos web de estrategia militar o geopolítica tradicionales cometen con frecuencia dos errores críticos:
 1. **Sobrecarga de Tiles Raster (PNG/JPG)**: Descargar cientos de imágenes cuadradas (`{z}/{x}/{y}.png`) mediante peticiones HTTP concurrentes cada vez que el usuario hace pan o zoom. Esto satura el ancho de banda, genera parpadeos y consume decenas de megabytes de RAM.
-2. **Sobrecarga de DOM/SVG**: Renderizar miles de nodos `<path>` o `<svg>` en el árbol del navegador. Cuando hay más de 500 regiones o países, cada evento de `mousemove` o cambio de color fuerza un *reflow* y *recalculation* de estilos en la CPU, derrumbando los FPS a menos de 15 FPS.
+2. **Sobrecarga de DOM/SVG**: Renderizar miles de nodos `<path>` o `<svg>` en el árbol del navegador. Cuando hay cientos de regiones o municipios, cada evento de `mousemove` o cambio de color fuerza un *reflow* y *recalculation* de estilos en la CPU, derrumbando los FPS.
 
-### La Fórmula de WarEra:
-WarEra opera bajo una arquitectura **WebGL Vectorial Híbrida Zero-Raster**:
+### La Fórmula Zero-Raster Estudiada:
+La arquitectura de referencia **WebGL Vectorial Híbrida Zero-Raster** se basa en:
 - **Cero peticiones de tiles raster:** No existe un servidor de tiles de fondo sirviendo imágenes PNG. El mapa completo se dibuja procedural y vectorialmente en la GPU.
-- **Payload único en TopoJSON con caché infinita (`staleTime: Infinity`):** El mapa mundial (terrenos, países, regiones y fronteras) se descarga una sola vez mediante un endpoint tRPC (`map.getMapData`). Al usar TopoJSON en lugar de GeoJSON, los arcos de fronteras compartidas están deduplicados, reduciendo el peso de la geometría en más de un **80%**.
-- **Motor WebGL Nativo (MapLibre GL JS):** Renderizado acelerado por hardware a 60/120 FPS.
-- **Interactividad en GPU sin re-renderizado (`feature-state`):** Al pasar el mouse sobre una región, **no se ejecuta ningún re-render de React** ni se muta el GeoJSON. Se envía una sola llamada `map.setFeatureState(..., { hover: true })`. El fragment shader de WebGL en la tarjeta gráfica actualiza el color instantáneamente con **0 ms de latencia y 0% de sobrecarga de CPU**.
-- **Capa Cinética Deck.gl (`MapboxOverlay`):** Los arcos de ataque balísticos, proyectiles y líneas de conexión marítima se dibujan en una capa WebGL superpuesta con shaders matemáticos para curvas Bézier (`ArcLayer`), sin calcular coordenadas SVG cuadro por cuadro.
-- **Liberación agresiva de memoria JS:** Una vez que los datos de las geometrías se suben al búfer de la tarjeta gráfica (VRAM), el cliente vacía la propiedad `data` del objeto en JavaScript para evitar fugas de memoria en sesiones largas.
+- **Topología compacta con deduplicación de arcos (`topojson-client`):** Al deduplicar fronteras compartidas entre regiones vecinas, se evita repetir coordenadas y se reduce drásticamente el payload geométrico.
+- **Motor WebGL Nativo (MapLibre GL JS v6):** Renderizado acelerado por hardware a 60 FPS continuos.
+- **Interactividad en GPU sin re-renderizado (`feature-state`):** Al pasar el mouse sobre una región, **no se ejecuta ningún re-render de React** ni se muta el GeoJSON. Se envía una sola llamada `map.setFeatureState(..., { hover: true })`. El shader de WebGL actualiza el color instantáneamente en la tarjeta gráfica con sobrecarga de CPU mínima.
+- **Control de Memoria JS e Inactividad:** Gestión eficiente de fuentes GeoJSON en VRAM y suspensión automática cuando la pestaña pierde foco o permanece inactiva.
 
 ---
 
-## 2. Pila Tecnológica Real de WarEra (Deconstrucción del Bundle)
+## 2. Pila Tecnológica de Referencia Estudiada
 
-A través de la inspección directa de los bundles de producción de `app.warera.io`, identificamos los componentes exactos de su stack:
-
-| Capa | Tecnología / Módulo | Propósito en WarEra |
+| Capa | Tecnología / Módulo | Propósito |
 | :--- | :--- | :--- |
-| **Pipeline de Datos** | **TopoJSON Client (`topojson-client`)** | Convierte las topologías compactas del servidor en mallas (*meshes*) y colecciones GeoJSON en la memoria del cliente. |
-| **Motor Vectorial Base** | **MapLibre GL JS (v3/v4 WebGL2)** | Dibuja polígonos de agua, continentes, regiones, estados y etiquetas SDF (*Signed Distance Field*). |
-| **Integración React** | **`react-map-gl/maplibre`** | Provee los componentes de enlace `<Source type="geojson">` y `<Layer>`. |
-| **Capa de Efectos & Arcos** | **Deck.gl (`@deck.gl/core`, `@deck.gl/layers`, `@deck.gl/mapbox`)** | Orquesta `ArcLayer` para líneas de ataque entre coordenadas [lng, lat] con wrapping de 360°. |
-| **Motor de Texturas Procedurales** | **Offscreen Canvas + Noise / Marching Squares** | Genera patrones rayados de invasión (`region-pattern-attacked`) e isolíneas topográficas matemáticamente, inyectándolos con `map.addImage()`. |
-| **Estado Global y Datos** | **tRPC + TanStack Query (React Query v5)** | `map.getMapData.useQuery(undefined, { staleTime: Infinity })`. |
+| **Pipeline de Datos** | **TopoJSON Client (`topojson-client`)** | Convierte topologías compactas en mallas (*meshes*) y colecciones GeoJSON limpias sin aristas duplicadas. |
+| **Motor Vectorial Base** | **MapLibre GL JS (WebGL 2.0)** | Dibuja polígonos de agua, continentes, regiones, estados, municipios y etiquetas SDF (*Signed Distance Field*). |
+| **Capa Vectorial Local** | **GeoJSON / Mesh en `public/map/`** | Geometrías locales para el Teatro Venezuela (`theatre_regions.json`, `theatre_borders_mesh.json`, `theatre_roads.json`, `theatre_urban_roads.json`, `theatre_cities.json`, `zulia_municipalities.json`, `world_land.json`). |
+| **Motor de Texturas Procedurales** | **Canvas / Shaders WebGL** | Genera patrones visuales para sectores en disputa o sin suministros. |
+| **Estado Global y Datos** | **Supabase Realtime + Hooks de Dominio** | `src/domains/world/hooks/useTerritoryMap.ts` y `src/domains/world/hooks/useSiegeRealtime.ts`. |
 
 ---
 
@@ -39,61 +39,57 @@ A través de la inspección directa de los bundles de producción de `app.warera
 
 ```mermaid
 flowchart TD
-    subgraph Servidor ["Backend (tRPC / Supabase / Edge CDN)"]
-        RawGeo["Geometría Base Mundial"] --> TopoGen["Compresor TopoJSON (Deduplicación de Arcos)"]
-        TopoGen --> Cache["CDN / Cache HTTP Permanente (E-Tag / Versionado)"]
-        LiveDB["Base de Datos en Vivo (Soberanía, Guerras, Ataques)"] --> DynamicEndpoint["Dynamic State API"]
+    subgraph Servidor ["Backend (Supabase / Assets Estáticos Locales)"]
+        RawGeo["Geometría Base (Teatro Venezuela + Mundo)"] --> TopoGen["Compresor TopoJSON / Mesh"]
+        TopoGen --> Cache["public/map/*.json (Assets Locales Zero-Raster)"]
+        LiveDB["Supabase PostgreSQL (Soberanía TCP, Asedios 120s)"] --> DynamicEndpoint["Supabase Realtime Channels"]
     end
 
-    subgraph Cliente ["Cliente Web (Navegador)"]
-        Cache -->|Descarga inicial única ~300-600 KB| Query["React Query (staleTime: Infinity)"]
-        DynamicEndpoint -->|Eventos Realtime / Polling| LiveState["Store Zustand / Alice Engine"]
+    subgraph Cliente ["Cliente Web DRONEPUNK 0.0.1"]
+        Cache -->|Carga local sin tiles externos| Loader["TacticalWorldMap.tsx"]
+        DynamicEndpoint -->|Eventos Realtime| LiveState["useTerritoryMap.ts / politicalAliceEngine.ts"]
         
-        Query --> TopoParser["topojson-client (feature & mesh)"]
-        TopoParser -->|Polígonos| GeoJSON_Regions["GeoJSON: Regions & Countries"]
-        TopoParser -->|Mallas de Fronteras 1px| Mesh_Borders["GeoJSON: Countries & Region Meshes"]
+        Loader --> GeoJSON_Regions["public/map/theatre_regions.json (24 REG_VE + BUF_MARITIME_CARIBE)"]
+        Loader --> Mesh_Borders["public/map/theatre_borders_mesh.json"]
         
-        GeoJSON_Regions --> MapLibre_Source["MapLibre GeoJSON Source"]
+        GeoJSON_Regions --> MapLibre_Source["MapLibre GeoJSON Source (tolerance: 0)"]
         Mesh_Borders --> MapLibre_Source
         
-        subgraph GPU_Pipelines ["Pipeline WebGL (GPU)"]
+        subgraph GPU_Pipelines ["Pipeline WebGL 2.0 (GPU)"]
             MapLibre_Source -->|Buffers VRAM| Shaders["MapLibre Style Shaders"]
             Shaders --> RenderCanvas["WebGL Canvas Principal"]
             
             HoverEvent["Mousemove / Hover"] -->|map.setFeatureState| FeatureState["GPU Feature State (0ms CPU)"]
             FeatureState --> Shaders
-            
-            LiveState -->|Arcos de Ataque| DeckOverlay["Deck.gl MapboxOverlay (ArcLayer)"]
-            DeckOverlay --> RenderCanvas
         end
     end
 ```
 
 ---
 
-## 4. Los 6 Secretos de Optimización que Hacen Volar a WarEra
+## 4. Los 6 Secretos de Optimización Cartográfica
 
-### Secreto 1: TopoJSON en vez de GeoJSON crudo
-En GeoJSON, cuando dos regiones o países comparten una frontera (por ejemplo, Venezuela y Colombia), esa secuencia de coordenadas se repite **dos veces** (una en el polígono de cada país). En un mapa con 500 regiones, el 90% de los puntos están duplicados.
-- **Solución TopoJSON**: Las líneas compartidas se guardan como **arcos únicos**. Los polígonos solo guardan referencias a los índices de los arcos: `[1, -4, 12]`.
-- En el cliente, WarEra ejecuta:
+### Secreto 1: Deduplicación de Fronteras Compartidas (TopoJSON / Mesh Único)
+En GeoJSON sin normalizar, cuando dos regiones comparten una frontera, esa secuencia de coordenadas se repite **dos veces** (una en el polígono de cada entidad).
+- **Solución Aplicada en DRONEPUNK 0.0.1:** Las líneas compartidas se consolidan mediante el pipeline TopoJSON Bottom-Up (`scripts/verify-map-topology.mjs`) generando `public/map/theatre_regions.json` y `public/map/theatre_borders_mesh.json` con desfase `0.000 m`.
+- **Ejemplo con `topojson-client`:**
   ```ts
   import { feature, mesh } from 'topojson-client';
-  
-  // 1. Polígonos de regiones para pintar y detectar colisiones
+
+  // 1. Polígonos de regiones para pintar y detectar selección
   const regionsGeoJson = feature(topology, topology.objects.regions);
-  
-  // 2. Malla unificada de fronteras (MultiLineString): CERO líneas dobles
+
+  // 2. Malla unificada de fronteras (MultiLineString): líneas únicas sin duplicados
   const regionBordersMesh = mesh(topology, topology.objects.regions, (a, b) => a !== b);
-  
+
   // 3. Costas exteriores
   const coastlinesMesh = mesh(topology, topology.objects.regions, (a, b) => a === b);
   ```
 
-### Secreto 2: React NO toca el mapa en mousemove (`feature-state`)
-El mayor error en aplicaciones React con mapas es guardar `hoveredRegionId` en un `useState` de React y cambiar la prop `fillColor` del polígono. Eso destruye el árbol de React en cada movimiento del mouse.
+### Secreto 2: React NO toca el mapa en `mousemove` (`feature-state`)
+Guardar `hoveredRegionId` en un `useState` de React y cambiar la prop `fillColor` del polígono destruye el rendimiento del árbol DOM en cada movimiento del mouse.
 
-WarEra utiliza **Feature State en la GPU**:
+La arquitectura correcta delega el hover a **Feature State en la GPU**:
 1. El estilo del Layer en MapLibre define la regla en el shader:
    ```json
    {
@@ -114,10 +110,10 @@ WarEra utiliza **Feature State en la GPU**:
 2. El listener del mouse solo avisa a la GPU:
    ```ts
    let currentHoverId: string | null = null;
-   
+
    map.on('mousemove', 'regions-fill', (e) => {
      if (e.features && e.features.length > 0) {
-       const newId = e.features[0].id;
+       const newId = String(e.features[0].id);
        if (currentHoverId !== newId) {
          if (currentHoverId) {
            map.setFeatureState({ source: 'regions', id: currentHoverId }, { hover: false });
@@ -128,7 +124,7 @@ WarEra utiliza **Feature State en la GPU**:
        }
      }
    });
-   
+
    map.on('mouseleave', 'regions-fill', () => {
      if (currentHoverId) {
        map.setFeatureState({ source: 'regions', id: currentHoverId }, { hover: false });
@@ -139,82 +135,41 @@ WarEra utiliza **Feature State en la GPU**:
    ```
 
 ### Secreto 3: Texturas de Patrones Inyectadas en la GPU (`fill-pattern`)
-Cuando una región está bajo ataque militar o no tiene suministros, WarEra no dibuja cientos de líneas vectoriales.
-Genera un patrón de rayas de 16x16 píxeles con un Canvas Offscreen una sola vez y lo inyecta como textura:
-```ts
-map.addImage('region-pattern-attacked', imageData, { pixelRatio: 2 });
-```
-En el Layer de MapLibre:
-```json
-"fill-pattern": [
-  "case",
-  ["boolean", ["get", "isAttacked"], false],
-  "region-pattern-attacked",
-  ""
-]
-```
-La GPU repite la textura en paralelo en millones de píxeles sin coste de CPU.
+Cuando una región está bajo asedio o desabastecida, en lugar de dibujar cientos de líneas vectoriales adicionales, se genera un patrón de 16×16 píxeles una sola vez y se inyecta con `map.addImage('region-pattern-attacked', imageData, { pixelRatio: 2 })`.
 
-### Secreto 4: Deck.gl `ArcLayer` para Trayectorias Bézier
-Dibujar curvas de ataque balísticas (misiles, aviones, líneas de frente) mediante SVG o Canvas 2D requiere recalcular cientos de puntos por curva en cada frame de zoom.
-WarEra monta `MapboxOverlay` de Deck.gl conectado al mismo contexto WebGL:
-```ts
-new ArcLayer({
-  id: 'attack-arcs',
-  data: liveBattles,
-  getSourcePosition: d => d.fromLngLat,
-  getTargetPosition: d => d.toLngLat,
-  getSourceColor: [255, 60, 60, 200],
-  getTargetColor: [255, 180, 50, 255],
-  getWidth: 3,
-  wrapLongitude: true, // Manejo suave del antimeridiano (-180 / +180)
-})
-```
+### Secreto 4: Curvas Balísticas y Líneas Logísticas Vectoriales
+Las rutas logísticas entre nodos, carreteras troncales (`public/map/theatre_roads.json`) y arterias urbanas (`public/map/theatre_urban_roads.json`) se proyectan directamente en capas vectoriales WebGL evitando recálculos SVG por frame.
 
-### Secreto 5: Liberación de Heap de JavaScript
-MapLibre copia los datos vectoriales a la memoria de la tarjeta gráfica (VRAM). Dejar el objeto JSON gigante en la memoria de JS causa consumo excesivo de RAM. WarEra vacía la referencia:
-```ts
-useEffect(() => {
-  const map = mapRef.current?.getMap();
-  if (map?.style) {
-    for (const sourceId of Object.values(SOURCES)) {
-      const src = map.getSource(sourceId);
-      if (src && src._options && src._options.data !== undefined) {
-        src._options.data = undefined; // Garbage collector libera el JSON de la RAM de JS
-      }
-    }
-  }
-}, []);
-```
+### Secreto 5: Liberación de Referencias Pesadas en Heap de JavaScript
+Una vez que MapLibre carga las fuentes vectoriales en VRAM, se evita retener copias duplicadas en el estado de React para mantener bajo el consumo de memoria en sesiones prolongadas.
 
 ### Secreto 6: Control de Inactividad y Frame Limiting
-- **Throttling de Pixel Ratio**: En pantallas retina 4K (DPI 3x), rasterizar el mapa completo a 120 FPS recalienta los dispositivos móviles. WarEra limita `pixelRatio` a 1 o 2 máximo según la configuración del usuario (`low: 1, medium: 2, high: 3`).
-- **Suspensión de Contexto WebGL**: Cuando la pestaña pasa a segundo plano (`document.visibilityState === 'hidden'`), se suspende el render loop.
+- **Throttling de Pixel Ratio**: En pantallas de alta densidad, acotar `pixelRatio` evita sobrecalentamiento en dispositivos móviles.
+- **Suspensión de Contexto WebGL**: Cuando la pestaña pasa a segundo plano (`document.visibilityState === 'hidden'`) o tras inactividad prolongada, se pausa el loop de renderizado.
 
 ---
 
-## 5. Blueprint de Implementación para GEOTACTICS-ONLINE
+## 5. Blueprint Histórico Consolidado en DRONEPUNK 0.0.1
 
-Para implementar este mismo sistema en GEOTACTICS-ONLINE (que ya cuenta con `maplibre-gl` en `package.json`), sigue estos 4 pasos canónicos:
+La adopción de este patrón en **DRONEPUNK 0.0.1** (con `maplibre-gl` en `package.json`) se completó en 4 pasos:
 
-### Paso 1: Instalar dependencias auxiliares
+### Paso 1: Dependencias Vectoriales
 ```bash
-npm install topojson-client @deck.gl/core @deck.gl/layers @deck.gl/mapbox
-npm install -D @types/topojson-client
+npm install topojson-client topojson-server topojson-simplify
 ```
 
-### Paso 2: Generar TopoJSON con Mapshaper
-Toma tus GeoJSONs de regiones (`venezuela_regions.geojson` o mapa mundial) y compáctalos con `mapshaper`:
-```bash
-npx mapshaper venezuela_regions.geojson \
-  -clean \
-  -simplify 15% keep-shapes \
-  -o format=topojson precision=0.0001 public/map/theatre_topology.json
-```
-Esto reduce un archivo de 4 MB a menos de 280 KB.
+### Paso 2: Artefactos Cartográficos en `public/map/`
+Generación y validación topológica de los archivos locales:
+- `public/map/theatre_regions.json`
+- `public/map/theatre_borders_mesh.json`
+- `public/map/theatre_roads.json`
+- `public/map/theatre_urban_roads.json`
+- `public/map/theatre_cities.json`
+- `public/map/zulia_municipalities.json`
+- `public/map/world_land.json`
 
-### Paso 3: Componente Maestro `WarEraStyleMap.tsx`
-(Ver implementación completa en el código del proyecto).
+### Paso 3: Renderizador Canónico
+Consolidado en `src/domains/world/components/TacticalWorldMap.tsx` junto con `src/domains/world/core/coordinates.ts` y `src/domains/world/core/tacticalBitmap.ts`.
 
 ### Paso 4: Capa de Sincronización en Tiempo Real con Supabase
-En lugar de refescar el mapa completo, solo envía las mutaciones ligeras de soberanía y batallas mediante Supabase Realtime Channels, actualizando únicamente los `feature-state` o fuentes dinámicas de Deck.gl.
+En lugar de reconstruir el mapa completo, las mutaciones de soberanía (`15,000 TCP` en capitales, `10,000 TCP` en provincias estándar) y asedios (`120s` Human Handshake) fluyen mediante Supabase Realtime (`src/domains/world/hooks/useTerritoryMap.ts` y `src/domains/world/hooks/useSiegeRealtime.ts`), actualizando directamente los estados vectoriales en GPU.

@@ -2,8 +2,8 @@
  * ==============================================================================
  * PRUEBAS UNITARIAS: MOTOR DE LADDER CLASIFICATORIO, SISTEMA ELO Y ARENAS
  * ==============================================================================
- * Proyecto: Tactical Command: Wars of Legacy
- * Especificación Canónica Calibrada: docs/PROPOSAL_DB_ARCHITECTURE.md (v2.0.0-CALIBRATED)
+ * Proyecto: DRONEPUNK 0.0.1
+ * Especificación Canónica Calibrada: docs/04_MASTER_DATABASE_AND_SECURITY_SPEC.md (DRONEPUNK 0.0.1)
  * Base de Datos: supabase/migrations/20261031000014_unified_matchmaking_and_ranked_ladder.sql
  */
 

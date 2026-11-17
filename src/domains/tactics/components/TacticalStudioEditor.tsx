@@ -3,7 +3,7 @@
  * TACTICAL STUDIO EDITOR — SUITE PRINCIPAL (HERRAMIENTA INTERNA DE DESARROLLO)
  * ==============================================================================
  * Entorno de desarrollo desacoplado de la interfaz de usuario final, enfocado
- * en la creación y calibración de activos 100% originales para Tactical Command.
+ * en la creación y calibración de activos 100% originales para DRONEPUNK 0.0.1.
  * Estilo visual: Skill retro-futurism (atompunk, esquinas aerodinámicas, sombras rígidas).
  */
 

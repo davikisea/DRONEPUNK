@@ -14,7 +14,7 @@ import {
   lngLatToGridCoords,
   gridCoordsToLngLat,
   LngLat,
-} from '@domains/world';
+} from '../core/coordinates';
 import {
   operationalUnitsService,
   DeployedOperationalUnit,
@@ -23,7 +23,27 @@ import {
   fiefBuildingService,
 } from '@domains/economy';
 import type { FiefBuilding, FiefBuildingType } from '@domains/economy';
-import { supabase, isSupabaseConfigured } from '@shared';
+import {
+  supabase,
+  isSupabaseConfigured,
+  getTerrainDefenseStars,
+  getTerrainMovementCost,
+  type MunicipalMicroGrid,
+  type DroneSignalProjection,
+  type SparseMapHexRecord,
+  type TerrainType,
+  type TerrainTile,
+  type SectorCellTerrainOverride,
+  type SectorTerrainOverride,
+  type SectorTerrainDelta,
+  type WeatherCondition,
+} from '@shared';
+import {
+  initializeMunicipalMicroGrid,
+  evaluateSignalCaptureTick,
+  type SignalCaptureTickResult,
+} from '../core/territorialExpansionEngine';
+import { generateGbaSectorBlueprint } from '../core/gbaMapPipeline';
 
 export type MicroTerrainType =
   | 'urban_asphalt'
@@ -38,9 +58,11 @@ export interface SpatialCellAssignment {
   centerLngLat: LngLat;
   formattedCoordinate: string; // ej: "SEC-10294:15424 / CELL-[5,13]"
   terrainType: MicroTerrainType;
+  canonicalTerrain: TerrainType;
+  defenseStars: number;
   terrainName: string;
-  defenseCoverPercent: number;  // 10% - 40%
-  movementCost: number;         // 1 - 2
+  defenseCoverPercent: number;  // 0% - 40%
+  movementCost: number;         // 1 - 3
   deployedUnit?: DeployedOperationalUnit;
   deployedBuilding?: FiefBuilding;
   isDeployable: boolean;
@@ -72,18 +94,124 @@ export interface ConstructBuildingInput {
 
 type SpatialChangeListener = () => void;
 
+const SECTOR_TERRAIN_STORAGE_KEY = 'dronepunk_sector_terrain_overrides_v1';
+
+function hashGridInt(x: number, y: number, seed: number): number {
+  let h = (Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(seed, 1442695041)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+function smoothValueNoise2D(wx: number, wy: number, scale: number, seed: number): number {
+  const gx = Math.floor(wx / scale);
+  const gy = Math.floor(wy / scale);
+  const fx = (wx / scale) - gx;
+  const fy = (wy / scale) - gy;
+  const u = fx * fx * (3 - 2 * fx);
+  const v = fy * fy * (3 - 2 * fy);
+
+  const n00 = hashGridInt(gx, gy, seed);
+  const n10 = hashGridInt(gx + 1, gy, seed);
+  const n01 = hashGridInt(gx, gy + 1, seed);
+  const n11 = hashGridInt(gx + 1, gy + 1, seed);
+
+  const nx0 = n00 * (1 - u) + n10 * u;
+  const nx1 = n01 * (1 - u) + n11 * u;
+  return nx0 * (1 - v) + nx1 * v;
+}
+
+function mapCanonicalToMicroTerrain(type: TerrainType): {
+  micro: MicroTerrainType;
+  label: string;
+} {
+  switch (type) {
+    case 'sea':
+    case 'reef':
+    case 'shoal':
+    case 'river':
+      return { micro: 'coastal_basin', label: type === 'sea' ? 'Lago / Agua Profunda' : type === 'shoal' ? 'Costa / Vado Lacustre' : 'Cuenca Fluvial / Arrecife' };
+    case 'road':
+    case 'bridge':
+    case 'city':
+      return { micro: 'urban_asphalt', label: type === 'city' ? 'Núcleo Urbano' : 'Corredor de Asfalto Urbano' };
+    case 'factory':
+    case 'airport':
+    case 'port':
+    case 'hq':
+    case 'commtower':
+    case 'silo':
+    case 'usedSilo':
+    case 'lab':
+    case 'pipe':
+    case 'pipeSeam':
+      return { micro: 'industrial_compound', label: `Instalación Estratégica (${type.toUpperCase()})` };
+    case 'mountain':
+    case 'forest':
+      return { micro: 'defensive_ridge', label: type === 'mountain' ? 'Elevación Montañosa (4★)' : 'Bosque Táctico (2★)' };
+    case 'rubble':
+      return { micro: 'open_plains', label: 'Escombros Tácticos (1★)' };
+    case 'plains':
+    default:
+      return { micro: 'open_plains', label: 'Llanura Abierta / Terreno Firme' };
+  }
+}
+
 class SpatialDeploymentService {
   private listeners: Set<SpatialChangeListener> = new Set();
   private occupiedCells: Map<string, { unitId?: string; buildingId?: string }> = new Map();
+  private municipalGrids: Map<string, MunicipalMicroGrid> = new Map();
+  private sparseH3Hexes: Map<string, SparseMapHexRecord> = new Map();
+  private sectorTerrainOverrides: Map<string, SectorTerrainOverride> = new Map();
+  private sectorWeatherOverrides: Map<string, WeatherCondition> = new Map();
+  private terrainRevision: number = 1;
   private activeRegionId: string = 'REG_VE_02';
   private realtimeChannel: any = null;
   private isHydrated: boolean = false;
+  private seedOccupiedSynced: boolean = false;
+  private terrainInitialized: boolean = false;
 
   constructor() {
+    // Diferir la indexación inicial al microtask posterior al grafo ESM para evitar ciclos @domains/world <-> @domains/tactics <-> @shared
+    queueMicrotask(() => {
+      try {
+        this.ensureTerrainInitialized();
+        this.ensureSeedOccupiedSynced();
+      } catch {
+        // Fallback: se sincroniza lazy en la primera llamada
+      }
+    });
+
     // Inicialización no bloqueante de canal Realtime
     this.initRealtimeSubscription(this.activeRegionId).catch((err) => {
       console.warn('[SpatialDeploymentService] Fallo inicializando Realtime (degradado a memoria):', err);
     });
+  }
+
+  private ensureSeedOccupiedSynced(
+    gridSize: number = 20,
+    zoom: number = ZOOM_TACTICO
+  ): void {
+    if (this.seedOccupiedSynced) return;
+    this.syncOccupiedCellsFromSeed(gridSize, zoom);
+  }
+
+  /**
+   * Indexa en occupiedCells todas las unidades operacionales actualmente sembradas.
+   */
+  public syncOccupiedCellsFromSeed(
+    gridSize: number = 20,
+    zoom: number = ZOOM_TACTICO
+  ): void {
+    const seededUnits = operationalUnitsService.getAllUnits();
+    for (const unit of seededUnits) {
+      const { sector, cell } = lngLatToGridCoords(unit.coordinates, gridSize, zoom);
+      const cellKey = this.calculateSpatialCellId(sector, cell);
+      this.occupiedCells.set(cellKey, {
+        ...this.occupiedCells.get(cellKey),
+        unitId: unit.id,
+      });
+    }
+    this.seedOccupiedSynced = true;
   }
 
   /**
@@ -336,6 +464,7 @@ class SpatialDeploymentService {
     gridSize: number = 20,
     zoom: number = ZOOM_TACTICO
   ): SpatialCellAssignment {
+    this.ensureSeedOccupiedSynced(gridSize, zoom);
     const { sector, cell } = lngLatToGridCoords(lngLat, gridSize, zoom);
     const centerLngLat = gridCoordsToLngLat(sector, cell, gridSize, zoom);
     const cellKey = this.calculateSpatialCellId(sector, cell);
@@ -364,35 +493,18 @@ class SpatialDeploymentService {
       );
     });
 
-    // Clasificación determinista de terreno según hash espacial
-    const terrainSeed = Math.abs(
-      Math.sin(sector[0] * 374761393 + sector[1] * 668265263 + cell[0] * 127 + cell[1])
-    );
+    const resolved = this.resolveSectorCellTerrain(sector, cell, gridSize);
+    const mapped = mapCanonicalToMicroTerrain(resolved.type);
 
-    let terrainType: MicroTerrainType = 'open_plains';
-    let terrainName = 'Llanura Abierta / Terreno Firme';
-    let defenseCoverPercent = 10;
-    let movementCost = 1;
+    let terrainType: MicroTerrainType = mapped.micro;
+    let terrainName = mapped.label;
+    let defenseCoverPercent = resolved.defenseStars * 10;
+    let movementCost = resolved.movementCost;
 
     if (deployedBuilding) {
       terrainType = 'industrial_compound';
       terrainName = `Zona de Estructura: ${deployedBuilding.buildingType}`;
       defenseCoverPercent = 35;
-      movementCost = 1;
-    } else if (terrainSeed > 0.75) {
-      terrainType = 'urban_asphalt';
-      terrainName = 'Corredor de Asfalto Urbano';
-      defenseCoverPercent = 15;
-      movementCost = 1;
-    } else if (terrainSeed > 0.55) {
-      terrainType = 'defensive_ridge';
-      terrainName = 'Cresta Defensiva y Borde Fortificado';
-      defenseCoverPercent = 40;
-      movementCost = 2;
-    } else if (terrainSeed > 0.35) {
-      terrainType = 'industrial_compound';
-      terrainName = 'Sector de Acopio e Instalaciones';
-      defenseCoverPercent = 25;
       movementCost = 1;
     }
 
@@ -405,6 +517,8 @@ class SpatialDeploymentService {
       centerLngLat,
       formattedCoordinate: `SEC [${sector.join(',')}] • CELL [${cell.join(',')}]`,
       terrainType,
+      canonicalTerrain: resolved.type,
+      defenseStars: resolved.defenseStars,
       terrainName,
       defenseCoverPercent,
       movementCost,
@@ -591,6 +705,396 @@ class SpatialDeploymentService {
    */
   public constructTacticalBuilding(input: ConstructBuildingInput) {
     return this.constructBuildingAt(input);
+  }
+
+  /**
+   * Obtiene o inicializa la malla de 500 micro-celdas (100x100m) de un municipio.
+   */
+  public getOrCreateMunicipalGrid(
+    municipalityId: string,
+    stateId: string = this.activeRegionId,
+    centerLngLat: [number, number] = [-71.4539, 10.3994],
+    initialControllingClanId: string | null = null
+  ): MunicipalMicroGrid {
+    const existing = this.municipalGrids.get(municipalityId);
+    if (existing) return existing;
+
+    const created = initializeMunicipalMicroGrid(
+      municipalityId,
+      stateId,
+      centerLngLat,
+      initialControllingClanId
+    );
+    this.municipalGrids.set(municipalityId, created);
+    return created;
+  }
+
+  /**
+   * Ejecuta un tick de captura por proyección de señal sobre la malla municipal
+   * y notifica a los suscriptores del HUD C4ISR.
+   */
+  public evaluateMunicipalSignalTick(
+    municipalityId: string,
+    deployedDrones: DroneSignalProjection[],
+    tickMinutes: number = 10,
+    stateConquestSpeedMultiplier: number = 1.0
+  ): SignalCaptureTickResult {
+    const grid = this.getOrCreateMunicipalGrid(municipalityId);
+    const result = evaluateSignalCaptureTick(
+      grid,
+      deployedDrones,
+      tickMinutes,
+      stateConquestSpeedMultiplier
+    );
+    this.notifyListeners();
+    return result;
+  }
+
+  /**
+   * Inserción o actualización bajo demanda en el Mapa Disperso H3 (Sparse Map).
+   */
+  public touchSparseHex(
+    h3Index: bigint | string,
+    patch: Partial<SparseMapHexRecord>
+  ): SparseMapHexRecord {
+    const key = typeof h3Index === 'bigint' ? h3Index.toString() : h3Index;
+    const existing = this.sparseH3Hexes.get(key);
+    const next: SparseMapHexRecord = {
+      h3Index: key,
+      municipalityId: patch.municipalityId ?? existing?.municipalityId ?? 'MUN_ZULIA_CABIMAS',
+      terrainType: patch.terrainType ?? existing?.terrainType ?? 'PLAIN',
+      hasBridge: patch.hasBridge ?? existing?.hasBridge ?? false,
+      ownerCorpId: patch.ownerCorpId !== undefined ? patch.ownerCorpId : (existing?.ownerCorpId ?? null),
+      captureProgress: patch.captureProgress ?? existing?.captureProgress ?? 0,
+      contestingCorpId:
+        patch.contestingCorpId !== undefined
+          ? patch.contestingCorpId
+          : (existing?.contestingCorpId ?? null),
+      lastUpdatedTick: patch.lastUpdatedTick ?? existing?.lastUpdatedTick ?? 0,
+      lastActiveTimestampMs: patch.lastActiveTimestampMs ?? Date.now(),
+    };
+    this.sparseH3Hexes.set(key, next);
+    return next;
+  }
+
+  public getSparseHex(h3Index: bigint | string): SparseMapHexRecord | undefined {
+    const key = typeof h3Index === 'bigint' ? h3Index.toString() : h3Index;
+    return this.sparseH3Hexes.get(key);
+  }
+
+  public getActiveSparseHexCount(): number {
+    return this.sparseH3Hexes.size;
+  }
+
+  /**
+   * Recolector de basura del Sparse Map: elimina hexágonos neutrales sin progreso
+   * que permanecen inactivos por más de 7 días (por defecto).
+   */
+  public purgeStaleNeutralSparseHexes(
+    nowMs: number = Date.now(),
+    maxInactiveDays: number = 7
+  ): number {
+    const cutoffMs = nowMs - maxInactiveDays * 24 * 3600 * 1000;
+    let purged = 0;
+    for (const [key, hex] of this.sparseH3Hexes.entries()) {
+      if (
+        hex.ownerCorpId === null &&
+        hex.captureProgress === 0 &&
+        hex.lastActiveTimestampMs < cutoffMs
+      ) {
+        this.sparseH3Hexes.delete(key);
+        purged++;
+      }
+    }
+    return purged;
+  }
+
+  // ============================================================================
+  // GEOGRAFÍA PERSISTENTE HÍBRIDA (PROCEDURAL O(1) + SPARSE OVERRIDES)
+  // ============================================================================
+
+  private ensureTerrainInitialized(): void {
+    if (this.terrainInitialized) return;
+    this.terrainInitialized = true;
+    this.seedPilotCabimasTerrainOverrides();
+    this.loadTerrainOverridesFromStorage();
+  }
+
+  public getSectorKey(sector: [number, number]): string {
+    return `${sector[0]}_${sector[1]}`;
+  }
+
+  public getTerrainRevision(): number {
+    this.ensureTerrainInitialized();
+    return this.terrainRevision;
+  }
+
+  public getOverriddenSectorsCount(): number {
+    this.ensureTerrainInitialized();
+    return this.sectorTerrainOverrides.size;
+  }
+
+  /**
+   * Calcula el terreno base procedural O(1) (0 bytes almacenados) delegando al
+   * Pipeline GBA de 6 Etapas con caché LRU acotada.
+   */
+  public computeProceduralBaseCell(
+    sector: [number, number],
+    cell: [number, number],
+    gridSize: number = 20
+  ): TerrainType {
+    const { matrix } = generateGbaSectorBlueprint(sector, gridSize);
+    return matrix[cell[1]]?.[cell[0]]?.type ?? 'plains';
+  }
+
+  /**
+   * Resuelve el terreno efectivo (Override disperso ?? Pipeline GBA 6 Etapas O(1)).
+   */
+  public resolveSectorCellTerrain(
+    sector: [number, number],
+    cell: [number, number],
+    gridSize: number = 20
+  ): {
+    type: TerrainType;
+    defenseStars: number;
+    movementCost: number;
+    ownerId?: 'p1' | 'p2' | 'p3' | 'p4' | 'p5' | null;
+    isOverridden: boolean;
+  } {
+    this.ensureTerrainInitialized();
+    const sectorKey = this.getSectorKey(sector);
+    const cellKey = `${cell[0]}_${cell[1]}`;
+    const override = this.sectorTerrainOverrides.get(sectorKey)?.cells[cellKey];
+    const { matrix } = generateGbaSectorBlueprint(sector, gridSize);
+    const baseTile = matrix[cell[1]]?.[cell[0]];
+    const type = override?.type ?? baseTile?.type ?? 'plains';
+    const defenseStars = override?.defenseStars ?? baseTile?.defenseStars ?? getTerrainDefenseStars(type);
+    return {
+      type,
+      defenseStars,
+      movementCost: getTerrainMovementCost(type),
+      ownerId: (override?.ownerId ?? baseTile?.ownerId ?? null) as 'p1' | 'p2' | 'p3' | 'p4' | 'p5' | null,
+      isOverridden: Boolean(override),
+    };
+  }
+
+  /**
+   * Genera la matriz 20x20 completa para MapBuilder o el renderizador WebGL del viewport.
+   */
+  public getSectorTerrainMatrix(
+    sector: [number, number],
+    gridSize: number = 20
+  ): TerrainTile[][] {
+    this.ensureTerrainInitialized();
+    const { matrix } = generateGbaSectorBlueprint(sector, gridSize);
+    const overrides = this.sectorTerrainOverrides.get(this.getSectorKey(sector))?.cells;
+    if (!overrides) return matrix;
+
+    for (const ov of Object.values(overrides)) {
+      if (ov.y >= 0 && ov.y < gridSize && ov.x >= 0 && ov.x < gridSize) {
+        matrix[ov.y][ov.x] = {
+          x: ov.x,
+          y: ov.y,
+          type: ov.type,
+          defenseStars: ov.defenseStars ?? getTerrainDefenseStars(ov.type),
+          ownerId: ov.ownerId ?? null,
+        };
+      }
+    }
+    return matrix;
+  }
+
+  /**
+   * Aplica un delta disperso desde el Editor de Mapas. Solo persiste celdas distintas
+   * de la base procedural; si todas coinciden, libera el sector (0 bytes).
+   */
+  public applySectorTerrainDelta(delta: SectorTerrainDelta): SectorTerrainOverride | null {
+    this.ensureTerrainInitialized();
+    const gridSize = delta.gridSize ?? 20;
+    const sectorKey = this.getSectorKey(delta.sector);
+    const existing = this.sectorTerrainOverrides.get(sectorKey);
+    const nextCells: Record<string, SectorCellTerrainOverride> = {
+      ...(existing?.cells ?? {}),
+    };
+
+    for (const change of delta.changes) {
+      if (change.x < 0 || change.x >= gridSize || change.y < 0 || change.y >= gridSize) continue;
+      const cellKey = `${change.x}_${change.y}`;
+      const baseType = this.computeProceduralBaseCell(delta.sector, [change.x, change.y], gridSize);
+      if (change.type === baseType && !change.ownerId) {
+        delete nextCells[cellKey];
+      } else {
+        nextCells[cellKey] = {
+          x: change.x,
+          y: change.y,
+          type: change.type,
+          ownerId: change.ownerId ?? null,
+          defenseStars: change.defenseStars ?? getTerrainDefenseStars(change.type),
+        };
+      }
+    }
+
+    if (Object.keys(nextCells).length === 0) {
+      this.sectorTerrainOverrides.delete(sectorKey);
+      this.terrainRevision += 1;
+      this.saveTerrainOverridesToStorage();
+      this.notifyListeners();
+      return null;
+    }
+
+    const record: SectorTerrainOverride = {
+      sectorKey,
+      sector: delta.sector,
+      gridSize,
+      cells: nextCells,
+      updatedAt: new Date().toISOString(),
+      source: delta.source ?? 'map_builder',
+    };
+    this.sectorTerrainOverrides.set(sectorKey, record);
+    this.terrainRevision += 1;
+    this.saveTerrainOverridesToStorage();
+    this.notifyListeners();
+    return record;
+  }
+
+  public resetSectorOverrides(sector: [number, number]): void {
+    this.ensureTerrainInitialized();
+    const sectorKey = this.getSectorKey(sector);
+    if (this.sectorTerrainOverrides.delete(sectorKey)) {
+      this.terrainRevision += 1;
+      this.saveTerrainOverridesToStorage();
+      this.notifyListeners();
+    }
+  }
+
+  /**
+   * Retorna el clima efectivo del sector (override manual o clima determinista del pipeline GBA).
+   */
+  public getSectorWeather(
+    sector: [number, number],
+    gridSize: number = 20
+  ): WeatherCondition {
+    const sectorKey = this.getSectorKey(sector);
+    const override = this.sectorWeatherOverrides.get(sectorKey);
+    if (override) return override;
+    const { blueprint } = generateGbaSectorBlueprint(sector, gridSize);
+    return blueprint.weather ?? 'clear';
+  }
+
+  /**
+   * Establece o limpia un override de clima para un sector y notifica a los suscriptores.
+   */
+  public setSectorWeatherOverride(
+    sector: [number, number],
+    weather: WeatherCondition | null
+  ): void {
+    const sectorKey = this.getSectorKey(sector);
+    if (weather === null) {
+      this.sectorWeatherOverrides.delete(sectorKey);
+    } else {
+      this.sectorWeatherOverrides.set(sectorKey, weather);
+    }
+    this.terrainRevision += 1;
+    this.notifyListeners();
+  }
+
+  private seedPilotCabimasTerrainOverrides(): void {
+    // Overrides dispersos mínimos compatibles con el Motor Paramétrico GBA de 7 Etapas:
+    // Preservan anclas estratégicas del Teatro Cabimas sin sobreescribir carreteras ni costas reales.
+
+    // 1. Sector [9878, 15432]: Costa Occidental Real de Cabimas / Punta Icotea
+    this.applySectorTerrainDeltaRaw(
+      [9878, 15432],
+      [
+        { x: 16, y: 10, type: 'port', ownerId: 'p2' },
+      ],
+      'pilot_seed'
+    );
+
+    // 2. Sector [9879, 15432]: Corredor La Salina (Tierra Firme)
+    this.applySectorTerrainDeltaRaw(
+      [9879, 15432],
+      [
+        { x: 13, y: 11, type: 'city', ownerId: 'p2' },
+        { x: 16, y: 8, type: 'commtower', ownerId: 'p2' },
+      ],
+      'pilot_seed'
+    );
+
+    // 3. Sector [9880, 15432]: Polígono Principal de Cabimas
+    this.applySectorTerrainDeltaRaw(
+      [9880, 15432],
+      [
+        { x: 0, y: 11, type: 'forest' }, // Garantiza cobertura 20% en centro ancla Test 1.2
+        { x: 1, y: 4, type: 'port', ownerId: 'p2' }, // Puerto táctico Test 6.1
+        { x: 18, y: 2, type: 'hq', ownerId: 'p2' }, // HQ Blue Moon (Clan Ferro)
+      ],
+      'pilot_seed'
+    );
+
+    // 4. Sector [9881, 15432]: Flanco Oriental — Puesto Avanzado Orinoco (Orange Star)
+    this.applySectorTerrainDeltaRaw(
+      [9881, 15432],
+      [
+        { x: 15, y: 8, type: 'hq', ownerId: 'p1' }, // HQ Orange Star (Clan Orinoco) Test 6.1
+        { x: 13, y: 8, type: 'factory', ownerId: 'p1' },
+        { x: 15, y: 4, type: 'airport', ownerId: 'p1' },
+      ],
+      'pilot_seed'
+    );
+  }
+
+  private applySectorTerrainDeltaRaw(
+    sector: [number, number],
+    changes: SectorCellTerrainOverride[],
+    source: 'map_builder' | 'pilot_seed' | 'supabase'
+  ): void {
+    const sectorKey = this.getSectorKey(sector);
+    const cells: Record<string, SectorCellTerrainOverride> = {};
+    for (const c of changes) {
+      cells[`${c.x}_${c.y}`] = {
+        ...c,
+        defenseStars: c.defenseStars ?? getTerrainDefenseStars(c.type),
+      };
+    }
+    this.sectorTerrainOverrides.set(sectorKey, {
+      sectorKey,
+      sector,
+      gridSize: 20,
+      cells,
+      updatedAt: new Date().toISOString(),
+      source,
+    });
+  }
+
+  private loadTerrainOverridesFromStorage(): void {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      const raw = localStorage.getItem(SECTOR_TERRAIN_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as SectorTerrainOverride[];
+      if (Array.isArray(parsed)) {
+        for (const rec of parsed) {
+          if (rec?.sectorKey && rec.cells) {
+            this.sectorTerrainOverrides.set(rec.sectorKey, rec);
+          }
+        }
+      }
+    } catch {
+      // Ignorar errores de almacenamiento en entornos headless
+    }
+  }
+
+  private saveTerrainOverridesToStorage(): void {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      localStorage.setItem(
+        SECTOR_TERRAIN_STORAGE_KEY,
+        JSON.stringify(Array.from(this.sectorTerrainOverrides.values()))
+      );
+    } catch {
+      // Ignorar errores de cuota/entorno
+    }
   }
 
   public subscribe(listener: SpatialChangeListener): () => void {

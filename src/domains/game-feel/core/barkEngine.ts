@@ -2,7 +2,7 @@
  * ==============================================================================
  * BARK ENGINE PROCEDURAL DE NOVELA GRÁFICA (SIN VOCES)
  * ==============================================================================
- * Proyecto: Tactical Command: Wars of Legacy
+ * Proyecto: DRONEPUNK 0.0.1
  * Especificación Canónica: docs/03_MASTER_COMMANDERS_BARK_AND_SOCIAL.md
  * Estilo de Diseño Visual: agents/skills/retro-futurism/skill.md
  * 
@@ -68,7 +68,8 @@ export type BarkTriggerContext =
   | 'overexpansion_warning'
   | 'chokepoint_toll'
   | 'buffer_zone_blocked'
-  | 'edict_enacted';
+  | 'edict_enacted'
+  | 'morning_briefing';
 
 export type BubbleShape = 'speech' | 'shout' | 'thought' | 'whisper' | 'radio' | 'panic';
 
@@ -85,7 +86,8 @@ export type OnomatopoeiaStamp =
   | '¡PANIC!'
   | '¡HEADSHOT!'
   | '¡SINK!'
-  | '¡CRASH!';
+  | '¡CRASH!'
+  | '¡CRITICAL!';
 
 export type VignetteMood =
   | 'neutral'
@@ -301,6 +303,32 @@ export const CANONICAL_BARK_TEMPLATES: BarkTemplate[] = [
     priorityWeight: 28,
     cooldownTurns: 2,
     text: '¡Operación geopolítica en marcha sobre {unit_name}! Erosión de TCP confirmada desde nuestra frontera aliada.',
+  },
+  {
+    id: 'stella_morning_briefing_01',
+    commanderId: 'stella',
+    triggerContext: 'morning_briefing',
+    triggerPhase: 'menu_lobby',
+    bubbleShape: 'radio',
+    onomatopoeia: '¡ALERT!',
+    mood: 'tactical_focus',
+    minBondingLevel: 1,
+    priorityWeight: 40,
+    cooldownTurns: 1,
+    text: 'Parte matutino de 06:00h, {player_name}: Scouts enemigos mordieron celdas fronterizas durante la guardia nocturna, pero nuestras fábricas están listas para cosecha.',
+  },
+  {
+    id: 'stella_morning_briefing_02',
+    commanderId: 'stella',
+    triggerContext: 'morning_briefing',
+    triggerPhase: 'menu_lobby',
+    bubbleShape: 'shout',
+    onomatopoeia: '¡TACTICAL!',
+    mood: 'stern',
+    minBondingLevel: 1,
+    priorityWeight: 35,
+    cooldownTurns: 1,
+    text: '¡Sesión táctica de 10 minutos iniciada! Cosecha tus extractores y programa las patrullas de 8h antes de volver al frente.',
   },
   {
     id: 'stella_geo_capital_hegemony_01',
@@ -1216,6 +1244,44 @@ class ProceduralBarkEngine {
   private getCommanderPortraitUrl(coId: string, _mood: VignetteMood): string {
     // Retratos Full Body garantizados en smoothFull sin errores 404
     return getCOFullBodyUrl(coId);
+  }
+
+  /**
+   * Emite el parte matutino C4ISR de la sesión táctica de 10 minutos:
+   * incursiones nocturnas en municipios fronterizos + cosecha neta lista en fábricas privadas.
+   */
+  public generateMorningSessionBriefing(params: {
+    playerName?: string;
+    borderMunicipalityName: string;
+    cellsLostPercent: number;
+    readyFactoriesCount: number;
+    netHarvestableEc: number;
+  }): ActiveBarkDisplay {
+    const player = params.playerName || 'Comandante';
+    const hasBorderRaid = params.cellsLostPercent > 0;
+    const text = hasBorderRaid
+      ? `Reporte 06:00h, ${player}: Scouts rivales erosionaron ${params.cellsLostPercent}% de celdas en ${params.borderMunicipalityName} esta noche. ${params.readyFactoriesCount} fábricas listas (+${params.netHarvestableEc} EC netos). Programa patrullas de 8h y alerta al Gestor Municipal.`
+      : `Frontera estable en ${params.borderMunicipalityName}, ${player}. ${params.readyFactoriesCount} fábricas privadas listas para cosecha rápida (+${params.netHarvestableEc} EC netos).`;
+
+    const display: ActiveBarkDisplay = {
+      id: `morning_briefing_${Date.now()}`,
+      commanderId: 'stella',
+      commanderName: this.getCommanderDisplayName('stella'),
+      commanderTitle: this.getCommanderTitle('stella'),
+      portraitUrl: this.getCommanderPortraitUrl('stella', hasBorderRaid ? 'alarmed' : 'tactical_focus'),
+      faction: this.getCommanderFaction('stella'),
+      bubbleShape: hasBorderRaid ? 'radio' : 'speech',
+      onomatopoeia: hasBorderRaid ? '¡ALERT!' : '¡TACTICAL!',
+      mood: hasBorderRaid ? 'alarmed' : 'tactical_focus',
+      text,
+      bondingLevel: 3,
+      durationMs: 6500,
+      stampRotationDeg: -4,
+    };
+
+    this.activeBark = display;
+    this.listeners.forEach((cb) => cb(display));
+    return display;
   }
 }
 

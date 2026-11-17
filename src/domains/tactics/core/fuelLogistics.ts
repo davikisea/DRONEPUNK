@@ -1,5 +1,6 @@
 import { TacticalUnit } from '../types';
 import { WeatherType } from './canonicalMovement';
+import { MASTER_METAGAME_CONSTANTS } from '@shared';
 
 export interface FuelConsumptionReport {
   unitId: string;
@@ -146,5 +147,46 @@ export function processTurnFuelConsumption(
     updatedUnits,
     destroyedUnitIds,
     reports,
+  };
+}
+
+export interface SupplyLineHourlyFuelResult {
+  baseHourlyFuel: number;
+  bfsHopsFromCapital: number;
+  isSupplyConnected: boolean;
+  hopMultiplier: number;
+  perkDiscountMultiplier: number;
+  finalHourlyFuelBurn: number;
+}
+
+/**
+ * Calcula el consumo horario de combustible de un dron en operaciones persistentes
+ * escalando según la distancia vial BFS desde la Capital de la Corporación y aplicando
+ * el descuento estatal fronterizo (-20%) si corresponde.
+ */
+export function calculateSupplyLineHourlyFuelBurn(params: {
+  baseHourlyFuel: number;
+  bfsHopsFromCapital: number;
+  isSupplyConnected: boolean;
+  hasBorderStateFuelPerk?: boolean;
+}): SupplyLineHourlyFuelResult {
+  const base = Math.max(0, params.baseHourlyFuel);
+  const hops = Math.max(0, Math.floor(params.bfsHopsFromCapital));
+  const hopMultiplier = params.isSupplyConnected ? 1 + hops * 0.25 : 2.5;
+  const perkDiscountMultiplier = params.hasBorderStateFuelPerk
+    ? Number((1 - MASTER_METAGAME_CONSTANTS.STATE_PERK_BORDER_FUEL_DISCOUNT).toFixed(2))
+    : 1.0;
+
+  const finalHourlyFuelBurn = Number(
+    (base * hopMultiplier * perkDiscountMultiplier).toFixed(2)
+  );
+
+  return {
+    baseHourlyFuel: base,
+    bfsHopsFromCapital: hops,
+    isSupplyConnected: params.isSupplyConnected,
+    hopMultiplier: Number(hopMultiplier.toFixed(2)),
+    perkDiscountMultiplier,
+    finalHourlyFuelBurn,
   };
 }

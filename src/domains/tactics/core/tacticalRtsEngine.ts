@@ -9,10 +9,11 @@
  * - Cero spam de red: eventos de orden y resolución balística.
  */
 
+import type { MovementType, TerrainType, WeatherCondition } from '@shared';
 import { TacticalUnit, TerrainTile } from '../types';
 import { CanonicalCombatEngine, CanonicalCombatOptions, CanonicalCombatResult } from './canonicalCombat';
 
-export type ChassisType = 'foot' | 'mech' | 'wheels' | 'treads' | 'air';
+export type ChassisType = 'foot' | 'mech' | 'wheels' | 'treads' | 'air' | 'sea';
 
 export interface RtsUnitProfile {
   unitCode: string;
@@ -28,7 +29,7 @@ export interface RtsUnitProfile {
 }
 
 /**
- * Matriz canónica balanceada de las 10 unidades bélicas
+ * Matriz canónica balanceada de los 16 Chasis Tácticos y 9 Drones Autónomos H3
  * Fuente: docs/03_TACTICAL_STRATEGY_SYSTEM_DESIGN.md - Sección 6
  */
 export const CANONICAL_RTS_PROFILES: Record<string, RtsUnitProfile> = {
@@ -67,6 +68,17 @@ export const CANONICAL_RTS_PROFILES: Record<string, RtsUnitProfile> = {
     baseCost: 4000,
     isInfiniteStock: true,
   },
+  apc: {
+    unitCode: 'apc',
+    name: 'Transporte Blindado (APC)',
+    chassis: 'treads',
+    baseMoveRange: 6,
+    minRange: 0,
+    maxRange: 0,
+    reloadCooldownMs: 1000,
+    moveSpeedCellsPerSec: 2.8,
+    baseCost: 5000,
+  },
   tank_light: {
     unitCode: 'tank_light',
     name: 'Tanque Ligero',
@@ -88,6 +100,28 @@ export const CANONICAL_RTS_PROFILES: Record<string, RtsUnitProfile> = {
     reloadCooldownMs: 3500, // 3.5s
     moveSpeedCellsPerSec: 2.2,
     baseCost: 12000,
+  },
+  md_tank: {
+    unitCode: 'md_tank',
+    name: 'Tanque Medio',
+    chassis: 'treads',
+    baseMoveRange: 5,
+    minRange: 1,
+    maxRange: 1,
+    reloadCooldownMs: 3500,
+    moveSpeedCellsPerSec: 2.2,
+    baseCost: 12000,
+  },
+  neotank: {
+    unitCode: 'neotank',
+    name: 'Neotanque Pesado',
+    chassis: 'treads',
+    baseMoveRange: 6,
+    minRange: 1,
+    maxRange: 1,
+    reloadCooldownMs: 4000,
+    moveSpeedCellsPerSec: 2.5,
+    baseCost: 22000,
   },
   artillery: {
     unitCode: 'artillery',
@@ -122,6 +156,17 @@ export const CANONICAL_RTS_PROFILES: Record<string, RtsUnitProfile> = {
     moveSpeedCellsPerSec: 3.0,
     baseCost: 8000,
   },
+  missiles: {
+    unitCode: 'missiles',
+    name: 'Batería SAM Móvil',
+    chassis: 'wheels',
+    baseMoveRange: 4,
+    minRange: 3,
+    maxRange: 5,
+    reloadCooldownMs: 6000, // 6.0s
+    moveSpeedCellsPerSec: 1.6,
+    baseCost: 12000,
+  },
   missile: {
     unitCode: 'missile',
     name: 'Batería SAM Móvil',
@@ -133,6 +178,17 @@ export const CANONICAL_RTS_PROFILES: Record<string, RtsUnitProfile> = {
     moveSpeedCellsPerSec: 1.6,
     baseCost: 12000,
   },
+  b_copter: {
+    unitCode: 'b_copter',
+    name: 'Helicóptero Asalto',
+    chassis: 'air',
+    baseMoveRange: 6,
+    minRange: 1,
+    maxRange: 1,
+    reloadCooldownMs: 1800, // 1.8s
+    moveSpeedCellsPerSec: 3.5,
+    baseCost: 9000,
+  },
   chopper_battle: {
     unitCode: 'chopper_battle',
     name: 'Helicóptero Asalto',
@@ -143,6 +199,140 @@ export const CANONICAL_RTS_PROFILES: Record<string, RtsUnitProfile> = {
     reloadCooldownMs: 1800, // 1.8s
     moveSpeedCellsPerSec: 3.5,
     baseCost: 9000,
+  },
+  t_copter: {
+    unitCode: 't_copter',
+    name: 'Helicóptero de Transporte',
+    chassis: 'air',
+    baseMoveRange: 6,
+    minRange: 0,
+    maxRange: 0,
+    reloadCooldownMs: 1000,
+    moveSpeedCellsPerSec: 3.5,
+    baseCost: 5000,
+  },
+  fighter: {
+    unitCode: 'fighter',
+    name: 'Caza Interceptor',
+    chassis: 'air',
+    baseMoveRange: 9,
+    minRange: 1,
+    maxRange: 1,
+    reloadCooldownMs: 2200,
+    moveSpeedCellsPerSec: 4.5,
+    baseCost: 20000,
+  },
+  bomber: {
+    unitCode: 'bomber',
+    name: 'Bombardero Pesado',
+    chassis: 'air',
+    baseMoveRange: 7,
+    minRange: 1,
+    maxRange: 1,
+    reloadCooldownMs: 4500,
+    moveSpeedCellsPerSec: 3.2,
+    baseCost: 22000,
+  },
+  battleship: {
+    unitCode: 'battleship',
+    name: 'Acorazado Naval',
+    chassis: 'sea',
+    baseMoveRange: 5,
+    minRange: 2,
+    maxRange: 6,
+    reloadCooldownMs: 7000,
+    moveSpeedCellsPerSec: 1.5,
+    baseCost: 28000,
+  },
+  infantry_swarm: {
+    unitCode: 'infantry_swarm',
+    name: 'Dron Infantería (Swarm)',
+    chassis: 'foot',
+    baseMoveRange: 3,
+    minRange: 1,
+    maxRange: 1,
+    reloadCooldownMs: 1000,
+    moveSpeedCellsPerSec: 1.5,
+    baseCost: 1000,
+    isInfiniteStock: true,
+  },
+  recon_explorer: {
+    unitCode: 'recon_explorer',
+    name: 'Recon (Explorador H3)',
+    chassis: 'wheels',
+    baseMoveRange: 8,
+    minRange: 1,
+    maxRange: 1,
+    reloadCooldownMs: 1200,
+    moveSpeedCellsPerSec: 4.0,
+    baseCost: 4000,
+    isInfiniteStock: true,
+  },
+  light_artillery: {
+    unitCode: 'light_artillery',
+    name: 'Artillería Ligera H3',
+    chassis: 'treads',
+    baseMoveRange: 5,
+    minRange: 2,
+    maxRange: 3,
+    reloadCooldownMs: 5000,
+    moveSpeedCellsPerSec: 1.8,
+    baseCost: 6000,
+  },
+  medium_tank: {
+    unitCode: 'medium_tank',
+    name: 'Tanque Medio H3',
+    chassis: 'treads',
+    baseMoveRange: 5,
+    minRange: 1,
+    maxRange: 1,
+    reloadCooldownMs: 3500,
+    moveSpeedCellsPerSec: 2.2,
+    baseCost: 12000,
+  },
+  logistics_apc: {
+    unitCode: 'logistics_apc',
+    name: 'Dron Logístico (APC H3)',
+    chassis: 'treads',
+    baseMoveRange: 6,
+    minRange: 0,
+    maxRange: 0,
+    reloadCooldownMs: 1000,
+    moveSpeedCellsPerSec: 2.8,
+    baseCost: 5000,
+  },
+  bomber_drone: {
+    unitCode: 'bomber_drone',
+    name: 'Dron Bombardero H3',
+    chassis: 'air',
+    baseMoveRange: 7,
+    minRange: 1,
+    maxRange: 1,
+    reloadCooldownMs: 4500,
+    moveSpeedCellsPerSec: 3.2,
+    baseCost: 22000,
+  },
+  neo_tank: {
+    unitCode: 'neo_tank',
+    name: 'Neo-Tanque (Coloso H3)',
+    chassis: 'treads',
+    baseMoveRange: 6,
+    minRange: 1,
+    maxRange: 1,
+    reloadCooldownMs: 4000,
+    moveSpeedCellsPerSec: 2.5,
+    baseCost: 22000,
+  },
+  tactical_missile: {
+    unitCode: 'tactical_missile',
+    name: 'Lanzamisiles Táctico H3',
+    chassis: 'wheels',
+    baseMoveRange: 5,
+    minRange: 4,
+    maxRange: 5,
+    reloadCooldownMs: 7500,
+    moveSpeedCellsPerSec: 2.0,
+    baseCost: 15000,
   },
 };
 
@@ -158,7 +348,9 @@ export interface TacticalRtsUnitState extends TacticalUnit {
   reloadRemainingMs: number;
   lastFiredTimestamp: number;
   currentMoveIntent: UnitMoveIntent | null;
-  tier: number; // 1-5
+  tier: 1 | 2 | 3 | 4 | 5; // 1-5
+  owner?: string;
+  moveRange?: number;
   isDestroyed?: boolean;
 }
 
@@ -186,7 +378,56 @@ export interface RtsFireResult {
 export interface TacticalRtsEngineOptions {
   tickIntervalMs?: number; // 100 ms por defecto (10 ticks/s)
   isCompetitiveMirror?: boolean; // Tier 1 espejo (+0%)
+  initialWeather?: WeatherCondition;
 }
+
+const DEFAULT_TERRAIN_DEFENSE_STARS: Record<TerrainType, number> = {
+  plains: 1,
+  forest: 2,
+  mountain: 4,
+  road: 0,
+  river: 0,
+  city: 3,
+  factory: 3,
+  airport: 3,
+  port: 3,
+  hq: 4,
+  sea: 0,
+  reef: 1,
+  shoal: 0,
+  bridge: 0,
+  commtower: 3,
+  silo: 3,
+  usedSilo: 3,
+  lab: 3,
+  pipe: 0,
+  pipeSeam: 0,
+  rubble: 1,
+};
+
+const BASE_TERRAIN_MOVEMENT_COSTS: Record<TerrainType, Record<MovementType, number>> = {
+  plains: { foot: 1, mech: 1, wheels: 2, treads: 1, air: 1, sea: Infinity },
+  rubble: { foot: 1, mech: 1, wheels: 2, treads: 1, air: 1, sea: Infinity },
+  forest: { foot: 1, mech: 1, wheels: 3, treads: 2, air: 1, sea: Infinity },
+  mountain: { foot: 2, mech: 1, wheels: Infinity, treads: Infinity, air: 1, sea: Infinity },
+  road: { foot: 1, mech: 1, wheels: 1, treads: 1, air: 1, sea: Infinity },
+  river: { foot: 2, mech: 1, wheels: Infinity, treads: Infinity, air: 1, sea: Infinity },
+  city: { foot: 1, mech: 1, wheels: 1, treads: 1, air: 1, sea: Infinity },
+  factory: { foot: 1, mech: 1, wheels: 1, treads: 1, air: 1, sea: Infinity },
+  airport: { foot: 1, mech: 1, wheels: 1, treads: 1, air: 1, sea: Infinity },
+  port: { foot: 1, mech: 1, wheels: 1, treads: 1, air: 1, sea: 1 },
+  hq: { foot: 1, mech: 1, wheels: 1, treads: 1, air: 1, sea: Infinity },
+  sea: { foot: Infinity, mech: Infinity, wheels: Infinity, treads: Infinity, air: 1, sea: 1 },
+  reef: { foot: Infinity, mech: Infinity, wheels: Infinity, treads: Infinity, air: 1, sea: 2 },
+  shoal: { foot: 1, mech: 1, wheels: 1, treads: 1, air: 1, sea: 1 },
+  bridge: { foot: 1, mech: 1, wheels: 1, treads: 1, air: 1, sea: 1 },
+  commtower: { foot: 1, mech: 1, wheels: 1, treads: 1, air: 1, sea: Infinity },
+  silo: { foot: 1, mech: 1, wheels: 1, treads: 1, air: 1, sea: Infinity },
+  usedSilo: { foot: 1, mech: 1, wheels: 1, treads: 1, air: 1, sea: Infinity },
+  lab: { foot: 1, mech: 1, wheels: 1, treads: 1, air: 1, sea: Infinity },
+  pipe: { foot: Infinity, mech: Infinity, wheels: Infinity, treads: Infinity, air: Infinity, sea: Infinity },
+  pipeSeam: { foot: Infinity, mech: Infinity, wheels: Infinity, treads: Infinity, air: Infinity, sea: Infinity },
+};
 
 export class TacticalRtsEngine {
   private units: Map<string, TacticalRtsUnitState> = new Map();
@@ -194,12 +435,14 @@ export class TacticalRtsEngine {
   private activeTracers: BallisticTracer[] = [];
   private tickIntervalMs: number;
   private isCompetitiveMirror: boolean;
+  private weather: WeatherCondition = 'clear';
   private isDirty: boolean = true;
   private lastTickTimestamp: number = 0;
 
   constructor(options: TacticalRtsEngineOptions = {}) {
     this.tickIntervalMs = options.tickIntervalMs ?? 100;
     this.isCompetitiveMirror = options.isCompetitiveMirror ?? false;
+    this.weather = options.initialWeather ?? 'clear';
   }
 
   public registerUnit(unit: TacticalUnit, tier: number = 1): TacticalRtsUnitState {
@@ -207,10 +450,12 @@ export class TacticalRtsEngine {
     if (existing) return existing;
 
     const profile = CANONICAL_RTS_PROFILES[unit.unitCode] || CANONICAL_RTS_PROFILES.infantry;
+    const clampedTier = Math.max(1, Math.min(5, tier)) as 1 | 2 | 3 | 4 | 5;
     const rtsUnit: TacticalRtsUnitState = {
       ...unit,
+      ownerId: unit.ownerId || (unit as { owner?: string }).owner || 'neutral',
       hp: unit.hp ?? 100,
-      tier: Math.max(1, Math.min(5, tier)),
+      tier: clampedTier,
       reloadRemainingMs: 0,
       lastFiredTimestamp: 0,
       currentMoveIntent: null,
@@ -225,16 +470,97 @@ export class TacticalRtsEngine {
     return rtsUnit;
   }
 
+  public setWeather(w: WeatherCondition): void {
+    if (this.weather !== w) {
+      this.weather = w;
+      this.isDirty = true;
+    }
+  }
+
+  public getWeather(): WeatherCondition {
+    return this.weather;
+  }
+
   public setTerrain(x: number, y: number, tile: TerrainTile): void {
-    this.terrainMap.set(`${x},${y}`, tile);
+    const normalizedTile: TerrainTile = {
+      ...tile,
+      x,
+      y,
+      defenseStars: tile.defenseStars ?? DEFAULT_TERRAIN_DEFENSE_STARS[tile.type] ?? 1,
+    };
+    this.terrainMap.set(`${x},${y}`, normalizedTile);
   }
 
   public getTerrain(x: number, y: number): TerrainTile {
     return this.terrainMap.get(`${x},${y}`) ?? {
+      x,
+      y,
       type: 'plains',
-      defenseStars: 1,
-      movementCost: { foot: 1, mech: 1, tires: 2, treads: 1, air: 1, sea: 99 },
+      defenseStars: DEFAULT_TERRAIN_DEFENSE_STARS.plains,
     };
+  }
+
+  /**
+   * Destruye un punto de costura de tubería ('pipeSeam') convirtiéndolo en escombros transitables ('rubble').
+   */
+  public destroyPipeSeam(x: number, y: number): boolean {
+    const tile = this.getTerrain(x, y);
+    if (tile.type !== 'pipeSeam') return false;
+
+    this.terrainMap.set(`${x},${y}`, {
+      ...tile,
+      x,
+      y,
+      type: 'rubble',
+      defenseStars: DEFAULT_TERRAIN_DEFENSE_STARS.rubble,
+    });
+    this.isDirty = true;
+    return true;
+  }
+
+  public isTerrainPassable(terrainType: TerrainType, movementType: MovementType = 'foot'): boolean {
+    const baseCost = BASE_TERRAIN_MOVEMENT_COSTS[terrainType]?.[movementType] ?? Infinity;
+    return Number.isFinite(baseCost);
+  }
+
+  public isTilePassable(x: number, y: number, movementType: MovementType = 'foot'): boolean {
+    return this.isTerrainPassable(this.getTerrain(x, y).type, movementType);
+  }
+
+  /**
+   * Coste de movimiento determinista por terreno y chasis aplicando modificadores climáticos.
+   */
+  public getTerrainMovementCost(terrainType: TerrainType, movementType: MovementType = 'foot'): number {
+    const baseCost = BASE_TERRAIN_MOVEMENT_COSTS[terrainType]?.[movementType] ?? Infinity;
+    if (!Number.isFinite(baseCost)) {
+      return Infinity;
+    }
+
+    if (this.weather === 'rain' && movementType === 'wheels') {
+      return baseCost + 1;
+    }
+
+    if (this.weather === 'snow' && movementType !== 'air' && movementType !== 'sea') {
+      return baseCost + 1;
+    }
+
+    return baseCost;
+  }
+
+  public getMovementCost(x: number, y: number, movementType: MovementType = 'foot'): number {
+    return this.getTerrainMovementCost(this.getTerrain(x, y).type, movementType);
+  }
+
+  /**
+   * Alcance de visión determinista en celdas; en 'rain' penaliza -1 en niebla (mínimo 1).
+   */
+  public getUnitVisionRange(unitOrId: string | TacticalUnit, inFog: boolean = true): number {
+    const unit = typeof unitOrId === 'string' ? this.units.get(unitOrId) : unitOrId;
+    if (!unit) return 0;
+
+    const baseVision = unit.visionRange ?? 2;
+    const rainPenalty = this.weather === 'rain' && inFog ? 1 : 0;
+    return Math.max(1, baseVision - rainPenalty);
   }
 
   public getUnit(id: string): TacticalRtsUnitState | undefined {
@@ -323,6 +649,14 @@ export class TacticalRtsEngine {
     if (!unit || unit.isDestroyed || path.length < 2) return false;
 
     const profile = CANONICAL_RTS_PROFILES[unit.unitCode] || CANONICAL_RTS_PROFILES.infantry;
+    const movementType = unit.movementType ?? profile.chassis;
+
+    for (let i = 1; i < path.length; i++) {
+      if (!this.isTilePassable(path[i].x, path[i].y, movementType)) {
+        return false;
+      }
+    }
+
     const msPerStep = Math.round(1000 / profile.moveSpeedCellsPerSec);
 
     unit.currentMoveIntent = {
@@ -357,16 +691,25 @@ export class TacticalRtsEngine {
 
     if (!attacker || attacker.isDestroyed) return { canFire: false, reason: 'ATTACKER_UNAVAILABLE' };
     if (!target || target.isDestroyed) return { canFire: false, reason: 'TARGET_UNAVAILABLE' };
-    if (attacker.owner === target.owner) return { canFire: false, reason: 'FRIENDLY_FIRE_PROHIBITED' };
+    if ((attacker.ownerId || attacker.owner) === (target.ownerId || target.owner)) return { canFire: false, reason: 'FRIENDLY_FIRE_PROHIBITED' };
 
     // Validación de Cooldown de Recarga
     if (attacker.reloadRemainingMs > 0) {
       return { canFire: false, reason: `WEAPON_RELOADING_${attacker.reloadRemainingMs}MS` };
     }
 
-    // Artillería o armas pesadas no disparan en movimiento
+    // Unidades desarmadas (ej. APC, Helicóptero de Transporte) no pueden disparar
     const profile = CANONICAL_RTS_PROFILES[attacker.unitCode];
-    if (profile && (profile.unitCode === 'artillery' || profile.unitCode === 'rocket') && attacker.currentMoveIntent) {
+    if (profile && profile.maxRange === 0) {
+      return { canFire: false, reason: 'UNARMED_UNIT' };
+    }
+
+    // Artillería o armas de fuego indirecto no disparan en movimiento
+    if (
+      profile &&
+      (profile.minRange > 1 || profile.unitCode === 'artillery' || profile.unitCode === 'rocket') &&
+      attacker.currentMoveIntent
+    ) {
       return { canFire: false, reason: 'INDIRECT_FIRE_REQUIRES_STATIONARY' };
     }
 

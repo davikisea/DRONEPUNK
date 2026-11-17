@@ -22,6 +22,15 @@ import {
   tileFractionToLngLat,
   getTileBounds,
   traceSupplyLine,
+  latLngToH3Res9,
+  h3Res9ToLatLng,
+  h3Res9ToParentRes4,
+  h3GridDistance,
+  h3GridDisk,
+  h3GridPathCells,
+  OSM_HEX_TERRAIN_CATALOG,
+  canUnitTraverseOsmHex,
+  spatialDeploymentService,
 } from '@domains/world';
 import { TacticalBitMap } from '@domains/world';
 
@@ -192,9 +201,50 @@ try {
   console.log(`✅ [PASSED] Test 6.2: 10,000 operaciones de bitmap completadas en ${bitmapMs}ms (${(bitmapMs / 10000).toFixed(4)}ms por operación)`);
   passedTests++;
 
+  // ----------------------------------------------------------------------------
+  // SUITE 7: H3 Resolución 9 (~174m), Terrenos OSM y Sparse Map (GC 7 días)
+  // ----------------------------------------------------------------------------
+  console.log('\n--- SUITE 7: ÍNDICE H3 RES 9, TERRENOS OSM Y SPARSE MAP ---');
+
+  const h3Origin = latLngToH3Res9(10.3994, -71.4539);
+  const [rLat, rLng] = h3Res9ToLatLng(h3Origin);
+  assert(latLngToH3Res9(rLat, rLng) === h3Origin, 'H3 Res 9 round-trip latLng <-> bigint debe ser exacto');
+  const parent4 = h3Res9ToParentRes4(h3Origin);
+  assert(parent4 > 0n, 'h3Res9ToParentRes4 debe retornar índice regional válido');
+
+  const disk1 = h3GridDisk(h3Origin, 1);
+  assert(disk1.length === 7, `h3GridDisk(1) debe retornar exactamente 7 hexágonos (obtenido: ${disk1.length})`);
+  const pathCells = h3GridPathCells(h3Origin, disk1[1]!);
+  assert(pathCells.length === 2 && h3GridDistance(h3Origin, disk1[1]!) === 1, 'h3GridPathCells y h3GridDistance verificados');
+
+  assert(OSM_HEX_TERRAIN_CATALOG.URBAN.defenseBonus === 0.3, 'URBAN debe otorgar 3★ = 30% defensa');
+  assert(OSM_HEX_TERRAIN_CATALOG.WATER.defenseBonus === -0.1, 'WATER debe aplicar -10% vulnerabilidad');
+  assert(!canUnitTraverseOsmHex('medium_tank', 'MOUNTAIN'), 'Tanques no pueden cruzar montaña');
+  assert(canUnitTraverseOsmHex('infantry_swarm', 'MOUNTAIN'), 'Infantería sí puede cruzar montaña');
+  assert(canUnitTraverseOsmHex('bomber_drone', 'WATER', false), 'Bombardero ignora agua sin puente');
+
+  const nowMs = Date.now();
+  spatialDeploymentService.touchSparseHex(h3Origin, {
+    municipalityId: 'MUN_ZULIA_CABIMAS',
+    ownerCorpId: null,
+    captureProgress: 0,
+    lastActiveTimestampMs: nowMs - 8 * 24 * 3600 * 1000,
+  });
+  spatialDeploymentService.touchSparseHex(disk1[1]!, {
+    municipalityId: 'MUN_ZULIA_CABIMAS',
+    ownerCorpId: 'corp-ferro',
+    captureProgress: 100,
+    lastActiveTimestampMs: nowMs - 8 * 24 * 3600 * 1000,
+  });
+  const purged = spatialDeploymentService.purgeStaleNeutralSparseHexes(nowMs, 7);
+  assert(purged >= 1 && spatialDeploymentService.getSparseHex(h3Origin) === undefined, 'Sparse Map GC purga hexágono neutral inactivo >7 días');
+  assert(spatialDeploymentService.getSparseHex(disk1[1]!)?.ownerCorpId === 'corp-ferro', 'Hexágono conquistado sobrevive al GC');
+  console.log('✅ [PASSED] Test 7.1: H3 Res 9, H3 Res 4, terrenos OSM y GC 7d de Sparse Map verificados');
+  passedTests++;
+
   console.log('------------------------------------------------------------------------------');
-  console.log(`RESUMEN CARTOGRAFÍA WEBGL Y TACTICAL BITMAP FASE 3: ${passedTests}/${passedTests} PASARON`);
-  console.log('✅ TODAS LAS PRUEBAS DE OPENPLACE BRIDGE SUPERADAS (100% ÉXITO)');
+  console.log(`RESUMEN CARTOGRAFÍA WEBGL, H3 Y SPARSE MAP: ${passedTests}/${passedTests} PASARON`);
+  console.log('✅ TODAS LAS PRUEBAS DE OPENPLACE BRIDGE Y H3 SUPERADAS (100% ÉXITO)');
   console.log('==============================================================================\n');
 } catch (err: any) {
   console.error('\n❌ ERROR EN LA SUITE DE CARTOGRAFÍA Y BITMAP:', err.message);

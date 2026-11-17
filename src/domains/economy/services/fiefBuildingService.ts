@@ -16,6 +16,20 @@ import {
   TacticalMarkEffectResult,
 } from '@domains/world';
 import { roadNetworkEngine } from '@domains/world';
+import type { ExclusiveResourceNodeType, TerritorialTaxLedger } from '@shared';
+import {
+  calculateSymbioticExtractionSettlement,
+  type SymbioticExtractionSettlement,
+} from '../core/strategicAndProductionEngine';
+
+export type { FiefBuilding, FiefBuildingType } from '@domains/world';
+
+export interface PrivateExtractorHarvestResult {
+  buildingId: string;
+  exclusiveResourceNode: ExclusiveResourceNodeType;
+  collectedUnits: number;
+  settlement: SymbioticExtractionSettlement;
+}
 
 /**
  * Calcula la distancia geodésica en kilómetros entre dos coordenadas [lng, lat].
@@ -693,6 +707,50 @@ export class FiefBuildingService {
     explicitIsHostile?: boolean
   ): TacticalMarkEffectResult {
     return applyTacticalMarkEffects(unitCoords, marks, unitClanIdOrOptions, explicitIsHostile);
+  }
+
+  /**
+   * Cosecha un extractor/fábrica privada ligada a un nodo geográfico exclusivo
+   * (Litio, Petróleo/Energía, Silicio, Aleaciones o Combustible), liquidando el
+   * impuesto territorial simbiótico hacia la bóveda de la Corporación gobernante.
+   */
+  public harvestPrivateExtractorWithSymbioticTax(params: {
+    buildingId?: string;
+    municipalityId: string;
+    extractorOwnerClanId: string;
+    municipalityControllingClanId: string | null;
+    exclusiveResourceNode: ExclusiveResourceNodeType;
+    grossYieldEc: number;
+    ledger?: Partial<TerritorialTaxLedger>;
+    governingClanTreasury?: ClanTreasuryState;
+  }): PrivateExtractorHarvestResult {
+    const settlement = calculateSymbioticExtractionSettlement({
+      municipalityId: params.municipalityId,
+      extractorOwnerClanId: params.extractorOwnerClanId,
+      municipalityControllingClanId: params.municipalityControllingClanId,
+      grossYieldEc: params.grossYieldEc,
+      exclusiveResourceNode: params.exclusiveResourceNode,
+      ledger: params.ledger,
+    });
+
+    if (params.governingClanTreasury && settlement.controllingClanVaultDeltaEc > 0) {
+      params.governingClanTreasury.energyCredits += settlement.controllingClanVaultDeltaEc;
+    }
+
+    const bld = params.buildingId ? this.buildings.get(params.buildingId) : undefined;
+    if (bld) {
+      bld.lastHarvestAt = new Date().toISOString();
+    }
+
+    const collectedUnits = Math.max(1, Math.floor(settlement.netExtractorYieldEc / 25));
+
+    this.notifyListeners();
+    return {
+      buildingId: params.buildingId ?? `ext-${params.municipalityId}-${params.exclusiveResourceNode}`,
+      exclusiveResourceNode: params.exclusiveResourceNode,
+      collectedUnits,
+      settlement,
+    };
   }
 
   public subscribe(listener: () => void): () => void {

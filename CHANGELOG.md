@@ -1,13 +1,13 @@
-# Changelog
+# Changelog — DRONEPUNK 0.0.1
 
-Todos los cambios notables en este proyecto serán documentados en este archivo.
+Todos los cambios notables de **DRONEPUNK 0.0.1** serán documentados en este archivo.
 
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [0.2.0-alfa] - 2026-11-06
+## [0.0.1] - Consolidación Modular, Zoom Continuo & Soberanía Territorial (2026-11-06)
 
 ### Arquitectura de 3 Vistas de Zoom Continuo & Soberanía Territorial C4ISR
 
@@ -28,10 +28,10 @@ Implementación integral y certificación de la arquitectura unificada en 3 nive
   - `TacticalUnitDeployModal.tsx`: Consola de despliegue in-situ para tanques medianos, jeeps de reconocimiento, artillería autopropulsada, blindados antiaéreos y helicópteros con callsign personalizado y validación de costos.
   - `TacticalConstructionDrawer.tsx`: Ingeniería de fortificación in-situ para construir Refinerías de Crudo, Fundiciones Microchip C4ISR, Búnkeres de Munición y Estaciones Radar FLIR conectadas con la economía industrial.
 - **Pruebas Automatizadas y Certificación E2E Multimodal**:
-  - `src/engine/coordinatesAndBitmap.test.ts` (10/10 pasaron).
-  - `src/engine/stateSovereignty.test.ts` (7/5 pasaron).
-  - `src/engine/urbanRoadsAndCities.test.ts` (6/6 pasaron).
-  - `src/engine/spatialDeployment.test.ts` (6/6 pasaron).
+  - `src/domains/world/__tests__/coordinatesAndBitmap.test.ts` (10/10 pasaron).
+  - `src/domains/world/__tests__/stateSovereignty.test.ts` (7/5 pasaron).
+  - `src/domains/world/__tests__/urbanRoadsAndCities.test.ts` (6/6 pasaron).
+  - `src/domains/world/__tests__/spatialDeployment.test.ts` (6/6 pasaron).
   - `tests/e2e/game-playtester.spec.ts`: Suite E2E de Playwright que valida el Metajuego Geopolítico Capa 1 y las 3 Vistas de Zoom en Chromium real (2/2 pasaron en 2.1m con 0 errores fatales).
 
 #### Fixed
@@ -42,13 +42,13 @@ Implementación integral y certificación de la arquitectura unificada en 3 nive
 
 ---
 
-## [0.1.0] - 2026-11-05
+## [0.0.1] - Núcleo WebGL Zero-Raster, Metajuego & Economía Player-Driven (2026-11-05)
 
-### Lanzamiento Alfa en Desarrollo (v0.1.0) — Geotactics Persistente, Consola C4ISR Atompunk & Global Sovereignty
+### Lanzamiento DRONEPUNK 0.0.1 — Soberanía Territorial Persistente & Consola C4ISR Atompunk
 
-Consolidación acumulativa de la versión `0.1.0` en desarrollo: arquitectura del motor táctico por turnos (TBS), experiencia visual de historieta cinética, motor Geotactics persistente (Project Alice Engine × Consola C4ISR Atompunk), expansión territorial celular y metajuego de soberanía masiva.
+Consolidación acumulativa de **DRONEPUNK 0.0.1**: arquitectura del motor táctico por turnos (TBS), experiencia visual de historieta cinética, motor geopolítico persistente (Project Alice Engine × Consola C4ISR Atompunk), expansión territorial celular y metajuego de soberanía masiva.
 
-### Fase 1 & 2: Geotactics Persistente (Project Alice Engine × Consola C4ISR Atompunk)
+### Fase 1 & 2: Soberanía Persistente (Project Alice Engine × Consola C4ISR Atompunk)
 
 ### Fase 1: Arquitectura Cartográfica WebGL 2.0 Venezuela & Certificación E2E Multimodal
 
@@ -60,19 +60,12 @@ Consolidación acumulativa de la versión `0.1.0` en desarrollo: arquitectura de
   - Masas continentales circundantes `public/map/world_land.json` (134 KB) para dar contexto geográfico al Caribe y Sudamérica.
 
 #### Changed
-- **Pantalla de Carga 100% Cinemática y Automática (`GeotacticsLoadingScreen.tsx`)**:
-  - Eliminada la consola de diagnóstico de texto C4ISR inferior y el botón manual `COMANDANTE: ENTRAR AL ESTADO MAYOR`.
+- **Pantalla de Carga 100% Cinemática y Automática (`src/domains/tactics/components/GeotacticsLoadingScreen.tsx`)**:
   - Transición automática al Cuartel General y mapa WebGL en cuanto la precarga de búferes alcanza el 100%.
-  - Actualización de la suite E2E de Playwright (`tests/e2e/game-playtester.spec.ts`) para verificar la auto-transición sin clicks manuales.
-- **Consolidación de Arquitectura WebGL 2.0 Exclusiva (`WarLobbyHub.tsx`)**:
-  - Eliminado el estado `mapRenderer` y el botón de alternancia `CANVAS 2D`, dejando a `TacticalWorldMap` (WebGL 2.0 MapLibre) como renderizador cartográfico único y canónico.
-
-#### Removed
-- **Erradicación del Motor Canvas 2D Legacy (`src/components/world/WorldMapCanvas.tsx`)**:
-  - Eliminación definitiva del archivo `WorldMapCanvas.tsx` (841 líneas de renderizado 2D obsoleto).
-  - Migración de la interfaz `ProvinceVisualData` hacia `src/types/metagame.ts` para preservar la integridad de tipos en `TerritoryInspectorModal.tsx`.
-
-#### Changed
+  - Actualización de la suite E2E de Playwright (`tests/e2e/game-playtester.spec.ts`) para verificar la auto-transición.
+- **Consolidación de Arquitectura WebGL 2.0 Exclusiva (`src/domains/world/components/WarLobbyHub.tsx` & `TacticalWorldMap.tsx`)**:
+  - Establecimiento de `TacticalWorldMap` (`src/domains/world/components/TacticalWorldMap.tsx`) como renderizador cartográfico único y canónico en WebGL 2.0 MapLibre GL v6.
+  - Consolidación de la interfaz `ProvinceVisualData` en `src/shared/types/metagame.ts` para preservar la integridad de tipos en `src/domains/world/components/TerritoryInspectorModal.tsx`.
 - **Neutralización del Parpadeo Cíclico en WebGL (`TacticalWorldMap.tsx` & `WarLobbyHub.tsx`)**:
   - Implementación del patrón de *Stable Ref* (`useRef`) para callbacks de selección (`onSelectProvinceRef`, `onSelectTacticalCellRef`), desacoplando el ciclo de vida del contexto WebGL 2.0 del ticker económico de 1000ms.
   - Inicialización del mapa en efecto de montaje único (`[]`), manteniendo viva la instancia de MapLibre GL a 60 FPS ininterrumpidos.
@@ -89,9 +82,9 @@ Consolidación acumulativa de la versión `0.1.0` en desarrollo: arquitectura de
     - *Autopistas y Troncales*: Triple capa en WebGL con sombra de tinta cómic (`#0A0B08`), resplandor radar y núcleo verde fósforo CRT (`#00FF66`) / ámbar militar (`#FBBF24`).
 
 #### Added
-- **Plan Maestro de Despliegue Cartográfico (`docs/PLAN_DESPLIEGUE_MAPA_WEBGL_VENEZUELA.md`)**:
-  - Especificación de las 5 fases para reemplazar el grafo de tarjetas Canvas 2D por un lienzo geográfico WebGL 2.0 (MapLibre GL v6) Zero-Raster.
-  - Mapeo canónico de las 24 entidades federales soberanas (`REG_VE_01` a `REG_VE_24`) y las 7 zonas buffer de frontera (`BUF_*`).
+- **Plan Maestro de Despliegue Cartográfico (`docs/archive_legacy/PLAN_DESPLIEGUE_MAPA_WEBGL_VENEZUELA.md`)**:
+  - Especificación de las 5 fases para consolidar el lienzo geográfico WebGL 2.0 (MapLibre GL v6) Zero-Raster.
+  - Mapeo canónico de las 24 entidades federales soberanas (`REG_VE_01` a `REG_VE_24`), `BUF_MARITIME_CARIBE` y las 7 zonas buffer de frontera (`BUF_*`).
   - Matriz de jerarquía para las Troncales 1 a 19, Eje Fluvial Orinoco-Apure y corredores marítimos del Caribe.
 - **Worker Autónomo WebGL (`public/maplibre-gl-worker.mjs`)**:
   - Binario desacoplado del bundler de Vite para carga inmediata local con código 200 OK, eliminando excepciones 504 de tiempo de espera en workers de mapas.
@@ -99,25 +92,8 @@ Consolidación acumulativa de la versión `0.1.0` en desarrollo: arquitectura de
   - Puntos de anclaje accesibles (`data-region-id` y `data-buffer-zone`) proyectados sobre el lienzo WebGL que permiten a los motores de accesibilidad y suites de automatización Playwright ejecutar navegación, asedios y selección de provincias a 60 FPS sin sobrecargar la CPU.
 
 #### Changed
-- **Pantalla de Carga 100% Cinemática y Automática (`GeotacticsLoadingScreen.tsx`)**:
-  - Eliminada la consola de diagnóstico de texto C4ISR inferior y el botón manual `COMANDANTE: ENTRAR AL ESTADO MAYOR`.
-  - Transición automática al Cuartel General y mapa WebGL en cuanto la precarga de búferes alcanza el 100%.
-  - Actualización de la suite E2E de Playwright (`tests/e2e/game-playtester.spec.ts`) para verificar la auto-transición sin clicks manuales.
-- **Consolidación de Arquitectura WebGL 2.0 Exclusiva (`WarLobbyHub.tsx`)**:
-  - Eliminado el estado `mapRenderer` y el botón de alternancia `CANVAS 2D`, dejando a `TacticalWorldMap` (WebGL 2.0 MapLibre) como renderizador cartográfico único y canónico.
-
-#### Removed
-- **Erradicación del Motor Canvas 2D Legacy (`src/components/world/WorldMapCanvas.tsx`)**:
-  - Eliminación definitiva del archivo `WorldMapCanvas.tsx` (841 líneas de renderizado 2D obsoleto).
-  - Migración de la interfaz `ProvinceVisualData` hacia `src/types/metagame.ts` para preservar la integridad de tipos en `TerritoryInspectorModal.tsx`.
-
-#### Changed
-- **Conmutación Canónica a WebGL (`WarLobbyHub.tsx`)**:
-  - El lobby de guerra consolida a `TacticalWorldMap` (WebGL 2.0) como renderizador cartográfico único y canónico, eliminando el estado `mapRenderer` y el botón de alternancia `canvas2d`.
 - **Calibración de Centroide Nacional (`TacticalWorldMap.tsx`)**:
   - Centro geográfico reajustado a las coordenadas precisas de la República de Venezuela (`lng: -66.5897, lat: 6.4238`) a zoom `5.5`, abarcando toda la fachada caribeña y los límites fronterizos.
-- **Transición Cinemática 100% Automática en Boot Screen (`GeotacticsLoadingScreen.tsx`)**:
-  - El botón manual de entrada fue retirado en favor de la transición automática e inmediata al alcanzar el 100% de carga del búfer cartográfico.
 
 #### Verified
 - **Suite de Calidad Playwright E2E (`test-results/qa-run-latest.json`)**:
@@ -132,14 +108,14 @@ Consolidación acumulativa de la versión `0.1.0` en desarrollo: arquitectura de
 
 #### Added
 - **Master MVP Blueprint & Roadmap (`docs/MASTER_MVP_BLUEPRINT_AND_ROADMAP.md`)**:
-  - Especificación canónica de refundación modular bajo Arquitectura Hexagonal Pura y Estado Unidireccional Basado en Eventos (v5.1.0-MODULAR-FOUNDATION).
+  - Especificación canónica de refundación modular bajo Arquitectura Hexagonal Pura y Estado Unidireccional Basado en Eventos (`DRONEPUNK 0.0.1`).
   - Aislamiento e invariantes de los 4 Dominios: Metapolítica Macro & Cartografía WGS84 (Estudio Alpha), Motor Táctico TBS & Atrición Determinista (Estudio Beta), Bark Engine & Game Feel Cómic (Estudio Gamma) y Capa de Invariantes Universales (Estudio Delta).
-  - Contratos de tipo inmutables (`docs/contracts/`): `macroCartographyContracts.ts`, `tacticalContracts.ts`, `schema.ts`, `typesBridge.ts`.
-- **Análisis Forense & Replicación Cartográfica WarEra (`docs/WARERA_MAP_ARCHITECTURE_DEEP_DIVE.md`)**:
+  - Contratos de tipo inmutables (`docs/contracts/`): `alpha/macroCartographyContracts.ts`, `beta/tacticalContracts.ts`, `schema.ts`, `typesBridge.ts`.
+- **Análisis Forense & Replicación Cartográfica WarEra (`docs/archive_legacy/WARERA_MAP_ARCHITECTURE_DEEP_DIVE.md`)**:
   - Deconstrucción de arquitectura WebGL Zero-Raster, TopoJSON estático quantizado y reactividad en GPU con `feature-state` con 0% de re-renders de CPU.
-- **Plan de Implementación Mapa Vectorial Zero-Raster (`docs/PLAN_IMPLEMENTACION_MAPA_VECTORIAL_ZERO_RASTER.md`)**:
+- **Plan de Implementación Mapa Vectorial Zero-Raster (`docs/archive_legacy/PLAN_IMPLEMENTACION_MAPA_VECTORIAL_ZERO_RASTER.md`)**:
   - Hoja de ruta para migración a TopoJSON, MapLibre GL nativo y Deck.gl (`MapboxOverlay`).
-- **Análisis de Arquitectura Geotactics (`docs/ANALISIS_ARQUITECTURA_GEOTACTICS.md`)**:
+- **Análisis de Arquitectura Histórica (`docs/archive_legacy/ANALISIS_ARQUITECTURA_GEOTACTICS.md`)**:
   - Convergencia entre lienzo territorial OpenPlace y motor de eventos y logística Project Alice.
 
 #### Added
@@ -147,7 +123,7 @@ Consolidación acumulativa de la versión `0.1.0` en desarrollo: arquitectura de
   - Migración DDL con tabla `public.strategic_nodes` para los 7 puntos estratégicos del Teatro Venezuela: Capital Central Caracas (`REG_VE_01`), Estrecho Canal de Maracaibo (`REG_VE_02`), Refinería CRP Amuay (`REG_VE_11`), Estrecho Golfo de Paria (`REG_VE_13`), Hidroeléctrica Guri (`REG_VE_03`), Radar C4ISR Margarita (`REG_VE_14`) y Base SAM Maracay (`REG_VE_08`).
   - Hangar Comunitario de Facción (`public.faction_unit_hangar`) que permite a los clanes sostener inventarios militares colectivos administrados por rango de mando.
   - Cola de Producción Física (`public.unit_production_queue`) con duraciones de espera deterministas y funciones RPC atómicas `queue_unit_production` y `claim_finished_unit`.
-- **Motor Lógico de Forja y Nodos Estratégicos (`src/engine/strategicAndProductionEngine.ts`)**:
+- **Motor Lógico de Forja y Nodos Estratégicos (`src/domains/economy/core/strategicAndProductionEngine.ts`)**:
   - Función `calculateUnitProductionDuration` con escalado de Tiers T1 a T5 (+35% de duración por grado industrial) y reducción de tiempo por Buff Hegemónico de Capital Nacional Caracas (-10%).
   - Kit de Supervivencia F2P inagotable: Infantería Ligera y Reconocimiento T1 con duración de 0s y costo nulo de insumos pesados.
   - Reglas de Comando Delegado de Facción: Reclutas bloqueados, Cabos acotados a Tier 2, Sargentos y Veteranos autorizados para desplegar blindados pesados y aviación comunitaria.
@@ -164,7 +140,7 @@ Consolidación acumulativa de la versión `0.1.0` en desarrollo: arquitectura de
 ### Fase 3: Expansión Territorial.io & Multiplicador de Nodos Industriales
 
 #### Added
-- **Motor de Expansión Territorial Celular (`src/engine/territorialExpansionEngine.ts`)**:
+- **Motor de Expansión Territorial Celular (`src/domains/world/core/territorialExpansionEngine.ts`)**:
   - Malla celular determinista de sub-sectores por región con cobertura de estrellas de terreno (1★ a 4★).
   - Algoritmo de avance de frontera por ondas ("Pintado de Zonas" estilo *Territorial.io*): propagación celular ortogonal según presupuesto de Fondos $G / Manpower militar.
   - Desgaste dinámico de celdas enemigas y consolidación de Soberanía *De Facto* al superar el umbral del 50% de la región.
@@ -177,7 +153,7 @@ Consolidación acumulativa de la versión `0.1.0` en desarrollo: arquitectura de
 ### Fase 4: Seamless Zoom, Doble Llave & Human Handshake 120s
 
 #### Added
-- **Integración de Combate Táctico y Zoom Continuo (`src/engine/tacticalCombatSeamlessIntegration.ts`)**:
+- **Integración de Combate Táctico y Zoom Continuo (`src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts`)**:
   - Controlador de Semantic LOD (LOD 1 Global $z < 6.0$, LOD 2 Operacional $6.0 \le z < 13.0$, LOD 3 Táctico $z \ge 13.0$).
   - Inyección dinámica de `TileCanvas` HTML5 sobre coordenadas WGS84 con conmutación de textura bilineal a `nearest` (pixel-art).
   - Validador estricto de la **Doble Llave**: exige Fondos $\$G$ in-match Y existencia física de chasis en Hangar Personal o Arsenal de Facción (con excepción del Kit F2P inagotable para Infantería y Recon T1).
@@ -186,7 +162,7 @@ Consolidación acumulativa de la versión `0.1.0` en desarrollo: arquitectura de
 - **Batería de Pruebas Automatizadas de Fase 4**:
   - `tacticalCombatSeamlessIntegration.test.ts`: 17/17 tests superados (100%).
 
-### Base Fundacional (v0.1.0 Core) — Motor Táctico, Metajuego y Backend
+### Base Fundacional (DRONEPUNK 0.0.1 Core) — Motor Táctico, Metajuego y Backend
 
 #### Added
 - **Motor Táctico Determinista (Advance Wars 1-100 HP Core)**:
@@ -211,9 +187,9 @@ Consolidación acumulativa de la versión `0.1.0` en desarrollo: arquitectura de
   - Generación continua de recursos por minuto (*Wplace Economy*) con liquidación periódica y cobro de upkeep en Créditos Energéticos (**EC**).
   - Ecuación matemática de sobre-expansión imperial $\Psi_{\text{Over}}$ con penalización superlineal de mantenimiento a partir del umbral $N_{\text{cap}} = 6$ provincias.
 - **Hangar Físico de Unidades y Cadena de Valor Industrial (Albion Online)**:
-  - Deprecación definitiva del mazo rígido de 10 cartas: transición hacia **Hangares Físicos de Chasis** donde toda tropa desplegada representa munición descartable crafteada previamente.
-  - Escalamiento industrial de tropas en 5 Tiers de calidad (T1 a T5):
-    $$\text{BonoEfectividad}(N) = (N - 1) \times 2.0\% \quad \text{hasta } +10\% \text{ en Nivel 5}$$
+  - Consolidación de **Almacenes Físicos de 16 Chasis Militares (4 slots en vanguardia + 12 en reserva táctica)** donde toda tropa desplegada representa munición descartable forjada previamente.
+  - Escalamiento industrial horizontal de tropas en 5 Tiers de calidad (T1 a T5):
+    $$\text{BonoEfectividad}(T) = (T - 1) \times 2.0\% \quad \text{hasta } +8\% \text{ en Tier 5 (paridad } 0\% \text{ en Tier 1 competitivo)}$$
   - Desbloqueo de **Patentes Tecnológicas Permanentes** mediante quema de materiales brutos y refinados de la guerra moderna (aleaciones de titanio, tierras raras, grafeno, micro-conductores, hormigón armado e hidrocarburos).
   - Sistema de reciclaje y recuperación de chatarra con retención base del 35% de valor en desguace.
 - **Mercado Libre P2P Descentralizado**:
@@ -225,14 +201,14 @@ Consolidación acumulativa de la versión `0.1.0` en desarrollo: arquitectura de
 - **Mando Autónomo de Guarniciones IA**:
   - 5 niveles cognitivos de guarnición defensiva (desde Milicia Local heurística hasta Gran Mariscal Búnker con árbol MCTS y mapas de calor).
   - Regla canónica de envejecimiento y pase a retiro de Comandantes Legendarios tras **21 días reales** de servicio activo.
-  - Protocolo de relevo humano (*Human Handshake* de 3 minutos) previo a la intervención de la IA.
+  - Protocolo de relevo humano (*Human Handshake* de 120 segundos) previo a la intervención de la IA.
 - **Infraestructura de Datos y Backend (Supabase PostgreSQL)**:
-  - 22 migraciones maestras de esquemas relacionales consolidadas.
+  - 32 migraciones maestras de esquemas relacionales consolidadas en `supabase/migrations/` y `supabase/CONSOLIDATED_FULL_DATABASE_DEPLOY.sql`.
   - Seguridad declarativa mediante **Row Level Security (RLS)** y ejecución atómica vía funciones RPC (`execute_p2p_market_transaction`, `rebalance_garrison_tier`, `grant_match_rewards`).
   - Sincronización en tiempo real a través de canales WebSocket de Supabase Realtime.
 
 ### Changed
-- Reemplazo del sistema de mazo por Hangares Físicos persistentes en base de datos (`public.user_unit_hangar`).
+- Consolidación de Hangares Físicos de 16 chasis militares persistentes en base de datos (`public.user_unit_hangar`).
 - Sustitución de la tasa municipal previa del 12% por la regla canónica del split del 2% en el Mercado P2P.
 - Migración de la arquitectura web hacia una SPA nativa en React 19 empaquetada con Vite 8 y estilizada con Tailwind CSS v4.
 

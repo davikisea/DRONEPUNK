@@ -1,7 +1,7 @@
 # VOLUMEN 2: METAJUEGO, COMPLEJO INDUSTRIAL Y ECONOMÍA DE MONETIZACIÓN
 **Documento Canónico Unificado:** `02_MASTER_METAGAME_INDUSTRY_ECONOMY.md`  
-**Proyecto:** *GEOTACTICS ONLINE (Wars of Legacy)*  
-**Versión:** 5.0.0-MODULAR-DOMAINS-SSOT  
+**Proyecto:** *DRONEPUNK 0.0.1*  
+**Versión:** 0.0.1  
 **Estado:** Documento de Verdad Absoluta (SSOT - Single Source of Truth)  
 **Dominio Principal de Código:** `src/domains/economy/` (`@domains/economy`) + `src/shared/` (`@shared`)  
 **Archivos Consolidados y Reemplazados:**  
@@ -15,7 +15,7 @@
 
 # 1. MODELO MATEMÁTICO DE PROGRESIÓN DE CUENTA
 
-La progresión recompensa la habilidad táctica y la actividad constante sin generar inflación incontrolable, operando bajo el **Pilar 1 Canónico (CERO CARTAS / NO TCG ni Gacha)** y abasteciendo un **Almacén Físico / Hangar de 16 tropas máximo por jugador (4 slots de despliegue activo + 12 en reserva)**.
+La progresión recompensa la habilidad táctica y la actividad constante sin generar inflación incontrolable, operando bajo el **Pilar 1 Canónico (Almacén Físico de 16 Chasis Militares como munición descartable forjada: 4 slots de despliegue activo + 12 en reserva en `user_unit_hangar`)**.
 
 ### 1.1 Curva de Nivel de Cuenta
 La cantidad de Puntos de Experiencia (XP) necesarios para pasar del nivel $N$ al nivel $N+1$ se rige por una curva de potencia asimétrica:
@@ -81,7 +81,7 @@ Para evitar granjas pasivas (*bot farming*) preservando al mismo tiempo una ramp
   2. `elo_rating_esports`: Clasificación del circuito competitivo oficial y Duelo Espejo, donde el combate opera con Tier 1 Standard Base y modificadores normalizados a $0.0\%$ (paridad competitiva absoluta).
 
 #### Incentivo de Primera Sangre en Partida (`First Blood Bounty`):
-- Implementado en `App.tsx` (`FIRST_BLOOD_BOUNTY_G = 600`), el primer comandante en destruir una tropa enemiga recibe un bono instantáneo de **$+\$600\text{G}$** en sus fondos de partida (`funds`), dinamizando el segundo 90 y acelerando la producción de contra-unidades antes del primer AirDrop.
+- Implementado en `src/App.tsx` (`FIRST_BLOOD_BOUNTY_G = 600`), el primer comandante en destruir una tropa enemiga recibe un bono instantáneo de **$+\$600\text{G}$** en sus fondos de partida (`funds`), dinamizando el segundo 90 y acelerando la producción de contra-unidades antes de la ventana de refuerzos $T+4$.
 
 ### 1.3 Arquitectura de Divulgación Progresiva del Lobby (`src/domains/world/components/WarLobbyHub.tsx`)
 Para evitar la sobrecarga cognitiva en nuevos reclutas y garantizar un embudo de retención de alta conversión (evitando que el Complejo Industrial se perciba prematuramente como un juego *idle* ajeno al combate), el Lobby (`@domains/world`) restringe las pestañas según el nivel de cuenta del jugador:
@@ -238,8 +238,8 @@ Los comandantes comercian materias primas, derivados industriales, patentes tecn
 - `src/shared/types/metagame.ts` (`MASTER_METAGAME_CONSTANTS`, `calculateLossScrapRecovery`)
 - `supabase/migrations/20261105000001_geotactics_strategic_nodes_and_queues.sql`.
 
-### 4.1 Pilar 1 Canónico: CERO CARTAS y Almacén Físico de 16 Tropas
-En *GEOTACTICS ONLINE* **no existen mazos de cartas, coleccionables TCG/CCG ni mecánicas gacha**. Todo el ejército opera mediante existencias físicas reales en el **Almacén Físico / Hangar Militar (`public.user_unit_hangar`)**, con una capacidad estructural de **16 tropas máximo por jugador**:
+### 4.1 Pilar 1 Canónico: Almacén Físico de 16 Chasis Militares
+En *DRONEPUNK 0.0.1*, todo el ejército opera exclusivamente mediante existencias físicas reales (munición descartable forjada) en el **Almacén Físico / Hangar Militar (`public.user_unit_hangar`)**, con una capacidad estructural de **16 tropas máximo por jugador**:
 - **4 Slots de Despliegue Activo (Vanguardia):** Divisiones seleccionadas para inserción inmediata al inicio del combate táctico.
 - **12 Slots en Reserva Operacional (Retaguardia):** Unidades almacenadas listas para ser solicitadas como oleada de refuerzos en combate (llegada en turno $T+4$, o $T+3$ con buff de fábrica aliada activa) o desplegadas desde instalaciones mediante el **Validador de Doble Llave (`validateDoubleKeyDeployment`)** que exige simultáneamente fondos tácticos en partida (`$G`) y un chasis físico real en el hangar.
 
@@ -323,7 +323,7 @@ $$\text{Multiplicador de Botín}(\text{Racha}) = 1.0 + \min(5, \max(0, \text{Rac
 
 ---
 
-# 6. MONETIZACIÓN INTEGRAL: STRIPE, COMMAND PASS Y OFERTAS DE TILT
+# 6. MONETIZACIÓN INTEGRAL: STRIPE, COMMAND PASS Y PROTECCIÓN F2P (0% P2W)
 *Implementación de Referencia:* `src/domains/economy/components/ShopCatalog.tsx`, `src/domains/economy/components/LoadoutCustomizer.tsx`.
 
 ### 6.1 Catálogo de Tienda y Command Pass
@@ -333,8 +333,5 @@ $$\text{Multiplicador de Botín}(\text{Racha}) = 1.0 + \min(5, \max(0, \text{Rac
   - 1 Protocolo de Salvaguarda diario entregado a las 00:00 UTC (capacidad de almacén ampliada a 3).
   - Cola de refinado multi-batch optimizada y cosméticos de cómic exclusivos (bocadillos Neón y sellos Pop-Art para el Bark Engine en `@domains/game-feel`).
 
-### 6.2 Ofertas Flash de Emergencia por Tilt (\$0.99)
-- **Activación:** Se dispara tras 2 derrotas consecutivas con turnos precipitados ($PTE < 10\text{s}$).
-- **Presentación:** La pantalla muestra la viñeta del Comandante vendado y en shock ofreciendo un paquete flash del Alto Mando: 1 Chasis Reforzado T2 (+2% efectividad) de la tropa destruida para el Hangar Físico + 30 Vigas de Acero procesado por **\$0.99 (85% OFF)**.
-- **Urgencia Temporal:** Cronómetro gigante de **180 segundos**. Si no se adquiere en ese tiempo, la oferta se autodestruye.
-- **Tope de Frecuencia:** Máximo **1 oferta cada 48 horas por cuenta**.
+### 6.2 Sostenibilidad Competitiva y Salvaguarda F2P (0% P2W)
+- **Protección Anti-Bloqueo (Pilar 6):** Ante rachas adversas o pérdida total de unidades forjadas, el Estado Mayor garantiza siempre la **Línea de Pertrechos Básicos F2P Ilimitada** (Infantería Ligera T1 y Reconocimiento T1 a coste $0\text{ EC}$ / $0\text{s}$), junto con la recuperación automática del **35% en `tech_scrap`** para reconstruir chasis en el Complejo Industrial sin microtransacciones de ventaja militar.

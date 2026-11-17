@@ -56,7 +56,7 @@ export const P2PMarketplaceView: React.FC<P2PMarketplaceViewProps> = ({
   onNavigateToIndustry,
 }) => {
   // Precios de referencia de mercado canónicos (PMM con bandas VWAP Collar ±25%)
-  const [priceReferences, setPriceReferences] = useState<Record<RefinedResourceType, P2PPriceReference>>({
+  const [priceReferences, setPriceReferences] = useState<Record<string, P2PPriceReference>>({
     refined_steel: {
       resourceType: 'refined_steel',
       movingAveragePriceGold: 50,

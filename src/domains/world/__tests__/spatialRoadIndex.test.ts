@@ -18,7 +18,7 @@ import { RoadNetworkEngine, roadNetworkEngine } from '../core/roadNetworkEngine'
 import { RoadNode, RoadSegment } from '../types/tacticalRoadTypes';
 
 console.log('==============================================================================');
-console.log('TEST SUITE: ÍNDICE ESPACIAL 2D Y PRUEBA DE ESTRÉS VIAL (GEOTACTICS ONLINE)');
+console.log('TEST SUITE: ÍNDICE ESPACIAL 2D Y PRUEBA DE ESTRÉS VIAL (DRONEPUNK 0.0.1)');
 console.log('==============================================================================');
 
 // ------------------------------------------------------------------------------

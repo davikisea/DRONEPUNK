@@ -68,7 +68,7 @@ export interface MetaCommandConsoleProps {
   userEc: number;
   userSteel?: number;
   ticker?: TerritoryEconomyTickerState;
-  onDeclareAttack?: (targetProvinceId: string) => Promise<{ success: boolean; message?: string; error?: string }> | void;
+  onDeclareAttack?: (targetProvinceId: string) => Promise<{ success: boolean; message?: string; error?: string } | void> | void;
   onJoinActiveBattle?: (provinceId: string) => void;
   onOpenFullHangar?: () => void;
   onRebalanceGarrison?: (targetLevel: 1 | 2 | 3 | 4 | 5) => void;
@@ -213,7 +213,7 @@ export const MetaCommandConsole: React.FC<MetaCommandConsoleProps> = ({
     audioManager.playComboAction(7);
     const res = politicalAliceEngine.advancePoliticalEconomyCycle();
     setStatusFeedback({ text: res.summary, isError: res.isEnergyStarved });
-    if (res.isEnergyStarved || empireMetrics.upkeepBreakdown.overExtendedRegions > 0) {
+    if (res.isEnergyStarved || empireMetrics.upkeepBreakdown.excessRegions > 0) {
       barkEngine.triggerBark({
         commanderId: 'stella',
         triggerContext: 'overexpansion_warning',
@@ -873,7 +873,7 @@ export const MetaCommandConsole: React.FC<MetaCommandConsoleProps> = ({
                     <div className="flex justify-between">
                       <span className="text-[#A2A790]">Regiones Controladas:</span>
                       <span className="text-[#F2E8D5] font-bold">
-                        {empireMetrics.controlledRegions.length} / {empireMetrics.upkeepBreakdown.imperialCap} (Exceso: {empireMetrics.upkeepBreakdown.overExtendedRegions})
+                        {empireMetrics.controlledRegions.length} / {empireMetrics.upkeepBreakdown.imperialCap} (Exceso: {empireMetrics.upkeepBreakdown.excessRegions})
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -897,7 +897,7 @@ export const MetaCommandConsole: React.FC<MetaCommandConsoleProps> = ({
                     <div className="flex justify-between">
                       <span className="text-[#A2A790]">Recargo Sobre-Expansión (1.8):</span>
                       <span className="text-red-400 font-bold">
-                        -{empireMetrics.upkeepBreakdown.overExpansionSurchargeEc} EC
+                        -{empireMetrics.upkeepBreakdown.overexpansionPenaltyEc} EC
                       </span>
                     </div>
                     <div className="flex justify-between">

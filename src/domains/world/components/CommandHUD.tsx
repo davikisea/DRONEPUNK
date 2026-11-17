@@ -13,7 +13,6 @@ import {
   Activity,
   LogIn,
   Eye,
-  Radio,
   Globe,
 } from 'lucide-react';
 import { audioManager } from '@domains/game-feel';
@@ -178,7 +177,7 @@ export const CommandHUD: React.FC<CommandHUDProps> = ({
           </div>
         </div>
 
-        {/* Conmutador Elástico Torneo (Cap N11) vs Ladder Diario (N15) */}
+        {/* Conmutador Elástico Torneo (Paridad Tier 1) vs Ladder Industrial (T1-T5) */}
         <button
           type="button"
           onMouseEnter={() => audioManager.playHoverTick()}
@@ -188,9 +187,9 @@ export const CommandHUD: React.FC<CommandHUDProps> = ({
               ? 'bg-amber-400 text-[#0A0B08]'
               : 'bg-[#2B2C24] text-[#F2E8D5] hover:border-amber-400'
           }`}
-          title="Alternar reglamento competitivo: Cap Simétrico N11 vs Ladder Asimétrico N15"
+          title="Alternar reglamento competitivo: Paridad Estándar Tier 1 vs Ladder Industrial T1-T5"
         >
-          {isTournamentMode ? '⚖️ TORNEO (CAP N11)' : '⚔️ LADDER (N1-N15)'}
+          {isTournamentMode ? '⚖️ TORNEO (PARIDAD T1)' : '⚔️ LADDER (TIERS T1-T5)'}
         </button>
       </div>
 
@@ -329,11 +328,11 @@ export const CommandHUD: React.FC<CommandHUDProps> = ({
                 audioManager.playSFX('button_click');
                 onOpenLoadingScreen();
               }}
-              title="Ver Pantalla de Carga Táctica // GEOTACTICS ONLINE"
+              title="Ver Pantalla de Carga Táctica // DRONEPUNK 0.0.1"
               aria-label="Ver Pantalla de Carga Táctica"
-              className="w-8 h-8 rounded-[8px_2px_8px_2px] flex items-center justify-center bg-[#2B2C24] border-2 border-[#0A0B08] shadow-[2px_2px_0px_#0A0B08] hover:border-[#00FF66] text-xs text-[#00FF66] cursor-pointer transition-colors"
+              className="w-8 h-8 rounded-[8px_2px_8px_2px] flex items-center justify-center bg-[#2B2C24] border-2 border-[#0A0B08] shadow-[2px_2px_0px_#0A0B08] hover:border-[#FF5B00] text-xs text-[#00FF66] cursor-pointer transition-colors"
             >
-              <Radio className="w-4 h-4 animate-pulse" />
+              <img src="/icon.svg" alt="DRONEPUNK 0.0.1" className="w-5 h-5 object-contain" />
             </button>
           )}
 

@@ -3,7 +3,7 @@
  * SUITE DE PRUEBAS DETERMINISTAS: ASEDIO TERRITORIAL Y PROTOCOLO HANDSHAKE (120s)
  * ==============================================================================
  * Especificación Canónica: docs/00_GEOTACTICS_ONLINE_MASTER_SPEC.md §4.2 & §5.4
- * Hitos de Fase 2 (v0.0.1-alfa):
+ * Hitos de Fase 2 (DRONEPUNK 0.0.1):
  * 1. Inicio de Asedio y Cuenta atrás de 120 segundos.
  * 2. Relevo Humano Defensivo (Claim Handshake -> PvP Realtime).
  * 3. Expiración de 120s -> Relevo Cognitivo a Guarnición IA (Nv. 1 a 5).
@@ -161,7 +161,7 @@ export function runTerritorialSiegeSuite(): {
 
     assert(
       'Test 3.1: Intento de relevo después de 120s es rechazado formalmente',
-      !lateClaimRes.success && lateClaimRes.reason?.includes('expirado'),
+      Boolean(!lateClaimRes.success && lateClaimRes.reason?.includes('expirado')),
       `Rechazado correctamente: ${lateClaimRes.reason}`
     );
 

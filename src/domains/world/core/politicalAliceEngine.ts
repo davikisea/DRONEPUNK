@@ -4,7 +4,7 @@
  * ==============================================================================
  * Especificación Canónica:
  * - docs/00_GEOTACTICS_ONLINE_MASTER_SPEC.md
- * - docs/PLAN_MAESTRO_REESTRUCTURACION_HEGEMONIA.md
+ * - docs/archive_legacy/PLAN_MAESTRO_REESTRUCTURACION_HEGEMONIA.md
  * - docs/02_MASTER_METAGAME_INDUSTRY_ECONOMY.md
  * - docs/03_MASTER_COMMANDERS_BARK_AND_SOCIAL.md
  * - supabase/migrations/20261104000001_geotactics_alpha_siege_and_venezuela_seed.sql
@@ -459,14 +459,14 @@ function buildInitialSovereigntyMap(): Record<string, GeotacticsRegionSovereignt
   ]);
 
   for (const reg of CANONICAL_VENEZUELA_REGIONS) {
-    const maxTcp = reg.isNationalCapital
+    const maxTcp: number = reg.isNationalCapital
       ? MASTER_METAGAME_CONSTANTS.CAPITAL_TCP_THRESHOLD
       : MASTER_METAGAME_CONSTANTS.STANDARD_TCP_THRESHOLD;
 
     let ownerClanId: string | null = null;
     let controllerClanId: string | null = null;
     let status: GeotacticsRegionSovereignty['status'] = 'stable';
-    let currentTcp = maxTcp;
+    let currentTcp: number = maxTcp;
 
     if (!reg.isPlayable) {
       ownerClanId = null;
@@ -496,6 +496,7 @@ function buildInitialSovereigntyMap(): Record<string, GeotacticsRegionSovereignt
       currentTcp = 7000;
     }
 
+    const finalStatus: GeotacticsRegionSovereignty['status'] = status;
     const nowIso = new Date().toISOString();
     map[reg.id] = {
       regionId: reg.id,
@@ -504,8 +505,8 @@ function buildInitialSovereigntyMap(): Record<string, GeotacticsRegionSovereignt
       controlPoints: currentTcp,
       maxControlPoints: maxTcp,
       bunkerLevel: reg.isNationalCapital ? 3 : 1,
-      status,
-      customsEscrowLocked: status === 'occupied_grace',
+      status: finalStatus,
+      customsEscrowLocked: (finalStatus as GeotacticsRegionSovereignty['status']) === 'occupied_grace',
       isEnergyStarved: false,
       activeBattleId: null,
       cooldownExpiresAt: null,
@@ -1640,6 +1641,33 @@ export class PoliticalAliceEngine {
       timestamp: new Date().toLocaleTimeString(),
     };
     this.state.operationLogs = [newEntry, ...this.state.operationLogs.slice(0, 29)];
+  }
+
+  /**
+   * Consulta los Perks Estatales (>60% de municipios controlados) integrados en Project Alice.
+   */
+  public getStatePerksForRegion(
+    stateId: string,
+    clanId: string,
+    controlledMunicipalitiesCount: number,
+    totalMunicipalitiesCount: number
+  ) {
+    return stateSovereigntyService.evaluateStateLevelPerks({
+      stateId,
+      clanId,
+      controlledMunicipalitiesCount,
+      totalMunicipalitiesCount,
+    });
+  }
+
+  /**
+   * Consulta los privilegios corporativos (>=1 municipio controlado: Neotanque/Bombardero + Diplomacia).
+   */
+  public getCorporateMacroPrivileges(clanId: string, controlledMunicipalitiesCount: number) {
+    return stateSovereigntyService.evaluateCorporateMacroPrivileges({
+      clanId,
+      controlledMunicipalitiesCount,
+    });
   }
 }
 

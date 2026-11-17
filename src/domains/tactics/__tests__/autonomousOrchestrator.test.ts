@@ -258,7 +258,7 @@ export async function runAutonomousOrchestratorSuite(): Promise<{
     });
 
     let matchFinishedFired = false;
-    let finishSummary: MatchEndSummary | null = null;
+    let finishSummary = null as MatchEndSummary | null;
 
     orch.subscribe(evt => {
       if (evt.type === 'MATCH_FINISHED') {

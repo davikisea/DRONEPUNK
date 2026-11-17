@@ -80,4 +80,26 @@ export class TacticalBitMap {
     }
     return new TacticalBitMap(bytes);
   }
+
+  /**
+   * Crea un bitmap compacto de 500 bits (63 bytes) para una malla municipal 25x20.
+   */
+  public static createMunicipalMicroGridBitmap(): TacticalBitMap {
+    return new TacticalBitMap(500);
+  }
+
+  /**
+   * Cuenta los bits activos (celdas conquistadas) en O(bytes).
+   */
+  public countSetBits(): number {
+    let count = 0;
+    for (let i = 0; i < this.bytes.length; i++) {
+      let b = this.bytes[i]!;
+      while (b > 0) {
+        count += b & 1;
+        b >>= 1;
+      }
+    }
+    return count;
+  }
 }

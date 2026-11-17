@@ -1,14 +1,14 @@
 # VOLUMEN 5: ARQUITECTURA TÉCNICA DEL MOTOR, RED Y FRONTEND CANVAS
 **Documento Canónico Unificado:** `05_MASTER_GAME_ENGINE_AND_NETWORKING.md`  
-**Proyecto:** *Tactical Command: Wars of Legacy*  
-**Versión:** 5.0.0-DEFINITIVE-MASTER-SPEC  
+**Proyecto:** *DRONEPUNK 0.0.1*  
+**Versión:** 0.0.1  
 **Estado:** Documento de Verdad Absoluta (SSOT - Single Source of Truth)  
 **Archivos Consolidados y Reemplazados:**  
 - `03_GAME_ENGINE_ARCHITECTURE.md` (Completo)  
 - `04_NETWORKING_AND_BOTS.md` (Completo)  
 - `09_FRONTEND_ENGINE_AND_AI_ARCHITECTURE.md` (Completo)  
-- Secciones de motor y renderizado de `15_HYPER_ENGAGEMENT_AIRDROP_SYSTEM.md` y `16_HYPER_ENGAGEMENT_MIRROR_TACTICAL_DUEL.md`  
-- Motores de integración de GEOTACTICS (`territorialExpansionEngine`, `strategicAndProductionEngine`, `tacticalCombatSeamlessIntegration`).  
+- Secciones de motor y renderizado de especificaciones históricas de suministro y duelo espejo  
+- Motores de integración territorial y económica de DRONEPUNK (`territorialExpansionEngine`, `strategicAndProductionEngine`, `tacticalCombatSeamlessIntegration`).  
 
 ---
 
@@ -48,7 +48,7 @@ Controla la máquina de estados de las fases de turno, los formatos de partida (
      * **`blitz_skirmish` (Escaramuza Rápida Blitz):** Turno base de **$30\text{s}$**, incremento Fischer `actionBonusSec = +3.0s`, tope `maxTurnCapSec = 45s`, límite de $15\text{ turnos}$, bono inicial $+\$2,000\text{G}$, banco de desconexión `disconnectGraceBankSec = 60s`.
      * **`grand_campaign` (Gran Campaña):** Turno base de **$60\text{s}$**, incremento Fischer `actionBonusSec = +4.0s`, tope `maxTurnCapSec = 90s`, límite de $40\text{ turnos}$, bono inicial $\$0\text{G}$, banco de desconexión `disconnectGraceBankSec = 120s`.
    - Árbitro Anti-AFK que cede el turno automáticamente al agotarse el reloj, y detector telemétrico de `tiltIndex` (0 a 100) cuando el promedio de los últimos 3 turnos cae por debajo de $12\text{s}$ tras perder $\ge 2$ unidades.
-   - Procesa comandos de movimiento, ataque, captura y producción en fábricas bajo la **Ley de la Doble Llave** (Fondos $\$G$ in-match + chasis físico en Hangar de máximo 16 unidades: 4 en vanguardia activa + 12 en reserva, CERO CARTAS).
+   - Procesa comandos de movimiento, ataque, captura y producción en fábricas bajo la **Ley de la Doble Llave** (Fondos $\$G$ in-match + chasis físico en Hangar de máximo 16 unidades: 4 en vanguardia activa + 12 en reserva como munición descartable forjada).
 3. **`END_TURN`:**
    - Restablece banderas de acción (`hasMoved = false`, `hasActed = false`) de las unidades del jugador entrante.
    - Evalúa condiciones de fin de partida (`TurnEconomyEngine.checkGameOver` y límite de turnos `resolveTurnLimitVictory`) y transfiere el turno al oponente o dispara el flujo asíncrono del Bot (`runBotTurnWorkflow`).
@@ -270,7 +270,7 @@ Se establece una estricta taxonomía económica de 3 niveles en partida y cuenta
 # 4. RENDERIZADO FRONTEND: MAPLIBRE GL WEBGL, CANVAS 2D Y AUDIO PROCEDURAL
 
 ### 4.1 Arquitectura Híbrida de Renderizado y Semantic LOD
-El cliente de *Tactical Command* combina dos motores de renderizado optimizados para soportar la experiencia sin costuras desde la perspectiva planetaria hasta la escaramuza de baldosas:
+El cliente de *DRONEPUNK 0.0.1* combina dos motores de renderizado optimizados para soportar la experiencia sin costuras desde la perspectiva planetaria hasta la escaramuza de baldosas:
 
 1. **Motor Cartográfico Macro (MapLibre GL / OpenPlace WebGL 2.0):**
    - Renderiza el globo terráqueo en modo oscuro estilo C4ISR (*dark mode militar*).

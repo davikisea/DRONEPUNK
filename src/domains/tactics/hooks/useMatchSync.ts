@@ -100,8 +100,8 @@ export function useMatchSync({
         p_user_id: userId || '00000000-0000-0000-0000-000000000000',
       });
 
-      if (!error && data && data.snapshot) {
-        onStateSync?.(data.snapshot);
+      if (!error && data && typeof data === 'object' && !Array.isArray(data) && 'snapshot' in data && data.snapshot) {
+        onStateSync?.(data.snapshot as unknown as TurnSnapshot);
         updateStatus('CONNECTED');
       }
     } catch {

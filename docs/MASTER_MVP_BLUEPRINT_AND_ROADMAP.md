@@ -1,15 +1,15 @@
 # 🎖️ MASTER MVP BLUEPRINT & ROADMAP: REFUNDACIÓN MODULAR Y CONTRATOS INMUTABLES
-## *Tactical Command: Wars of Legacy (GEOTACTICS-ONLINE)*
-**Versión de Arquitectura:** `5.1.0-MODULAR-FOUNDATION`  
+## *DRONEPUNK 0.0.1*
+**Versión Canónica:** `DRONEPUNK 0.0.1`  
 **Fecha de Ratificación:** Noviembre 2026  
 **Documento Canónico Rector:** `docs/MASTER_MVP_BLUEPRINT_AND_ROADMAP.md`  
-**Alineación SSOT:** Calibrado contra `docs/00_ARBOL_CANONICO_DE_SISTEMAS_Y_DESARROLLO.md` (SSOT v5.0.0) y verificado por la Asamblea de Arquitectura de los 4 Estudios Especializados (Alpha, Beta, Gamma y Delta).
+**Alineación SSOT:** Calibrado contra `docs/00_ARBOL_CANONICO_DE_SISTEMAS_Y_DESARROLLO.md` (`DRONEPUNK 0.0.1`) y verificado por la Asamblea de Arquitectura de los 4 Estudios Especializados (Alpha, Beta, Gamma y Delta).
 
 ---
 
 # 1. VISIÓN EJECUTIVA Y PRINCIPIOS DE DESACOPLAMIENTO
 
-Tactical Command se refundamenta sobre una **Arquitectura Hexagonal Pura (Ports & Adapters) y Estado Unidireccional Basado en Eventos**, desacoplando el código fuente ejecutable en **cuatro dominios funcionales independientes (`@domains/world`, `@domains/tactics`, `@domains/economy`, `@domains/game-feel`)** conectados exclusivamente a través de una **Capa de Invariantes Universales y Servicios Compartidos (`@shared` y `docs/contracts/`)**:
+**DRONEPUNK 0.0.1** se fundamenta sobre una **Arquitectura Hexagonal Pura (Ports & Adapters) y Estado Unidireccional Basado en Eventos**, desacoplando el código fuente ejecutable en **cuatro dominios funcionales independientes (`@domains/world`, `@domains/tactics`, `@domains/economy`, `@domains/game-feel`)** conectados exclusivamente a través de una **Capa de Invariantes Universales y Servicios Compartidos (`@shared` y `docs/contracts/`)**:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
@@ -29,8 +29,8 @@ Tactical Command se refundamenta sobre una **Arquitectura Hexagonal Pura (Ports 
 ┌──────────────────────────────┐  ┌──────────────────────────────┐  ┌────────────────────────────┐
 │   DOMINIO 2: TACTICS —       │  │   DOMINIO 3: ECONOMY —       │  │  DOMINIO 4: GAME-FEEL —    │
 │ MOTOR TÁCTICO (@domains/tactics)│ │ HANGAR & P2P (@domains/economy)│ │ BARK & AUDIO (@domains/game-feel)│
-│ • Advance Wars Determinista  │  │ • Cero Cartas: Almacén Físico│  │ • Novela Gráfica Atompunk  │
-│ • Escala Continua 1-100 HP   │  │   16 Tropas (4 Act + 12 Res) │  │ • Cero Voces: 100% Gráfico │
+│ • Advance Wars Determinista  │  │ • Almacén Físico 16 Chasis   │  │ • Novela Gráfica Atompunk  │
+│ • Escala Continua 1-100 HP   │  │   (4 Activos + 12 Reserva)   │  │ • Cero Voces: 100% Gráfico │
 │ • Derrota Inapelable 0 Tropas│  │ • Tiers T1-T5 (+2%/tier, +8%)│  │ • 6 Bocadillos + Pop-Art   │
 │ • Pérdida Física (35% Scrap) │  │ • Forja 10 Parcelas Circad.  │  │ • Cola Prioridades P0-P3   │
 │ • Handshake 120s & IA Nv.1-5 │  │ • Mercado P2P 2% (1% Sink +  │  │ • Web Audio API Sintetizada│
@@ -41,7 +41,7 @@ Tactical Command se refundamenta sobre una **Arquitectura Hexagonal Pura (Ports 
                                 │ [Emite BattleSettlementEvent / Orden P2P inmutable]
                                 ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│           LIQUIDACIÓN ATÓMICA EN POSTGRESQL / SUPABASE (31 MIGRACIONES DDL)            │
+│           LIQUIDACIÓN ATÓMICA EN POSTGRESQL / SUPABASE (32 MIGRACIONES DDL)            │
 │   Deducción Chasis Hangar • Retorno 35% tech_scrap • Delta TCP • Escudo 4h • Split 2%  │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -50,7 +50,7 @@ Tactical Command se refundamenta sobre una **Arquitectura Hexagonal Pura (Ports 
 1. **El Motor Táctico (`@domains/tactics`) no conoce el Mapa:** El Core TBS (`src/domains/tactics/core/canonicalCombat.ts`, `src/domains/tactics/core/combat.ts`) puede compilarse, ejecutarse y testearse en local (`npx tsx`) sin importar una sola línea de MapLibre GL, WebGL ni esquemas territoriales. Opera en **escala continua de 1 a 100 HP enteros**, aplica **Tiers T1 a T5 (+2% por tier, máximo +8% en T5)**, decreta **derrota inapelable al llegar a 0 tropas vivas (`units.length === 0`)**, recibe un `CombatContext` inmutable y emite un `BattleSettlementEvent`.
 2. **El Mapa Macro (`@domains/world`) no calcula Balística:** La geopolítica territorial (`src/domains/world/core/worldMapEngine.ts`, `src/domains/world/core/territorialSiegeOrchestrator.ts`, `src/domains/world/core/territorialExpansionEngine.ts`) gestiona el **Human Handshake de 120 segundos** antes de delegar en la IA de Guarnición (Niveles 1-5), aplica el **Buff Regional de Conquista de Capitales (+5% recursos/logística en la región, +15% EC nacional, +10% velocidad de forja y -20% aranceles P2P)** y recibe los resultados consolidados de atrición y TCP sin evaluar nunca alcances de disparo ni matrices de daño.
 3. **El Bark Engine (`@domains/game-feel`) es Pasivo y Desacoplado:** El motor narrativo y sensorial (`src/domains/game-feel/core/barkEngine.ts`, `src/domains/game-feel/core/audioManager.ts`, `src/domains/game-feel/core/hapticFeedback.ts`) es un observador puro (`Event Subscriber`). Jamás muta el estado de una partida, no bloquea el reloj Fischer ni las transacciones de base de datos.
-4. **Persistencia Física de Chasis (Cero Cartas) y Economía P2P (`@domains/economy`):** Queda erradicado todo sistema de cartas (NO TCG/CCG). Cada comandante opera un **Almacén Físico de 16 tropas máximo por jugador (4 slots de despliegue activo de vanguardia + 12 unidades en reserva táctica)** sobre los 16 arquetipos militares (`src/domains/economy/hooks/useUserHangar.ts`, `src/domains/economy/components/UnitHangarModal.tsx`). Todo chasis no-F2P destruido se elimina físicamente de `user_unit_hangar` / `faction_unit_hangar`, recuperando el **35% en chatarra tecnológica (`tech_scrap`, `RECYCLE_SCRAP_RATE = 0.35`)**. El **Mercado Libre P2P** (`src/domains/economy/core/industrialEngine.ts`) aplica un **impuesto total del 2% (1% quemado en Sink deflacionario + 1% regalía al Clan dueño del Hub regional)** con bandas dinámicas **VWAP Collar ±25%**.
+4. **Persistencia Física de Chasis y Economía P2P (`@domains/economy`):** Cada comandante opera un **Almacén Físico de 16 Chasis Militares máximo por jugador (4 slots de despliegue activo en vanguardia + 12 unidades en reserva táctica; munición descartable forjada)** sobre los 16 arquetipos militares (`src/domains/economy/hooks/useUserHangar.ts`, `src/domains/economy/components/UnitHangarModal.tsx`). Todo chasis no-F2P destruido se elimina físicamente de `user_unit_hangar` / `faction_unit_hangar`, recuperando el **35% en chatarra tecnológica (`tech_scrap`, `RECYCLE_SCRAP_RATE = 0.35`)**. El **Mercado Libre P2P 100% impulsado por jugadores** (`src/domains/economy/core/industrialEngine.ts`) aplica un **impuesto total del 2% (1% quemado en Sink deflacionario + 1% regalía al Clan dueño del Hub regional)** con bandas dinámicas **VWAP Collar ±25%**.
 
 ---
 
@@ -99,7 +99,7 @@ Sustituye objetos de alto costo por buffers binarios compactos (`TacticalBitMap`
 **Huella de Memoria RAM:**
 - Sector $20 \times 20$: **1,600 bytes** ($1.56\text{ KB}$).
 - Región completa $50 \times 50$: **10,000 bytes** ($10\text{ KB}$).
-- Teatro Completo de Venezuela (31 regiones): **$\approx 310\text{ KB}$**.
+- Teatro Completo de Venezuela (24 estados soberanos `REG_VE_01`..`REG_VE_24` + `BUF_MARITIME_CARIBE` + 7 zonas buffer `BUF_*` en `politicalAliceEngine.ts`): **$\approx 310\text{ KB}$**.
 - **0% GPU Standby (`src/domains/world/components/TacticalWorldMap.tsx`):** Canvas HTML5 en modo `animate: false`; solo se dispara `source.play() -> map.triggerRepaint() -> source.pause()` ante mutaciones de soberanía.
 
 ### 3.3 Transmisión Delta por WebSockets (<1 KB / Tick)
@@ -129,14 +129,14 @@ $$FuelCost(P) = \sum_{e \in P} \Big[ d_e \times \mu_{\text{surface}}(e) \times \
 ### 4.1 Bucle Táctico Headless Determinista y Escala 1-100 HP (`src/domains/tactics/core/canonicalCombat.ts`)
 - **Cuadrícula de Batalla:** $20 \times 20$ celdas derivadas deterministamente mediante `Mulberry32(Seed)` en `src/domains/tactics/core/proceduralMapGenerator.ts` donde $\text{Seed} = \text{FNV-1a}(\text{regionId} \mathbin{\Vert} \text{matchId} \mathbin{\Vert} \text{countryIso})$.
 - **Escala Balística Continua (Pilar 2):** Todas las unidades operan sobre **1 a 100 HP enteros (`CANONICAL_MAX_HP = 100`)** sin redondeos toscos (`CanonicalCombatEngine.calculateEngagement`).
-- **Progresión Horizontal de Tiers (Pilar 4):** Cero niveles de carta. Los chasis progresan horizontalmente de **Tier T1 a T5 (+2% de efectividad balística por tier, máximo +8% en T5: T1 $+0\%$, T2 $+2\%$, T3 $+4\%$, T4 $+6\%$, T5 $+8\%$)**. En modo Torneo y Duelo Espejo se normaliza a **Tier 1 (+0%)**.
+- **Progresión Horizontal de Tiers (Pilar 4):** Progresión industrial horizontal pura de **Tier T1 a T5 (+2% de efectividad balística por tier, máximo +8% en T5: T1 $+0\%$, T2 $+2\%$, T3 $+4\%$, T4 $+6\%$, T5 $+8\%$)**. En modo Torneo y Duelo Espejo se normaliza a **Tier 1 (+0%)**.
 - **Condición de Fin (`src/domains/tactics/core/combat.ts` y `src/domains/tactics/core/hqCaptureVictory.ts`):**
   1. $0$ Tropas Vivas (`units.length === 0`) $\to$ **Derrota Inmediata Inapelable (Pilar 3)**.
   2. Reducción de los 20 puntos de captura de HQ a $0 \to$ **Victoria Inmediata**.
   3. Turno 50 cumplido $\to$ **Desempate Patrimonial Determinista** ($\sum \frac{\text{coste} \times \text{HP}}{100} + \text{Fondos} + 1000 \times \text{Propiedades}$).
 
-### 4.2 Almacén Físico de 16 Tropas, Doble Llave y Algoritmo de Chatarra (35% `tech_scrap`)
-- **Almacén Físico Cero Cartas (Pilar 1):** Cada comandante gestiona un almacén físico en `public.user_unit_hangar` (`src/domains/economy/hooks/useUserHangar.ts` y `src/domains/economy/components/UnitHangarModal.tsx`) con **capacidad operativa de 16 tropas máximo por jugador en orden de batalla (4 slots de despliegue activo de vanguardia + 12 unidades en reserva táctica)** sobre el catálogo de 16 arquetipos militares (`src/domains/economy/core/turnEconomy.ts`).
+### 4.2 Almacén Físico de 16 Chasis, Doble Llave y Algoritmo de Chatarra (35% `tech_scrap`)
+- **Almacén Físico de 16 Chasis Militares (Pilar 1):** Cada comandante gestiona un almacén físico en `public.user_unit_hangar` (`src/domains/economy/hooks/useUserHangar.ts` y `src/domains/economy/components/UnitHangarModal.tsx`) con **capacidad operativa de 16 chasis militares máximo por jugador en orden de batalla (4 slots de despliegue activo de vanguardia + 12 unidades en reserva táctica, munición descartable forjada)** sobre el catálogo de 16 arquetipos militares (`src/domains/economy/core/turnEconomy.ts`).
 - **Validación de Doble Llave (`validateDoubleKeyDeployment` en `src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts`):** El despliegue en fábricas, aeropuertos y puertos (`src/domains/tactics/components/ProductionModal.tsx`) requiere simultáneamente Fondos Tácticos `$G` y **1 chasis físico en stock** (`user_unit_hangar` o `faction_unit_hangar`), salvo la Línea Básica F2P inagotable (`infantry` T1 y `recon` T1).
 - **Siniestralidad Física y 35% Chatarra (Pilar 6):** Las tropas destruidas no regresan al hangar: se eliminan físicamente de la base de datos (`settleCombatLossesAndScrap` y `calculateLossScrapRecovery` en `src/shared/types/metagame.ts`), recuperando el **$35\%$ (`RECYCLE_SCRAP_RATE = 0.35`)** de su valor en chatarra tecnológica (`tech_scrap`):
 
@@ -199,7 +199,7 @@ sequenceDiagram
     participant Core as Dominio 2: Tactics (@domains/tactics)
     participant Econ as Dominio 3: Economy (@domains/economy)
     participant Bark as Dominio 4: Game-Feel (@domains/game-feel)
-    participant DB as PostgreSQL / Supabase (31 Migraciones)
+    participant DB as PostgreSQL / Supabase (32 Migraciones)
     
     Note over Macro: 1. Clan Atacante declara Asedio en Provincia / Capital
     Macro->>DB: RPC declare_provincial_siege(regionId)

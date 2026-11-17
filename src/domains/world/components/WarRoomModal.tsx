@@ -139,7 +139,7 @@ export const WarRoomModal: React.FC<WarRoomModalProps> = ({
                 </h2>
               </div>
               <p className="text-xs text-[#A9B87A] font-sans mb-5">
-                Selecciona el frente operacional. Reloj Fischer determinista y Mazo Táctico de 10 Cartas activos.
+                Selecciona el frente operacional. Reloj Fischer determinista y Almacén Físico de 16 Chasis activos.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -161,7 +161,7 @@ export const WarRoomModal: React.FC<WarRoomModalProps> = ({
                       ⚔️ Duelo Espejo
                     </h3>
                     <p className="text-xs text-[#A9B87A] font-sans mt-1.5 leading-relaxed">
-                      Micro-sesión competitiva de 3 minutos. Mapa 10×10, mazo idéntico Nivel 1 y AirDrops tácticos.
+                      Micro-sesión competitiva de 3 minutos. Mapa 10×10, paridad estándar Tier 1 (0%) y suministros tácticos.
                     </p>
                   </div>
                   <button
@@ -189,7 +189,7 @@ export const WarRoomModal: React.FC<WarRoomModalProps> = ({
                       ⚡ Escaramuza Blitz
                     </h3>
                     <p className="text-xs text-[#A9B87A] font-sans mt-1.5 leading-relaxed">
-                      Mapa 16×16, economía acelerada 2.0x y despliegue libre con tu Mazo de 10 Cartas sin cooldowns.
+                      Mapa 16×16, economía acelerada 2.0x y despliegue libre con tu Almacén Físico de 16 Chasis (Tiers T1-T5).
                     </p>
                   </div>
                   <button

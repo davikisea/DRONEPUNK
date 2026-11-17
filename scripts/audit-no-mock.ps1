@@ -1,13 +1,13 @@
 # ==============================================================================
 # AUDITORIA DE DATOS VIVOS (ANTI-MOCK AUDIT SCRIPT)
-# Proyecto: Tactical Command: Wars of Legacy
+# Proyecto: DRONEPUNK 0.0.1
 # ==============================================================================
 # Escanea todos los archivos de produccion en src/ (excluyendo tests)
 # en busca de semillas inventadas, IDs sinteticos locales y fallbacks simulados.
 # Devuelve codigo de salida 0 si el codigo esta 100% libre de mocks, o 1 si halla infracciones.
 # ==============================================================================
 
-Write-Host "Iniciando Auditoria Anti-Mock de Tactical Command..." -ForegroundColor Cyan
+Write-Host "Iniciando Auditoria Anti-Mock de DRONEPUNK 0.0.1..." -ForegroundColor Cyan
 
 $forbiddenPatterns = @(
     "list_seed_",

@@ -1,6 +1,6 @@
 /**
- * Tactical Command: Wars of Legacy - Motor de Gran Campaña Táctica (Acto I)
- * Especificación: docs/orchestration/04_CONTENT_AND_ONBOARDING_PIPELINE.md (Sección 3)
+ * DRONEPUNK 0.0.1 - Motor de Gran Campaña Táctica (Acto I)
+ * Especificación: docs/05_MASTER_GAME_ENGINE_AND_NETWORKING.md
  * Misiones narrativas a escala extendida (24x24 a 32x32), niebla de guerra y doctrinas de IA.
  */
 

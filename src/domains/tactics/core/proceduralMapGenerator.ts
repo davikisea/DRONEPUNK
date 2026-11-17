@@ -1,9 +1,9 @@
 /**
  * ==============================================================================
- * PROCEDURAL MAP GENERATOR (TACTICAL COMMAND / ADVANCE WARS CANONICAL ENGINE)
+ * PROCEDURAL MAP GENERATOR (DRONEPUNK 0.0.1 / ADVANCE WARS CANONICAL ENGINE)
  * ==============================================================================
  * Motor determinista de generación procedural de escenarios tácticos 1v1 simétricos
- * (180° rotacional) para Tactical Command.
+ * (180° rotacional) para DRONEPUNK 0.0.1.
  *
  * Características principales:
  * - Determinismo estricto mediante PRNG Mulberry32 con soporte de semilla (`seed`).
@@ -672,7 +672,7 @@ function buildAWBWMapData(
       config.author
         ? `Mapa generado proceduralmente por ${config.author} (Semilla: ${seed}).`
         : `Arena táctica simétrica 1v1 generada proceduralmente (Semilla: ${seed}).`,
-    author: config.author || 'Tactical Command ProcGen Engine',
+    author: config.author || 'DRONEPUNK ProcGen Engine',
     propertyStats: {
       p1Properties,
       p2Properties,
@@ -772,8 +772,11 @@ export function renderMapAscii(map: AWBWMapData): string {
     shoal: 's',
     commtower: '!',
     silo: 'o',
+    usedSilo: 'O',
     lab: 'L',
     pipe: '|',
+    pipeSeam: '*',
+    rubble: ':',
   };
 
   const lines: string[] = [];

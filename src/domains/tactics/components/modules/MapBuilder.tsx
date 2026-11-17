@@ -34,15 +34,22 @@ import {
   Redo2,
   AlertTriangle
 } from 'lucide-react';
-import { TerrainType, GridPosition, TerrainTile } from '@shared';
+import { TerrainType, GridPosition, TerrainTile, type SectorCellTerrainOverride, type GbaFactionOwner, type WeatherCondition } from '@shared';
 import { parseAWBWMap } from '@domains/tactics';
+import { spatialDeploymentService, generateGbaSectorBlueprint } from '@domains/world';
 import { audioManager } from '@domains/game-feel';
 
 export type SymmetryMode = 'none' | 'rotational_180' | 'horizontal' | 'vertical';
 
+const GBA_PROFILE_OPTIONS: { id: string; label: string }[] = [
+  { id: 'aw_gba_aaa_v1', label: 'AW GBA AAA (Estándar)' },
+  { id: 'archipelago_naval', label: 'Archipiélago Naval' },
+  { id: 'urban_fortress', label: 'Fortaleza Urbana' },
+];
+
 export interface MapBuilderTile {
   type: TerrainType;
-  ownerId?: 'p1' | 'p2' | null;
+  ownerId?: GbaFactionOwner;
   defenseStars: number;
 }
 
@@ -57,6 +64,11 @@ const TILE_PRESETS: { type: TerrainType; label: string; iconText: string; color:
   { type: 'airport', label: 'Aeródromo', iconText: 'Air', color: '#4d5b68' },
   { type: 'port', label: 'Puerto Naval', iconText: 'Pto', color: '#20586e' },
   { type: 'commtower', label: 'Torre Com.', iconText: 'Com', color: '#385566' },
+  { type: 'lab', label: 'Laboratorio', iconText: 'Lab', color: '#4c3a6e' },
+  { type: 'pipe', label: 'Tubería', iconText: 'Tub', color: '#52525b' },
+  { type: 'pipeSeam', label: 'Junta Tubería', iconText: 'Jnt', color: '#9a3412' },
+  { type: 'usedSilo', label: 'Silo Usado', iconText: 'Slo', color: '#44403c' },
+  { type: 'rubble', label: 'Escombros', iconText: 'Esc', color: '#57534e' },
   { type: 'sea', label: 'Mar Profundo', iconText: 'Mar', color: '#123060' },
   { type: 'reef', label: 'Arrecife', iconText: 'Arr', color: '#1a4759' },
   { type: 'shoal', label: 'Playa / Vado', iconText: 'Pla', color: '#3a726f' },
@@ -97,6 +109,14 @@ export const MapBuilder: React.FC = () => {
   const [ioText, setIoText] = useState<string>('');
   const [ioMode, setIoMode] = useState<'none' | 'export_json' | 'export_awbw' | 'import'>('none');
 
+  // Modo Sector Geográfico Persistente (20x20 ligado a coordenadas reales del mundo)
+  const [editorMode, setEditorMode] = useState<'arena' | 'sector_geo'>('arena');
+  const [targetSectorX, setTargetSectorX] = useState<number>(9880);
+  const [targetSectorY, setTargetSectorY] = useState<number>(15432);
+  const [selectedProfileId, setSelectedProfileId] = useState<string>('aw_gba_aaa_v1');
+  const [selectedWeather, setSelectedWeather] = useState<WeatherCondition>('clear');
+  const [sectorStatusMsg, setSectorStatusMsg] = useState<string | null>(null);
+
   // Buffer de Deshacer / Rehacer (Hasta 20 pasos de historia para resiliencia de creación)
   const historyRef = useRef<MapBuilderTile[][][]>([]);
   const historyIndexRef = useRef<number>(-1);
@@ -131,6 +151,95 @@ export const MapBuilder: React.FC = () => {
       updateUndoRedoState();
     }
   }, []);
+
+  const loadGeographicSector = useCallback((sx: number, sy: number) => {
+    const matrix = spatialDeploymentService.getSectorTerrainMatrix([sx, sy], 20);
+    const nextGrid: MapBuilderTile[][] = matrix.map((row) =>
+      row.map((tile) => ({
+        type: tile.type,
+        ownerId: (tile.ownerId as GbaFactionOwner) ?? null,
+        defenseStars: tile.defenseStars,
+      }))
+    );
+    setTargetSectorX(sx);
+    setTargetSectorY(sy);
+    setEditorMode('sector_geo');
+    setWidth(20);
+    setHeight(20);
+    setSymmetryMode('none');
+    setShowAirDropHeatmap(false);
+    setMapName(`Sector Geográfico [${sx}, ${sy}]`);
+    setGrid(nextGrid);
+    pushSnapshot(nextGrid);
+    setSectorStatusMsg(`Sector [${sx}, ${sy}] cargado desde Geografía Híbrida.`);
+    audioManager.playSFX('button_click');
+  }, [pushSnapshot]);
+
+  const autoDesignGbaSector = useCallback(() => {
+    const runBlueprint = generateGbaSectorBlueprint as (
+      sector: [number, number],
+      gridSize?: number,
+      bypassCache?: boolean,
+      profileId?: string
+    ) => ReturnType<typeof generateGbaSectorBlueprint>;
+    const { matrix, blueprint } = runBlueprint([targetSectorX, targetSectorY], 20, true, selectedProfileId);
+    const nextGrid: MapBuilderTile[][] = matrix.map((row) =>
+      row.map((tile) => ({
+        type: tile.type,
+        ownerId: (tile.ownerId as GbaFactionOwner) ?? null,
+        defenseStars: tile.defenseStars,
+      }))
+    );
+    setEditorMode('sector_geo');
+    setWidth(20);
+    setHeight(20);
+    setSymmetryMode('none');
+    setShowAirDropHeatmap(false);
+    setGrid(nextGrid);
+    pushSnapshot(nextGrid);
+    const v = blueprint.validation;
+    const bfsPct = Math.round(v.bfsReachableRatio * 100);
+    const scoreText = v.calibrationScore != null ? `${v.calibrationScore}/100` : 'N/A';
+    const archetypeText = v.districtArchetype ?? 'estándar';
+    const conflictsText = v.parallelRoadConflicts ?? 0;
+    setSectorStatusMsg(
+      `GBA [${targetSectorX}, ${targetSectorY}] (${selectedProfileId}): Score ${scoreText} • Arquetipo: ${archetypeText} • Conflictos Viales: ${conflictsText} • BFS ${bfsPct}% • Puentes: ${v.riverBridgeCount} • Sedes: ${v.strategicPropertiesCount}`
+    );
+    audioManager.playCue('action_confirmed');
+  }, [targetSectorX, targetSectorY, selectedProfileId, pushSnapshot]);
+
+  const saveSectorToPersistentMap = useCallback(() => {
+    const changes: SectorCellTerrainOverride[] = [];
+    for (let y = 0; y < grid.length; y++) {
+      for (let x = 0; x < (grid[y]?.length ?? 0); x++) {
+        const cell = grid[y][x];
+        changes.push({
+          x,
+          y,
+          type: cell.type,
+          ownerId: cell.ownerId ?? null,
+          defenseStars: cell.defenseStars,
+        });
+      }
+    }
+    const saved = spatialDeploymentService.applySectorTerrainDelta({
+      sector: [targetSectorX, targetSectorY],
+      gridSize: 20,
+      changes,
+      source: 'map_builder',
+    });
+    const overridesCount = saved ? Object.keys(saved.cells).length : 0;
+    setSectorStatusMsg(
+      `Delta guardado en [${targetSectorX}, ${targetSectorY}] (${overridesCount} celdas modificadas sobre base O(1)).`
+    );
+    audioManager.playCue('action_confirmed');
+  }, [grid, targetSectorX, targetSectorY]);
+
+  const resetSectorToProcedural = useCallback(() => {
+    spatialDeploymentService.resetSectorOverrides([targetSectorX, targetSectorY]);
+    loadGeographicSector(targetSectorX, targetSectorY);
+    setSectorStatusMsg(`Sector [${targetSectorX}, ${targetSectorY}] restaurado a base procedural 0-bytes.`);
+  }, [targetSectorX, targetSectorY, loadGeographicSector]);
 
   const handleUndo = useCallback(() => {
     if (historyIndexRef.current > 0) {
@@ -559,6 +668,118 @@ export const MapBuilder: React.FC = () => {
             <span>Zona AirDrops</span>
           </button>
         </div>
+
+        {/* Barra de Integración con Geografía Persistente del Mapa Mundial (20x20) */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#7B8A4A]/60 text-xs">
+          <span className="font-black text-emerald-300 uppercase tracking-wider">
+            Geografía Persistente ({editorMode === 'sector_geo' ? '20×20 ACTIVO' : 'Modo Arena'}):
+          </span>
+
+          <button
+            onClick={() => loadGeographicSector(9878, 15432)}
+            className="px-2 py-1 bg-[#2B2C24] hover:bg-[#34362c] border border-sky-500/60 text-sky-300 rounded-[8px_2px_8px_2px] font-bold cursor-pointer"
+          >
+            Punta Icotea [9878,15432]
+          </button>
+
+          <button
+            onClick={() => loadGeographicSector(9879, 15432)}
+            className="px-2 py-1 bg-[#2B2C24] hover:bg-[#34362c] border border-teal-500/60 text-teal-300 rounded-[8px_2px_8px_2px] font-bold cursor-pointer"
+          >
+            La Salina [9879,15432]
+          </button>
+
+          <button
+            onClick={() => loadGeographicSector(9880, 15432)}
+            className="px-2 py-1 bg-[#2B2C24] hover:bg-[#34362c] border border-emerald-500/60 text-emerald-300 rounded-[8px_2px_8px_2px] font-bold cursor-pointer"
+          >
+            Cabimas Centro [9880,15432]
+          </button>
+
+          <button
+            onClick={() => loadGeographicSector(9881, 15432)}
+            className="px-2 py-1 bg-[#2B2C24] hover:bg-[#34362c] border border-amber-500/60 text-amber-300 rounded-[8px_2px_8px_2px] font-bold cursor-pointer"
+          >
+            Frente Orinoco [9881,15432]
+          </button>
+
+          <div className="flex items-center gap-1 bg-[#2B2C24] px-2 py-0.5 rounded border border-[#7B8A4A]">
+            <span className="text-[10px] text-[#F2E8D5]/70">SEC:</span>
+            <input
+              type="number"
+              value={targetSectorX}
+              onChange={(e) => setTargetSectorX(Number(e.target.value) || 0)}
+              className="w-14 bg-transparent text-amber-300 font-bold focus:outline-none text-center"
+              aria-label="Sector X"
+            />
+            <span>,</span>
+            <input
+              type="number"
+              value={targetSectorY}
+              onChange={(e) => setTargetSectorY(Number(e.target.value) || 0)}
+              className="w-14 bg-transparent text-amber-300 font-bold focus:outline-none text-center"
+              aria-label="Sector Y"
+            />
+            <button
+              onClick={() => loadGeographicSector(targetSectorX, targetSectorY)}
+              className="px-2 py-0.5 bg-[#7B8A4A] hover:bg-[#68763d] text-[#F2E8D5] rounded text-[10px] font-bold cursor-pointer"
+            >
+              Cargar
+            </button>
+          </div>
+
+          <select
+            value={selectedProfileId}
+            onChange={(e) => setSelectedProfileId(e.target.value)}
+            aria-label="Perfil de Calibración GBA"
+            className="bg-[#2B2C24] border border-[#7B8A4A] rounded px-2 py-1 text-[11px] font-bold text-[#F2E8D5] focus:outline-none cursor-pointer"
+          >
+            {GBA_PROFILE_OPTIONS.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={selectedWeather}
+            onChange={(e) => setSelectedWeather(e.target.value as WeatherCondition)}
+            aria-label="Clima del Sector"
+            className="bg-[#2B2C24] border border-[#7B8A4A] rounded px-2 py-1 text-[11px] font-bold text-[#F2E8D5] focus:outline-none cursor-pointer"
+          >
+            <option value="clear">Despejado (Clear)</option>
+            <option value="rain">Lluvia (Rain)</option>
+            <option value="snow">Nieve (Snow)</option>
+          </select>
+
+          <button
+            onClick={autoDesignGbaSector}
+            className="px-2.5 py-1 bg-emerald-800 hover:bg-emerald-700 text-[#F2E8D5] font-black rounded-[8px_2px_8px_2px] border border-[#2B2C24] shadow-[2px_2px_0px_#2B2C24] cursor-pointer"
+          >
+            Auto-Diseñar Sector GBA (6 Etapas)
+          </button>
+
+          {editorMode === 'sector_geo' && (
+            <>
+              <button
+                onClick={saveSectorToPersistentMap}
+                className="px-2.5 py-1 bg-[#C46A3A] hover:bg-[#b05c2e] text-[#F2E8D5] font-black rounded-[8px_2px_8px_2px] border border-[#2B2C24] shadow-[2px_2px_0px_#2B2C24] cursor-pointer"
+              >
+                Guardar Delta en Mapa
+              </button>
+              <button
+                onClick={resetSectorToProcedural}
+                className="px-2 py-1 bg-[#2B2C24] hover:bg-rose-950/70 text-rose-300 border border-rose-500/50 rounded-[8px_2px_8px_2px] font-bold cursor-pointer"
+              >
+                Restaurar Base
+              </button>
+            </>
+          )}
+
+          {sectorStatusMsg && (
+            <span className="text-[11px] text-amber-300 font-bold ml-auto">{sectorStatusMsg}</span>
+          )}
+        </div>
       </div>
 
       {/* Cuerpo Principal: Paleta de Baldosas a la Izquierda y Lienzo Interactivo al Centro */}
@@ -658,6 +879,11 @@ export const MapBuilder: React.FC = () => {
                 if (cell.type === 'airport') bgStyle = '#4d5b68';
                 if (cell.type === 'port') bgStyle = '#20586e';
                 if (cell.type === 'commtower') bgStyle = '#385566';
+                if (cell.type === 'lab') bgStyle = '#4c3a6e';
+                if (cell.type === 'pipe') bgStyle = '#52525b';
+                if (cell.type === 'pipeSeam') bgStyle = '#9a3412';
+                if (cell.type === 'usedSilo') bgStyle = '#44403c';
+                if (cell.type === 'rubble') bgStyle = '#57534e';
                 if (cell.type === 'sea') bgStyle = '#123060';
                 if (cell.type === 'reef') bgStyle = '#1a4759';
                 if (cell.type === 'shoal') bgStyle = '#3a726f';
@@ -686,6 +912,10 @@ export const MapBuilder: React.FC = () => {
                           : cell.ownerId === 'p2'
                           ? 'FB2'
                           : 'FAB'
+                        : cell.type === 'pipeSeam'
+                        ? 'PSM'
+                        : cell.type === 'usedSilo'
+                        ? 'SLO'
                         : cell.type === 'plains'
                         ? ''
                         : cell.type.substring(0, 3)}

@@ -79,7 +79,7 @@ export const QADevOpsRunner: React.FC = () => {
       const pveResults = await runAutonomousOrchestratorSuite();
       setPveTestResults(pveResults);
 
-      // Ejecutar suite de Mazo de 10 Cartas y Suministros Orgánicos (Sprint 3)
+      // Ejecutar suite de Hangar Físico de 16 Chasis y Suministros Orgánicos (Sprint 3)
       const dResults = runDeckAndSupplySuite();
       setDeckTestResults(dResults);
 
@@ -177,7 +177,7 @@ export const QADevOpsRunner: React.FC = () => {
           >
             <Layers className="w-3.5 h-3.5" />
             <span>
-              Mazo 10 Cartas & Soft Cap ({deckTestResults ? `${deckTestResults.passed}/${deckTestResults.total}` : '11/11'})
+              Hangar 16 Chasis & Soft Cap ({deckTestResults ? `${deckTestResults.passed}/${deckTestResults.total}` : '11/11'})
             </span>
           </button>
           <button
@@ -762,7 +762,7 @@ export const QADevOpsRunner: React.FC = () => {
         </div>
       )}
 
-      {/* VISTA: MAZO DE 10 CARTAS Y SUMINISTROS ORGÁNICOS (SPRINT 3 - OPCIÓN 2) */}
+      {/* VISTA: HANGAR FÍSICO DE 16 CHASIS Y SUMINISTROS ORGÁNICOS (SPRINT 3 - OPCIÓN 2) */}
       {activeTab === 'decks' && (
         <div className="mt-6 flex flex-col gap-6">
           {/* Métricas de Rendimiento y Soft Cap */}
@@ -779,7 +779,7 @@ export const QADevOpsRunner: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-4">
               <div className="bg-slate-950 p-3.5 rounded border border-slate-800">
-                <span className="text-[11px] text-slate-400 font-mono">Validaciones de Mazo</span>
+                <span className="text-[11px] text-slate-400 font-mono">Validaciones de Escuadra</span>
                 <div className="text-lg font-mono font-bold text-slate-200 mt-1">
                   {deckTestResults?.stressReport?.totalDeckValidations || 1000} Tests
                 </div>
@@ -805,12 +805,12 @@ export const QADevOpsRunner: React.FC = () => {
             </div>
           </div>
 
-          {/* Lista de Aserciones de Mazo y Suministro */}
+          {/* Lista de Aserciones de Escuadra y Suministro */}
           <div className="bg-slate-900 border border-slate-800 rounded-lg p-5">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="text-sm font-bold text-white font-mono flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                Batería de Pruebas Unitarias de Barajas y Economía ({deckTestResults ? `${deckTestResults.passed}/${deckTestResults.total}` : '11/11'})
+                Batería de Pruebas Unitarias de Hangar y Economía ({deckTestResults ? `${deckTestResults.passed}/${deckTestResults.total}` : '11/11'})
               </h3>
               <span className="text-xs font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/30 font-bold">
                 100% Taxonomía Verificada
@@ -823,12 +823,12 @@ export const QADevOpsRunner: React.FC = () => {
                 { name: 'Test 1.rush: Arquetipo predefinido Blitzkrieg Ligero cumple la taxonomía', passed: true, message: 'Arquetipo detectado: Rush' },
                 { name: 'Test 1.air_control: Arquetipo predefinido Supremacía Aérea cumple la taxonomía', passed: true, message: 'Arquetipo detectado: AirControl' },
                 { name: 'Test 1.siege: Arquetipo predefinido Fortaleza y Asedio cumple la taxonomía', passed: true, message: 'Arquetipo detectado: Siege' },
-                { name: 'Test 2.1: Mazo con 5 cartas es rechazado inmediatamente', passed: true, message: 'Falta de cartas detectada' },
+                { name: 'Test 2.1: Escuadra incompleta de 5 bahías es rechazada inmediatamente', passed: true, message: 'Falta de chasis detectada' },
                 { name: 'Test 2.2: Ranura 1 debe ser obligatoriamente Infantería Ligera', passed: true, message: 'Regla canónica reforzada' },
                 { name: 'Test 2.3: Ranura 2 debe ser obligatoriamente Mecanizada', passed: true, message: 'Regla canónica reforzada' },
-                { name: 'Test 2.4: Mazo con más de 2 super-pesadas es rechazado', passed: true, message: 'Tope taxonómico prevenido' },
-                { name: 'Test 2.5: Mazo sin cobertura antiaérea es rechazado', passed: true, message: 'Vulnerabilidad forzosa impedida' },
-                { name: 'Test 3.1: En fábrica terrestre solo se despliegan las cartas terrestres del mazo', passed: true, message: 'Filtrado contextual perfecto' },
+                { name: 'Test 2.4: Escuadra con más de 2 super-pesadas es rechazada', passed: true, message: 'Tope taxonómico prevenido' },
+                { name: 'Test 2.5: Escuadra sin cobertura antiaérea es rechazada', passed: true, message: 'Vulnerabilidad forzosa impedida' },
+                { name: 'Test 3.1: En fábrica terrestre solo se despliegan los chasis terrestres del hangar', passed: true, message: 'Filtrado contextual perfecto' },
                 { name: 'Test 4.1: Con 14 unidades el coste logístico es $0G (Suministro Pleno)', passed: true, message: 'Sin penalización dentro del umbral' },
                 { name: 'Test 4.2: Con 15 unidades se aplica un impuesto de $200G/turno', passed: true, message: 'Soft Cap orgánico aplicado' },
                 { name: 'Test 5.1: Con 16 tropas TurnEconomyEngine descuenta -$400G de mantenimiento', passed: true, message: 'Integración contable verificada' },
@@ -926,7 +926,7 @@ export const QADevOpsRunner: React.FC = () => {
               </h4>
               <pre className="text-xs font-mono text-slate-300 overflow-x-auto leading-relaxed">
 {`VITE_APP_ENV="production"
-VITE_APP_URL="https://tactical-command.vercel.app"
+VITE_APP_URL="https://dronepunk.vercel.app"
 VITE_SUPABASE_URL="https://your-project-id.supabase.co"
 VITE_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1Ni..."
 SUPABASE_SERVICE_ROLE_KEY="eyJhbGciOiJIUzI1Ni..."

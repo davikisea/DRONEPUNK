@@ -1,6 +1,8 @@
 import { MovementType, TerrainType } from '../types';
 import { WeatherType } from './canonicalMovement';
 
+export type { WeatherType };
+
 export interface WeatherState {
   current: WeatherType;
   turnRemaining: number;

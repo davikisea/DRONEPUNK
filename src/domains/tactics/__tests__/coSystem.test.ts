@@ -1,6 +1,6 @@
 /**
  * SUITE DE PRUEBAS DE COMANDANTES (COs) Y SUPERPODERES
- * Especificación Advance Wars / WarsWorld / TacticalCommand
+ * Especificación Advance Wars / WarsWorld / DRONEPUNK 0.0.1
  */
 
 import {
@@ -41,6 +41,7 @@ export function runCOTests(): {
         productionCost: 1000,
         hasMoved: false,
         hasActed: false,
+        skinId: 'default',
       },
       {
         id: 'u2',
@@ -62,6 +63,7 @@ export function runCOTests(): {
         productionCost: 7000,
         hasMoved: false,
         hasActed: false,
+        skinId: 'default',
       },
     ];
 
@@ -189,6 +191,7 @@ export function runCOTests(): {
       productionCost: 7000,
       hasMoved: false,
       hasActed: false,
+      skinId: 'default',
     };
 
     const maxState: PlayerCOState = { coId: 'max', powerMeter: 0, activePower: 'cop' };

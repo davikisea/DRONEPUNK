@@ -1355,8 +1355,8 @@ export default function App() {
             const defTile = mutableTiles[def.y][def.x];
 
             const combat = CombatEngine.calculateDamage(
-              { ...atk, unitCode: atk.code, displayName: atk.name, ownerId: atk.owner, maxHp: 100, ammo: 9, fuel: 99, movementPoints: atk.movePoints, movementType: atk.moveType, visionRange: 3, productionCost: 1000, hasMoved: true, hasActed: true, skinId: 'default' },
-              { ...def, unitCode: def.code, displayName: def.name, ownerId: def.owner, maxHp: 100, ammo: 9, fuel: 99, movementPoints: def.movePoints, movementType: def.moveType, visionRange: 3, productionCost: 1000, hasMoved: false, hasActed: false, skinId: 'default' },
+              { ...atk, unitCode: atk.code, displayName: atk.name, ownerId: atk.owner, maxHp: 100, ammo: 9, fuel: 99, movementPoints: atk.movePoints, movementType: atk.moveType, visionRange: 3, baseAttack: atk.baseAtk, productionCost: 1000, hasMoved: true, hasActed: true, skinId: 'default' },
+              { ...def, unitCode: def.code, displayName: def.name, ownerId: def.owner, maxHp: 100, ammo: 9, fuel: 99, movementPoints: def.movePoints, movementType: def.moveType, visionRange: 3, baseAttack: def.baseAtk, productionCost: 1000, hasMoved: false, hasActed: false, skinId: 'default' },
               atkTile,
               defTile
             );
@@ -3025,8 +3025,8 @@ export default function App() {
         />
       </React.Suspense>
 
-      {/* Overlay Flotante del Bark Engine de Novela Gráfica */}
-      <ComicVignetteOverlay />
+      {/* Overlay Flotante del Bark Engine (solo Combate Táctico; en Lobby Map-First se canaliza en CommanderBarkWidget) */}
+      {mainNav === 'combat' && <ComicVignetteOverlay />}
 
       {/* Modal de Despliegue Pre-Batalla (Vanguardia & Escala Continental Total War) */}
       <PreBattleDeploymentModal

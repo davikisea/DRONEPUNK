@@ -1,5 +1,5 @@
 # 🛰️ RESUMEN DE AUDITORÍA ARQUITECTÓNICA Y ESPECIFICACIÓN DE ESTRATEGIA TÁCTICA
-## *Geotactics: Online — Auditoría Forense y Síntesis de Diseño (/plan /grill-me)*
+## *DRONEPUNK 0.0.1 — Auditoría Forense y Síntesis de Diseño (/plan /grill-me)*
 
 ---
 
@@ -38,7 +38,7 @@ Durante la sesión estructurada de diseño, se tomaron las siguientes cuatro dec
 
 ## 3. Entregables Generados (Fase 3)
 
-- **Documento Maestro**: [`docs/03_TACTICAL_STRATEGY_SYSTEM_DESIGN.md`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/docs/03_TACTICAL_STRATEGY_SYSTEM_DESIGN.md)
+- **Documento Maestro**: [`docs/03_TACTICAL_STRATEGY_SYSTEM_DESIGN.md`](docs/03_TACTICAL_STRATEGY_SYSTEM_DESIGN.md)
   - Diagrama de flujo de arquitectura de ciclo cerrado (Macro -> Operacional -> Micro-RTS).
   - Reglas de simulación de combate continuo a 10 ticks/s con fórmulas deterministas 1-100 HP.
   - Especificación matemática de timers de vulnerabilidad y defensa soberana.
@@ -64,7 +64,7 @@ Durante la sesión estructurada de diseño, se tomaron las siguientes cuatro dec
 | **1. Clausewitz & Metapolitics** | Paradox / Firaxis | `politicalAliceEngine.ts`, `stateSovereigntyService.ts` | Purga total de `localStorage`; Estratos Sociales POPs (`ProvincialStrataState`); Secesión armada y corte de suministros (`evaluateProvincialSecession`). | `strataAndSecession.test.ts`: **11/11 PASSED** (100%) |
 | **2. Kinetic Punch & Diegesis** | Supergiant / Atlus | `index.css`, `TacticalWorldMap.tsx`, `ComicVignetteOverlay.tsx` | Clases tácticas de micro-física (`tactical-screen-shake`, `--ease-spring`); World-space barks flotantes en WebGL (`¡¡KABOOM!!`, `¡DEFCON 1!`); Desenfoque cinético entre 3 estratos de zoom. | Sintaxis & WebGL: **0 Errores** |
 | **3. Modern MilSim** | Bohemia / Eugen | `roadGarrisonEngine.ts`, `roadNetworkEngine.ts` | 4 Doctrinas 2026 (`anti_armor_ditch` -75% throughput, `ew_jammer_bubble` 7km ceguera, `c_uas_air_defense` intercepción letal, `artillery_firebase` a 2 saltos); Detección de Killzones/IEDs; Cola de relevo (+10% pasivo). | `roadGarrisonEngine.test.ts`: **9/9 PASSED** (100%) |
-| **4. Sandbox & WPlace Economy** | CCP / Albion | `industrialEngine.ts`, `fiefBuildingService.ts` | Marcas funcionales (minas 400 HP, rally +10%, recon FoW); Purga del bot NPC del mercado P2P y decay de `strandedCargo`; Aranceles municipales (0-25%) y embargos portuarios. | `fiefBuildingService.test.ts`: **14/14 PASSED** (100%) |
+| **4. Sandbox & WPlace Economy** | CCP / Albion | `industrialEngine.ts`, `fiefBuildingService.ts` | Marcas funcionales (minas 400 HP, rally +10%, recon FoW); Mercado P2P 100% impulsado por jugadores (*player-driven*) y decay de `strandedCargo`; Aranceles municipales (0-25%) y embargos portuarios. | `fiefBuildingService.test.ts`: **14/14 PASSED** (100%) |
 | **5. Spatial Performance** | Mapbox / Frostbite | `spatialRoadIndex.ts`, `roadNetworkEngine.ts`, `theatre_roads.json` | Indexación espacial 2D en memoria $O(1)/O(\log N)$; Compresión de `theatre_roads.json` de 2.21 MB a 403.8 KB (-81.3%); 5,000 queries en 5.72 ms (~874k QPS). | `spatialRoadIndex.test.ts`: **5/5 PASSED** (100%) |
 
 ## 5.2 Telemetría y Métricas Comparativas Pre vs. Post Implementación
@@ -76,7 +76,7 @@ Durante la sesión estructurada de diseño, se tomaron las siguientes cuatro dec
 | **Tamaño de Red Troncal (`theatre_roads.json`)** | 2,215,325 bytes (2.21 MB) | **413,536 bytes (403.8 KB)** | **-81.3% reducción de payload** |
 | **Parseo de Red Vial en Carga** | ~140 ms (bloqueo perceptible en hilo) | **< 16 ms** (presupuesto zero-jank a 60 FPS) | **~9x más veloz** |
 | **Persistencia de Metapolítica** | `localStorage` inseguro en cliente | **Servicio Centralizado y Reactivo CDC** | **Cero manipulación en cliente** |
-| **Mercado P2P** | Bot NPC con absorción artificial | **100% Player-Driven con Cargamento Varado** | **Economía pura no inflacionaria** |
+| **Mercado P2P** | Modelo de absorción heredado | **100% Player-Driven con Cargamento Varado (`strandedCargo`)** | **Economía pura no inflacionaria (2% split + VWAP ±25%)** |
 
 ## 5.3 Certificación Final de Calidad
 
@@ -91,9 +91,9 @@ Durante la sesión estructurada de diseño, se tomaron las siguientes cuatro dec
 
 ## 6.1 Síntesis Arquitectónica Ejecutada
 
-De conformidad estricta con la especificación maestra [`docs/03_TACTICAL_STRATEGY_SYSTEM_DESIGN.md`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/docs/03_TACTICAL_STRATEGY_SYSTEM_DESIGN.md), se completó la transición del combate táctico hacia un modelo continuo de alto rendimiento y soberanía territorial:
+De conformidad estricta con la especificación maestra [`docs/03_TACTICAL_STRATEGY_SYSTEM_DESIGN.md`](docs/03_TACTICAL_STRATEGY_SYSTEM_DESIGN.md), se completó la transición del combate táctico hacia un modelo continuo de alto rendimiento y soberanía territorial:
 
-1. **Motor de Simulación Continua a 10 Ticks/s (`src/engine/tacticalRtsEngine.ts`)**:
+1. **Motor de Simulación Continua a 10 Ticks/s (`src/domains/tactics/core/tacticalRtsEngine.ts`)**:
    - Loop determinista sin pausa ($\Delta t = 100\text{ ms}$) gobernado por cadencias canónicas por chasis (Tanque Medio 3.5s, Recon 1.2s, Artillería 5.5s, Lanzacohetes 7.5s, Infantería 1.0s).
    - Cola de intenciones de marcha interpoladas (`UNIT_MOVE_INTENT`) que erradica el streaming masivo de paquetes y previene la saturación de WebSockets (-97.5% de tráfico).
    - Balística 100% determinista (1-100 HP) integrando `CanonicalCombatEngine`.
@@ -112,9 +112,39 @@ De conformidad estricta con la especificación maestra [`docs/03_TACTICAL_STRATE
 
 | Módulo / Suite | Archivo de Prueba | Resultado | Cobertura |
 | :--- | :--- | :---: | :---: |
-| **Motor RTS Continuo (10 ticks/s)** | `src/engine/tacticalRtsEngine.test.ts` | **6 / 6 PASSED** | 100% Cooldowns, Marchas, Fuego Indirecto y Bajas |
-| **Ventanas de Vulnerabilidad Anti-Raid** | `src/engine/vulnerabilityWindows.test.ts` | **5 / 5 PASSED** | 100% Inmunidad Offline, Horarios UTC y 48h Cooldown |
-| **Asedio Territorial y Handshake 120s** | `src/engine/territorialSiege.test.ts` | **13 / 13 PASSED** | 100% TCP Drenaje, Ocupación De Facto y Escudo 4h |
-| **Metajuego Territorial Canónico** | `src/engine/metagame.test.ts` | **35 / 35 PASSED** | 100% Upkeep, Fricción Topológica y Sinks P2P |
+| **Motor RTS Continuo (10 ticks/s)** | `src/domains/tactics/__tests__/tacticalRtsEngine.test.ts` | **6 / 6 PASSED** | 100% Cooldowns, Marchas, Fuego Indirecto y Bajas |
+| **Ventanas de Vulnerabilidad Anti-Raid** | `src/domains/world/__tests__/vulnerabilityWindows.test.ts` | **5 / 5 PASSED** | 100% Inmunidad Offline, Horarios UTC y 48h Cooldown |
+| **Asedio Territorial y Handshake 120s** | `src/domains/world/__tests__/territorialSiege.test.ts` | **13 / 13 PASSED** | 100% TCP Drenaje, Ocupación De Facto y Escudo 4h |
+| **Metajuego Territorial Canónico** | `src/domains/world/__tests__/metagame.test.ts` | **35 / 35 PASSED** | 100% Upkeep, Fricción Topológica y Sinks P2P |
 | **Compilación de Producción (Vite)** | `npm run build` | **EXITOSA (0 Errores)** | Bundles empaquetados en `dist/` |
 | **Playwright E2E en Chromium Real** | `tests/e2e/game-playtester.spec.ts` | **2 / 2 PASSED (1.5m)** | Macro (z<10), Operacional (z=10.5) y RTS Micro (z=15.2) |
+
+---
+
+# 🛡️ 7. PURGA CANÓNICA Y CERTIFICACIÓN FINAL (DRONEPUNK 0.0.1)
+
+Homologación integral de documentación, metadatos, UI y código fuente hacia la identidad única **`DRONEPUNK 0.0.1`** y los **7 Pilares Canónicos** (Almacén Físico de 16 Chasis Militares en `user_unit_hangar`, escala continua `1-100 HP`, derrota a `0` tropas o captura de HQ, Tiers `T1-T5` con `+2%/tier` hasta `+8%` y paridad `0%` en Tier 1 competitivo, Teatro Venezuela de 24 estados soberanos + `BUF_MARITIME_CARIBE` + 7 zonas buffer `BUF_*`, liquidación física `65%` sumidero / `35% tech_scrap`, `Human Handshake 120s` y Mercado P2P 100% impulsado por jugadores con impuesto `2%` y bandas `VWAP ±25%`), sustituyendo identidades previas, terminología lúdica obsoleta, rutas previas a la arquitectura modular y etiquetas de versión anteriores.
+
+## 7.1 Progresión de Auditoría en 4 Rondas (256 Archivos Escaneados)
+
+| Ronda de Auditoría | Archivos con Hallazgos | `BRAND_DRIFT` | `MECHANIC_DRIFT` | `GHOST_REF_DRIFT` | `VERSION_DRIFT` | Total Discrepancias |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Ronda 1 Baseline** | `99 / 256` | `257` | `210` | `413` | `59` | **`939`** |
+| **Ronda 2 Validación** | `0 / 256` | `0` | `0` | `0` | `0` | **`0`** |
+| **Ronda 3 Auditoría Estricta** *(CamelCase, slugs y cabeceras UI en `src/`)* | `11 / 256` | `11` | `0` | `0` | `5` | **`16`** |
+| **Ronda 4 Certificación Final** | `0 / 256` | `0` | `0` | `0` | `0` | **`0`** |
+
+## 7.2 Compuerta Final de Regresión e Integridad (Ronda 4)
+
+- **Fronteras de Dominio y Contratos de Exportación:**
+  - `node scripts/checkLegacyImports.cjs`: Exit Code `0` (`2,099 ms`, `0` imports heredados restantes en el código moderno).
+  - `node scripts/checkMissingExports.cjs`: Exit Code `0` (`129 ms`, `Tactics check finished`).
+  - `node scripts/checkSharedViolations.cjs`: Exit Code `0` (`121 ms`, 6 advertencias preexistentes acotadas en `@shared`: `src/shared/auth/CommanderProfileModal.tsx`, `src/shared/services/matchDatabaseService.ts`, `src/shared/services/playerDatabaseService.ts` y `src/shared/ui/MatchSummaryModal.tsx`).
+- **Compilación y Verificación de Tipos:**
+  - `npm run lint` (`npx tsc --noEmit`): Exit Code `0` (`11,448 ms`).
+  - `npm run build` (`npx vite build`): Exit Code `0` (`12,453 ms`, `2254` módulos transformados en `5.43s`).
+- **Suites Deterministas y E2E Playwright WebGL:**
+  - `npm run test:cartography`: Exit Code `0` (`12,446 ms`, `10/10` + `7/7` aprobadas).
+  - `npm run test:all`: Exit Code `0` (`67,110 ms`, `13/13` suites encadenadas con salida `0`; `12` resúmenes explícitos totalizando `163/163` + pase silencioso en `src/domains/tactics/__tests__/autonomousOrchestrator.test.ts`).
+  - `npm run test:geotactics`: Exit Code `0` (`38,923 ms`, `93/93` pruebas aprobadas en 7 suites: `14+13+13+17+13+13+10`).
+  - `npm run test:qa` (`tests/e2e/game-playtester.spec.ts`): Exit Code `0` (`62,248 ms`, `3/3` pruebas aprobadas en `58.7s` tras reintento de calentamiento posterior al reinicio; la ejecución inicial post-reinicio completó `2/3` en `81,346 ms` por recarga inesperada en la Prueba 2, sin modificaciones de código entre ejecuciones).

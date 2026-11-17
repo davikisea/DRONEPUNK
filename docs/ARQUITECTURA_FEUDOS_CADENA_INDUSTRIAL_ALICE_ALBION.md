@@ -1,5 +1,6 @@
 # 🏙️ ARQUITECTURA DE FEUDOS URBANOS, CADENA INDUSTRIAL ALICE Y ECONOMÍA ALBION
 
+> **Proyecto y Versión:** `DRONEPUNK 0.0.1`  
 > **Documento:** `docs/ARQUITECTURA_FEUDOS_CADENA_INDUSTRIAL_ALICE_ALBION.md`  
 > **Clasificación:** Diseño de Sistemas, Microgestión Urbana, Cadena de Suministro Militar 2026 y Economía Player-Driven  
 > **Inspiración:** *Project Alice 1.3.0* (Victoria 2 Economy) + *Albion Online* (Mercado P2P Crafteado) + *OpenPlace / WPlace* (Coordenadas Reales de Assets y Ticker Continuo)  
@@ -22,7 +23,7 @@
 El paso de la **geopolítica macro** (regiones/estados) a la **microgestión táctica urbana** transforma las ciudades y comunidades en **Feudos de Clanes**. En lugar de ser simples polígonos decorativos, cada ciudad se compone de una red de **avenidas y calles principales**, en cuyas intersecciones y **10 parcelas industriales por feudo/comandante** los clanes erigen infraestructuras militares, refinerías, talleres de chips y puestos de control.
 
 Toda la economía de feudos opera bajo los **7 Pilares Canónicos Inmutables**:
-1. **Pilar 1 (CERO CARTAS — Almacén Físico de 16 Tropas):** No existen mazos de cartas, coleccionables TCG/CCG ni gacha. Cada comandante administra un **Almacén Físico / Hangar de 16 tropas máximo (4 slots de despliegue activo + 12 en reserva)**.
+1. **Pilar 1 (Almacén Físico de 16 Chasis Militares):** Cada comandante administra un **Almacén Físico / Hangar de 16 chasis militares máximo (`4` slots de despliegue activo en vanguardia + `12` en reserva táctica, munición descartable forjada en `public.user_unit_hangar`)**.
 2. **Pilar 2 (Escala Balística 1 a 100 HP Enteros):** Toda unidad opera en la escala continua de `1` a `100 HP` enteros.
 3. **Pilar 3 (Derrota por Aniquilación):** Llegar a `0` tropas supervivientes en el tablero provoca la derrota inapelable.
 4. **Pilar 4 (Progresión Horizontal T1 a T5 de +2% por Tier):** Los chasis forjados escalan estrictamente un **$+2\%$ por tier** ($+0\%$ en T1, $+2\%$ en T2, $+4\%$ en T3, $+6\%$ en T4 y **máximo $+8\%$ en T5**).
@@ -109,7 +110,7 @@ Un **Feudo de Clan (`ClanFief`)** es un distrito urbano controlado por un clan (
 
 ## 4. LA CADENA INDUSTRIAL ESTILO PROJECT ALICE (VICTORIA 2) & ECONOMÍA PLAYER-DRIVEN TIPO ALBION
 
-Siguiendo el principio de *Project Alice* y *Albion Online*, **los NPCs no generan equipamiento militar de élite del aire**. Cada tanque, caza, artillería y kit de búnker desplegado en el mapa debe ser forjado por los jugadores a partir de recursos extraídos en las **10 parcelas territoriales** (`src/domains/economy/core/industrialEngine.ts`) y refinados en hornos multi-batch:
+Siguiendo el principio de *Project Alice* y *Albion Online*, **la economía es 100% impulsada por jugadores (player-driven), sin emisión automática desde entidades no jugadoras**. Cada tanque, caza, artillería y kit de búnker desplegado en el mapa debe ser forjado por los jugadores a partir de recursos extraídos en las **10 parcelas territoriales** (`src/domains/economy/core/industrialEngine.ts`) y refinados en hornos multi-batch:
 
 ```mermaid
 graph LR
@@ -165,7 +166,7 @@ graph LR
 * **`c4isr_bunker_kit` (Kit Prefabricado de Búnker C4ISR):** $200$ `raw_stone` $\to 2$ kits en $360\text{ min}$ ($6\text{h}$).
 
 ### 4.2 Forja de Unidades para el Hangar Físico de 16 Tropas (`strategicAndProductionEngine.ts` & `useUserHangar.ts`):
-* **Capacidad Estructural (Pilar 1):** El almacén físico aloja hasta **16 unidades por comandante (4 en slots de despliegue activo + 12 en reserva)**, con **CERO cartas**.
+* **Capacidad Estructural (Pilar 1):** El almacén físico aloja hasta **16 chasis militares por comandante (4 en slots de despliegue activo de vanguardia + 12 en reserva táctica)**, operando como **munición descartable forjada físicamente en bahías de chasis**.
 * **Progresión Horizontal T1–T5 (Pilar 4):** Cada unidad se ensambla en un Tier $T \in \{1, 2, 3, 4, 5\}$ con un bono estricto de **$+2\%$ por tier** ($+0\%, +2\%, +4\%, +6\%, +8\%$ máximo en T5). El coste base escala según `calculateUnitProductionCost`: $\text{fundsG} = \text{round}(2500 \times 1.25^{T-1})$, $\text{energyCreditEc} = \text{round}(150 \times 1.25^{T-1})$, $\text{steelPlates} = 4T$, y $\text{microchips} = 2(T-2)$ para $T \ge 3$ (con excepción del Kit Básico F2P de Infantería T1 y Recon T1, que tienen $0\text{s}$ de forja y $0$ materiales).
 * **Reciclaje de Chatarra al 35% (Pilar 6):** Cuando una tropa es destruida en combate (`settleCombatLossesAndScrap` en `src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts`) o desguazada voluntariamente en el hangar (`scrapUnit` en `src/domains/economy/hooks/useUserHangar.ts`), se elimina físicamente del inventario y retorna exactamente el **35% de su valor base en chatarra tecnológica (`tech_scrap`, `RECYCLE_SCRAP_RATE = 0.35` / `SALVAGE_TECH_SCRAP_RATE = 0.35`)**.
 

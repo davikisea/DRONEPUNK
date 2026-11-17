@@ -3,8 +3,7 @@
  * MOTOR DE RED VIAL, GRAFO DE NAVEGACIÓN Y LOGÍSTICA (ROAD NETWORK ENGINE)
  * ==============================================================================
  * Especificación Canónica: docs/ANALISIS_PROJECT_ALICE_RUTAS_INGENIERIA_MAPA_METAPOLITICA.md
- * Inspiración Algorítmica: Project Alice (Open V2) src/military/military.cpp (movement_time)
- * y src/map/modes/infrastructure.hpp
+ * Inspiración Algorítmica: Project Alice (Open V2) — módulo de tránsito militar e infraestructura vial
  * ==============================================================================
  */
 
@@ -16,6 +15,25 @@ import {
   CommanderFieldPosition,
 } from '../types/tacticalRoadTypes';
 import { SpatialRoadIndex } from './spatialRoadIndex';
+import {
+  OSM_HEX_TERRAIN_CATALOG,
+  type OsmHexTerrainType,
+  type DroneArchetypeId,
+} from '@shared';
+
+export { OSM_HEX_TERRAIN_CATALOG };
+
+export function canUnitTraverseOsmHex(
+  unitId: DroneArchetypeId,
+  terrain: OsmHexTerrainType,
+  hasBridge: boolean = false
+): boolean {
+  if (unitId === 'bomber_drone') return true;
+  const spec = OSM_HEX_TERRAIN_CATALOG[terrain];
+  if (spec.requiresBridgeForGround && !hasBridge) return false;
+  if (spec.impassableForWheeledTracked && unitId !== 'infantry_swarm') return false;
+  return true;
+}
 
 export interface RouteStep {
   fromNodeId: string;

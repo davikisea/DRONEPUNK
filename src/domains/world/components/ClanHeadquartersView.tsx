@@ -12,7 +12,7 @@
  * 3. Rescate de Camarada (Comrade Rescue): un compañero paga la fianza (+150 XP).
  * 4. Licencias de Cuartel (Military Furlough): 2 días mensuales de gracia justificada.
  * 5. Guerra Territorial de Clanes: 7 Sectores Estratégicos con multiplicador 2.0x en 2v2.
- * 6. Logística Fraternal: Donación de cartas con recompensas instantáneas de Oro y XP.
+ * 6. Logística Fraternal: Donación de chasis y planos con recompensas instantáneas de Oro y XP.
  * 7. Proyectos del Alto Mando: Sumideros del tesoro (Sobrealimentación Industrial, Asedios).
  * 8. Protocolo de Salvaguarda Táctica: Seguro de racha proactivo (Multiplicador 1.0x a 2.0x).
  */
@@ -216,7 +216,7 @@ export const ClanHeadquartersView: React.FC<ClanHeadquartersViewProps> = ({
     triggerNotification('¡Licencia Táctica Militar autorizada! Quedas protegido de embargos por las próximas 24 horas.', 'success');
   };
 
-  // Acción: Donar Cartas a un Camarada
+  // Acción: Donar Chasis a un Camarada
   const handleDonateCards = (req: ClanCardRequest) => {
     const result = ClanEngine.donateCards(req, currentUserMember, 1);
     if (!result.success) {
@@ -234,7 +234,7 @@ export const ClanHeadquartersView: React.FC<ClanHeadquartersViewProps> = ({
     );
   };
 
-  // Acción: Crear Solicitud de Cartas
+  // Acción: Crear Solicitud de Chasis
   const handleCreateCardRequest = (rarity: CardRarity) => {
     const result = ClanEngine.requestCardDonation(
       clan.id,
@@ -254,7 +254,7 @@ export const ClanHeadquartersView: React.FC<ClanHeadquartersViewProps> = ({
 
     audioManager.play('menu_select');
     setCardRequests(prev => [result.newRequest!, ...prev]);
-    triggerNotification(`¡Línea de suministros activada! Solicitaste ${result.newRequest?.amountRequested} cartas de Tanque Pesado.`, 'success');
+    triggerNotification(`¡Línea de suministros activada! Solicitaste ${result.newRequest?.amountRequested} chasis de Tanque Pesado.`, 'success');
   };
 
   // Acción: Contribuir Tropas a un Sector de Guerra Territorial
@@ -693,7 +693,7 @@ export const ClanHeadquartersView: React.FC<ClanHeadquartersViewProps> = ({
                 TERMINAL DE SUMINISTROS Y PLANOS MILITARES
               </span>
               <h2 className="text-lg font-black uppercase text-[#F2E8D5] mt-1">
-                Solicitudes de Cartas Intraclán
+                Solicitudes de Chasis Intraclán
               </h2>
               <p className="text-xs text-[#7B8A4A] mt-1">
                 Dona planos sobrantes para ganar Créditos de Oro y Experiencia de Mando. Ventana de enfriamiento: 8 horas.

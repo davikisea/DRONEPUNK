@@ -1,6 +1,6 @@
 // ==============================================================================
 // PUBLIC API: DOMINIO ECONOMY
-// Hangar Físico de Tropas (0 cartas), Forja de 10 Parcelas, Mercado P2P 2% y Ticker
+// Almacén Físico de 16 Chasis Militares, Forja de 10 Parcelas, Mercado P2P 2% y Ticker
 // ==============================================================================
 
 // Core Motors & Constants
@@ -15,6 +15,8 @@ export {
   ECONOMY_CONFIG_V2,
   REFINING_RECIPES,
   PLOT_UNLOCK_TABLE,
+  CARD_UPGRADE_TABLE,
+  type CorporateSpecialization,
   type IndustrialInventory,
   type RefinedResourceType,
   type RawResourceType,
@@ -37,6 +39,11 @@ export {
   TerritorialUpkeepEngine,
   calculateImperialUpkeep,
   calculateRgoRegionalYield,
+  evaluateOccupationFatigueAndRebellion,
+  calculateAdministrativeOverloadFuelMultiplier,
+  type UpkeepCalculationOutput,
+  type ImperialUpkeepBreakdown,
+  type OccupationFatigueEvaluation,
 } from './core/upkeepEngine';
 export {
   calculateUnitProductionDuration,
@@ -45,10 +52,17 @@ export {
   isProductionItemReady,
   evaluateStrategicNodes,
   authorizeFactionUnitBorrow,
+  calculateSymbioticExtractionSettlement,
+  canUnlockDroneTier,
+  settleResourceTriadExtraction,
   BASE_PRODUCTION_DURATIONS,
+  MUNICIPAL_BUILDINGS_CATALOG,
+  MAX_MUNICIPAL_PUBLIC_SLOTS,
   type StrategicNode,
   type UnitProductionItem,
   type FactionHangarStock,
+  type SymbioticExtractionInput,
+  type SymbioticExtractionSettlement,
 } from './core/strategicAndProductionEngine';
 
 // Canonical Economy & P2P Constants Re-export
@@ -65,6 +79,7 @@ export {
   FiefBuildingService,
   type FiefBuilding,
   type FiefBuildingType,
+  type PrivateExtractorHarvestResult,
   applyTacticalMarkEffects,
   calculateGeodesicDistanceKm,
 } from './services/fiefBuildingService';

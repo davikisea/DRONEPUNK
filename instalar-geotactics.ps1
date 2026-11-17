@@ -26,7 +26,7 @@ $envContent = @"
 
 # --- Entorno Local ---
 VITE_APP_ENV="development"
-VITE_APP_URL="http://localhost:3000"
+VITE_APP_URL="http://localhost:5000"
 VITE_VERCEL_ENV="development"
 VITE_APP_VERSION="1.0.0"
 
@@ -42,7 +42,7 @@ VITE_ENABLE_ANALYTICS="false"
 
 # --- AI Studio / Gemini Integration ---
 GEMINI_API_KEY=""
-APP_URL="http://localhost:3000"
+APP_URL="http://localhost:5000"
 "@
 
 Set-Content -Path ".env.local" -Value $envContent -Encoding UTF8
@@ -61,5 +61,5 @@ Write-Host "====================================================================
 Write-Host "      INSTALACION COMPLETADA CON EXITO - ARRANCANDO SERVIDOR         " -ForegroundColor Green
 Write-Host "=====================================================================" -ForegroundColor Green
 
-Start-Process "http://localhost:3000"
+Start-Process "http://localhost:5000"
 npm run dev

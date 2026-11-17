@@ -1,11 +1,13 @@
 /**
  * ==============================================================================
- * CONTRATOS DE TIPOS Y MODELOS DEL METAJUEGO V2 (GLOBAL SOVEREIGNTY)
+ * CONTRATOS DE TIPOS Y MODELOS DEL METAJUEGO (DRONEPUNK 0.0.1)
  * ==============================================================================
- * Especificación Canónica: METAGAME_DESIGN/ + CANON RATIFICADO
+ * Especificación Canónica: docs/00_GEOTACTICS_ONLINE_MASTER_SPEC.md + docs/02_MASTER_METAGAME_INDUSTRY_ECONOMY.md
  * Pilares: Risk.io + Albion P2P + Victoria 3 Macro-Economy + Advance Wars 1-100 HP
  * ==============================================================================
  */
+
+import type { TerrainType, WeatherCondition } from './index';
 
 export type ContinentCode = 'EU' | 'NA' | 'SA' | 'AS' | 'AF' | 'OC' | 'MECA';
 
@@ -42,15 +44,19 @@ export interface ProvinceVisualData {
   height: number;
   ownerTag: string;
   ownerColor: string;
-  isUnderSiege: boolean;
-  currentTcp: number;
-  maxTcp: number;
-  tcpPercent: number;
-  bunkerLevel: 1 | 2 | 3 | 4 | 5;
-  activeBuffsCount: number;
-  connectedAdjacenciesCount: number;
-  isCapitalCutoff: boolean;
-  isSupplyStarved: boolean;
+  isUnderSiege?: boolean;
+  currentTcp?: number;
+  maxTcp?: number;
+  tcpPercent?: number;
+  bunkerLevel?: 1 | 2 | 3 | 4 | 5;
+  activeBuffsCount?: number;
+  connectedAdjacenciesCount?: number;
+  isCapitalCutoff?: boolean;
+  isSupplyStarved?: boolean;
+  tcp?: number;
+  tcpMax?: number;
+  status?: TerritoryStatus;
+  resourcePerMin?: string;
 }
 
 export type TerritoryStatus = 'stable' | 'under_siege' | 'disputed' | 'cooldown_priority';
@@ -299,6 +305,20 @@ export const MASTER_METAGAME_CONSTANTS = {
   HANDSHAKE_TIMEOUT_SECONDS: 120, // Ventana de 120s para drop-in humano
   LEGENDARY_SERVICE_DAYS: 21, // 21 días reales (504 horas) antes de retiro
   MAX_CLANS_PER_ALLIANCE: 10, // Máximo estricto de 10 clanes por corporación
+
+  // Cerebro Geotáctico Persistente (Micro-Celdas 100x100m, Gambits, Impuestos Simbióticos y Política Macro)
+  MUNICIPAL_GRID_TOTAL_CELLS: 500,
+  MUNICIPAL_CELL_SIZE_METERS: 100,
+  MUNICIPAL_MAJORITY_THRESHOLD: 0.50,
+  SIGNAL_TICK_MINUTES: 10,
+  ALLIED_TAX_RATE_MIN: 0.05,
+  ALLIED_TAX_RATE_MAX: 0.10,
+  RIVAL_RETENTION_RATE_MAX: 0.50,
+  STATE_PERK_MUNICIPALITY_THRESHOLD: 0.60,
+  STATE_PERK_BORDER_FUEL_DISCOUNT: 0.20,
+  STATE_PERK_ADJACENT_CONQUEST_BONUS: 0.15,
+  GAMBIT_DEFAULT_SHIFT_HOURS: 8,
+  GAMBIT_MAX_ENEMY_CONTROL_THRESHOLD: 0.70,
 } as const;
 
 export const TOPOLOGY_FLAGS = {
@@ -311,7 +331,7 @@ export const TOPOLOGY_FLAGS = {
 } as const;
 
 // ------------------------------------------------------------------------------
-// MODELOS CANÓNICOS DE GEOTACTICS: ONLINE (ALICE TOPOLOGY & SOBERANÍA DUAL)
+// MODELOS CANÓNICOS DE DRONEPUNK 0.0.1 (ALICE TOPOLOGY & SOBERANÍA DUAL)
 // ------------------------------------------------------------------------------
 
 export type CanonicalBiome =
@@ -423,4 +443,490 @@ export function calculateP2PTransactionSplit(totalPriceEc: number): {
     provinceRoyalty,
     netSellerPayout,
   };
+}
+
+// ------------------------------------------------------------------------------
+// CEREBRO GEOTÁCTICO PERSISTENTE: MICRO-CELDAS, GAMBITS E IMPUESTOS SIMBIÓTICOS
+// ------------------------------------------------------------------------------
+
+export type DroneUnitRole =
+  | 'recon_scout'
+  | 'infantry_engineer'
+  | 'tank_direct'
+  | 'artillery_indirect';
+
+export type ExclusiveResourceNodeType =
+  | 'lithium'
+  | 'oil_energy'
+  | 'silicon'
+  | 'alloys'
+  | 'fuel';
+
+export type MunicipalPublicInfrastructureType =
+  | 'early_warning_radar'
+  | 'rapid_repair_workshop'
+  | 'sam_battery';
+
+export interface MunicipalMicroCell {
+  cellIndex: number;
+  x: number;
+  y: number;
+  sector: [number, number];
+  lngLat: [number, number];
+  controllingClanId: string | null;
+  signalInfluenceByClan: Record<string, number>;
+  exclusiveResourceNode?: ExclusiveResourceNodeType | null;
+  privateBuildingId?: string | null;
+  publicInfrastructureType?: MunicipalPublicInfrastructureType | null;
+  isSabotaged?: boolean;
+}
+
+export interface MunicipalMicroGrid {
+  municipalityId: string;
+  stateId: string;
+  totalCells: number;
+  gridColumns: number;
+  gridRows: number;
+  cellSizeMeters: number;
+  cells: MunicipalMicroCell[];
+  controllingClanId: string | null;
+  majorityThreshold: number;
+  sovereigntyRatioByClan: Record<string, number>;
+  publicSlotsUnlocked: boolean;
+  updatedAt: string;
+}
+
+export interface DroneSignalProjection {
+  unitId: string;
+  clanId: string;
+  unitRole: DroneUnitRole;
+  centerCellIndex?: number;
+  coordinates: [number, number];
+  hp: number;
+  signalRadiusCells: number;
+  captureRatePerTick: number;
+}
+
+export interface GambitEngagementRule {
+  detectTargetRole: DroneUnitRole | 'any_hostile' | 'enemy_infrastructure';
+  action:
+    | 'attack_direct'
+    | 'attack_indirect'
+    | 'sabotage_capture'
+    | 'retreat_to_allied_factory'
+    | 'ignore';
+}
+
+export interface DroneGambitProgram {
+  programId: string;
+  unitId: string;
+  unitRole: DroneUnitRole;
+  patrolWaypoints: [[number, number], [number, number]];
+  engagementRules: GambitEngagementRule[];
+  retreatCondition: {
+    onDetectRole: DroneUnitRole[];
+    hpBelowThreshold: number;
+    fallbackFactoryCoordinates: [number, number];
+  };
+  targetPriorityRule:
+    | 'neutral_cells_first'
+    | 'enemy_extractors_first'
+    | 'border_roads_first';
+  maxEnemyControlThreshold: number;
+  shiftDurationHours: number;
+}
+
+export interface TerritorialTaxLedger {
+  municipalityId: string;
+  controllingClanId: string | null;
+  alliedTaxRate: number;
+  rivalRetentionRate: number;
+  treatyOverrideRate?: Record<string, number>;
+  exclusiveResourceNode: ExclusiveResourceNodeType;
+  accumulatedVaultTaxEc: number;
+}
+
+// ------------------------------------------------------------------------------
+// CEREBRO GEOTÁCTICO PERSISTENTE H3 (RES 9, AL/CB/MC, 9 DRONES Y CARTUCHOS GAMBITS)
+// ------------------------------------------------------------------------------
+
+export interface ResourceTriad {
+  alloys: number;     // AL: Aleaciones estructurales
+  fuel: number;       // CB: Combustible operativo
+  microchips: number; // MC: Microchips tácticos
+}
+
+export type DroneArchetypeId =
+  | 'infantry_swarm'
+  | 'recon_explorer'
+  | 'light_artillery'
+  | 'medium_tank'
+  | 'anti_air'
+  | 'logistics_apc'
+  | 'bomber_drone'
+  | 'neo_tank'
+  | 'tactical_missile';
+
+export interface DroneArchetypeSpec {
+  id: DroneArchetypeId;
+  tierLevel: 1 | 2 | 3;
+  name: string;
+  unlockRequirement:
+    | 'basic_factory'
+    | 'corp_advanced_workshop'
+    | 'state_60_industrial_complex';
+  cost: ResourceTriad;
+  fuelPerHour: number;
+  fuelPerTick15m: number;
+  conquestHexesPerHour: number;
+  conquestProgressPerTick15m: number;
+  visionRangeHexes: number;
+  minAttackRange: number;
+  maxAttackRange: number;
+  isAirUnit: boolean;
+  canMoveAndFireSameTick: boolean;
+  canCaptureBuildings: boolean;
+  canCounterAttack: boolean;
+}
+
+export type OsmHexTerrainType =
+  | 'ROAD'
+  | 'PLAIN'
+  | 'FOREST'
+  | 'URBAN'
+  | 'MOUNTAIN'
+  | 'WATER';
+
+export interface OsmTerrainModifierSpec {
+  terrainType: OsmHexTerrainType;
+  stars: 0 | 1 | 2 | 3 | 4;
+  defenseBonus: number;
+  movementCostMultiplier: number;
+  concealsGroundUnits: boolean;
+  impassableForWheeledTracked: boolean;
+  requiresBridgeForGround: boolean;
+  infantryVisionBonus: number;
+}
+
+export const OSM_HEX_TERRAIN_CATALOG: Record<OsmHexTerrainType, OsmTerrainModifierSpec> = {
+  ROAD: {
+    terrainType: 'ROAD',
+    stars: 0,
+    defenseBonus: 0.0,
+    movementCostMultiplier: 0.5,
+    concealsGroundUnits: false,
+    impassableForWheeledTracked: false,
+    requiresBridgeForGround: false,
+    infantryVisionBonus: 0,
+  },
+  PLAIN: {
+    terrainType: 'PLAIN',
+    stars: 1,
+    defenseBonus: 0.1,
+    movementCostMultiplier: 1.0,
+    concealsGroundUnits: false,
+    impassableForWheeledTracked: false,
+    requiresBridgeForGround: false,
+    infantryVisionBonus: 0,
+  },
+  FOREST: {
+    terrainType: 'FOREST',
+    stars: 2,
+    defenseBonus: 0.2,
+    movementCostMultiplier: 1.5,
+    concealsGroundUnits: true,
+    impassableForWheeledTracked: false,
+    requiresBridgeForGround: false,
+    infantryVisionBonus: 0,
+  },
+  URBAN: {
+    terrainType: 'URBAN',
+    stars: 3,
+    defenseBonus: 0.3,
+    movementCostMultiplier: 1.0,
+    concealsGroundUnits: false,
+    impassableForWheeledTracked: false,
+    requiresBridgeForGround: false,
+    infantryVisionBonus: 0,
+  },
+  MOUNTAIN: {
+    terrainType: 'MOUNTAIN',
+    stars: 4,
+    defenseBonus: 0.4,
+    movementCostMultiplier: 2.0,
+    concealsGroundUnits: true,
+    impassableForWheeledTracked: true,
+    requiresBridgeForGround: false,
+    infantryVisionBonus: 1,
+  },
+  WATER: {
+    terrainType: 'WATER',
+    stars: 0,
+    defenseBonus: -0.1,
+    movementCostMultiplier: 1.0,
+    concealsGroundUnits: false,
+    impassableForWheeledTracked: false,
+    requiresBridgeForGround: true,
+    infantryVisionBonus: 0,
+  },
+};
+
+export type GambitConditionCode =
+  | 'HP_LT_40'
+  | 'HP_LT_30'
+  | 'FUEL_LT_20'
+  | 'ENEMY_IN_RANGE'
+  | 'WEAK_ENEMY_IN_RANGE'
+  | 'SUPERIOR_ENEMY_IN_RANGE'
+  | 'ENEMY_NEAR_ALLY_FACTORY_2'
+  | 'HEX_NEUTRAL'
+  | 'HEX_ENEMY'
+  | 'HEX_HAS_ENEMY_FACTORY'
+  | 'MUNICIPALITY_ENEMY_OVER_50'
+  | 'MUNICIPALITY_ENEMY_OVER_70'
+  | 'ALWAYS';
+
+export type GambitActionCode =
+  | 'ATTACK_WEAKEST'
+  | 'KEEP_DISTANCE_AND_FIRE'
+  | 'IGNORE_COMBAT_STEALTH'
+  | 'INTERCEPT_AND_ATTACK'
+  | 'FOLLOW_WAYPOINTS_LOOP'
+  | 'PATROL_PING_PONG'
+  | 'HOLD_POSITION_ANCHOR'
+  | 'CAPTURE_HEX_UNTIL_DONE'
+  | 'SABOTAGE_OR_CAPTURE_BUILDING'
+  | 'RETREAT_TO_NEAREST_APC_OR_REPAIR'
+  | 'RETURN_TO_ALLY_FACTORY'
+  | 'FLEE_OPPOSITE_TO_FOREST_OR_MOUNTAIN';
+
+export interface GambitSlotRule {
+  slot: number;
+  condition: GambitConditionCode;
+  action: GambitActionCode;
+}
+
+export type DoctrinePresetId = 'NIGHT_PAINTER' | 'WATCHDOG' | 'SABOTEUR';
+
+export interface DoctrineCodePayload {
+  name: string;
+  version: number;
+  recommendedUnit: DroneArchetypeId;
+  maxSlots: 4 | 6;
+  rules: GambitSlotRule[];
+}
+
+export interface SparseMapHexRecord {
+  h3Index: string;
+  municipalityId: string;
+  terrainType: OsmHexTerrainType;
+  hasBridge?: boolean;
+  ownerCorpId: string | null;
+  captureProgress: number; // 0..100
+  contestingCorpId: string | null;
+  lastUpdatedTick: number;
+  lastActiveTimestampMs: number;
+}
+
+/**
+ * Contratos de Geografía Persistente Híbrida por Sector (20x20 celdas) y Pipeline GBA
+ */
+export const TACTICAL_SPRITE_NATIVE_SIZE = 16;
+export const TACTICAL_SPRITE_GPU_SCALE = 3;
+export const TACTICAL_SPRITE_GPU_SIZE = TACTICAL_SPRITE_NATIVE_SIZE * TACTICAL_SPRITE_GPU_SCALE; // 48px
+// A z=15 (tileSize 512px) cada celda 20x20 mide 25.6px; a z=15.90689 mide exactamente 48.0px (1:1 con sprite GPU)
+export const TACTICAL_SPRITE_MAX_ZOOM = Number(
+  (15 + Math.log2(TACTICAL_SPRITE_GPU_SIZE / (512 / 20))).toFixed(4)
+);
+
+export type GbaFactionOwner = 'p1' | 'p2' | 'p3' | 'p4' | 'p5' | null;
+
+export type GbaDistrictArchetype =
+  | 'coastal_port'
+  | 'urban_core'
+  | 'industrial_hub'
+  | 'forest_frontier'
+  | 'mountain_pass';
+
+export interface GbaCalibrationProfile {
+  profileId: string;
+  label: string;
+  // Costero
+  coastEdgeStrictness: number; // 0..1 (1 = estricto contra polígono real)
+  shoalRatio: number; // 0..1 (proporción de costa con playa shoal vs acantilado)
+  reefDensity: number; // 0..1
+  portCoastalMinSpacing: number; // distancia mínima entre puertos
+  estuaryMouthWidth: number; // 1..2
+  // Hidrología
+  riverMeanderAmplitude: number;
+  riverMeanderFreq: number;
+  lake2x2Probability: number; // 0..1
+  bridgeMaxSpacing: number;
+  waterfallMouthEnabled: boolean;
+  // Red Vial A*
+  roadWidth: 1;
+  roadCurvePenalty: number;
+  roadParallelMinGap: number; // >= 3 celdas entre vías paralelas
+  roadEdgeAttachMode: 'explicit_ports_only';
+  // Biomas y Orografía
+  forestClusterTargetDensity: number; // 0..1
+  forestSmoothPasses: number; // >= 2
+  mountainRidgeLength: number;
+  mountainPassFrequency: number;
+  plainOpenBufferRatio: number;
+  // Gramática Estratégica
+  hqFactoryClusterSize: number; // 2..4
+  cityClusterSize: number; // 2..3
+  siloChokepointBias: number; // 0..1
+  minStrategicPropsPerLandSector: number;
+  maxDeadEndRoads: number; // 0
+  minBfsPassableRatio: number; // 0.90
+}
+
+export const DEFAULT_GBA_CALIBRATION_PROFILE: GbaCalibrationProfile = {
+  profileId: 'aw_gba_aaa_v1',
+  label: 'Advance Wars GBA Calibrated AAA',
+  coastEdgeStrictness: 1.0,
+  shoalRatio: 0.48,
+  reefDensity: 0.055,
+  portCoastalMinSpacing: 8,
+  estuaryMouthWidth: 1,
+  riverMeanderAmplitude: 1.6,
+  riverMeanderFreq: 0.19,
+  lake2x2Probability: 0.22,
+  bridgeMaxSpacing: 9,
+  waterfallMouthEnabled: true,
+  roadWidth: 1,
+  roadCurvePenalty: 1.45,
+  roadParallelMinGap: 3,
+  roadEdgeAttachMode: 'explicit_ports_only',
+  forestClusterTargetDensity: 0.28,
+  forestSmoothPasses: 2,
+  mountainRidgeLength: 5,
+  mountainPassFrequency: 0.35,
+  plainOpenBufferRatio: 0.24,
+  hqFactoryClusterSize: 3,
+  cityClusterSize: 2,
+  siloChokepointBias: 0.7,
+  minStrategicPropsPerLandSector: 4,
+  maxDeadEndRoads: 0,
+  minBfsPassableRatio: 0.90,
+};
+
+export interface BiomeCoastalMask {
+  isCoastalSector: boolean;
+  waterCells: number;
+  shoalCells: number;
+  landCells: number;
+}
+
+export interface GbaAutotileMask {
+  north: boolean;
+  east: boolean;
+  south: boolean;
+  west: boolean;
+  bitmask: number; // 0..15 (N=1, E=2, S=4, W=8)
+}
+
+export interface SectorGenerationValidation {
+  emptyCells: number;
+  connectedRoads: boolean;
+  bfsReachableRatio: number; // 0..1
+  riverBridgeCount: number;
+  strategicPropertiesCount: number;
+  parallelRoadConflicts?: number;
+  disconnectedProperties?: number;
+  calibrationScore?: number; // 0..100
+  districtArchetype?: GbaDistrictArchetype;
+}
+
+export interface SectorGenerationBlueprint {
+  sector: [number, number];
+  gridSize: number;
+  seed: number;
+  coastalMask: BiomeCoastalMask;
+  validation: SectorGenerationValidation;
+  generatedAt: string;
+  profileId?: string;
+  weather?: WeatherCondition;
+}
+
+export interface SectorCellTerrainOverride {
+  x: number; // 0..19
+  y: number; // 0..19
+  type: TerrainType;
+  ownerId?: GbaFactionOwner;
+  defenseStars?: number;
+}
+
+export interface SectorTerrainOverride {
+  sectorKey: string; // `${sx}_${sy}`
+  sector: [number, number];
+  gridSize: number; // 20
+  cells: Record<string, SectorCellTerrainOverride>; // key `${x}_${y}`
+  updatedAt: string;
+  source: 'map_builder' | 'pilot_seed' | 'supabase';
+}
+
+export interface SectorTerrainDelta {
+  sector: [number, number];
+  gridSize?: number;
+  changes: SectorCellTerrainOverride[];
+  source?: 'map_builder' | 'pilot_seed' | 'supabase';
+}
+
+export const SECTOR_TERRAIN_DEFENSE_STARS: Record<TerrainType, number> = {
+  plains: 1,
+  forest: 2,
+  mountain: 4,
+  road: 0,
+  river: 0,
+  city: 3,
+  factory: 3,
+  airport: 3,
+  port: 3,
+  hq: 4,
+  sea: 0,
+  reef: 1,
+  shoal: 0,
+  bridge: 0,
+  commtower: 3,
+  silo: 3,
+  usedSilo: 3,
+  lab: 3,
+  pipe: 0,
+  pipeSeam: 0,
+  rubble: 1,
+};
+
+export const SECTOR_TERRAIN_MOVEMENT_COST: Record<TerrainType, number> = {
+  plains: 1,
+  forest: 2,
+  mountain: 3,
+  road: 1,
+  river: 2,
+  city: 1,
+  factory: 1,
+  airport: 1,
+  port: 1,
+  hq: 1,
+  sea: 1,
+  reef: 2,
+  shoal: 1,
+  bridge: 1,
+  commtower: 1,
+  silo: 1,
+  usedSilo: 1,
+  lab: 1,
+  pipe: 99,
+  pipeSeam: 99,
+  rubble: 1,
+};
+
+export function getTerrainDefenseStars(type: TerrainType): number {
+  return SECTOR_TERRAIN_DEFENSE_STARS[type] ?? 1;
+}
+
+export function getTerrainMovementCost(type: TerrainType): number {
+  return SECTOR_TERRAIN_MOVEMENT_COST[type] ?? 1;
 }

@@ -481,8 +481,8 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
                   <div className="text-3xl">🔒</div>
                   <div>
                     <div className="text-xs font-black text-[#F2E8D5]">Logística Fraternal de Acero</div>
-                    <div className="text-[10px] text-[#7B8A4A]">Dona más de 500 cartas a tus camaradas de corporación militar.</div>
-                    <span className="text-[9px] text-[#7B8A4A] block mt-1">Progreso: [ 42 / 500 ] Cartas</span>
+                    <div className="text-[10px] text-[#7B8A4A]">Dona más de 500 suministros y chasis a tus camaradas de corporación militar.</div>
+                    <span className="text-[9px] text-[#7B8A4A] block mt-1">Progreso: [ 42 / 500 ] Chasis</span>
                   </div>
                 </div>
               </div>

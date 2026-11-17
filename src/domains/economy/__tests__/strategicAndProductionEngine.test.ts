@@ -2,7 +2,7 @@
  * ==============================================================================
  * SUITE DE PRUEBAS: NODOS ESTRATÉGICOS, HANGAR DE FACCIÓN Y COLA DE PRODUCCIÓN
  * ==============================================================================
- * Ejecución: npx tsx src/engine/strategicAndProductionEngine.test.ts
+ * Ejecución: npx tsx src/domains/economy/__tests__/strategicAndProductionEngine.test.ts
  * ==============================================================================
  */
 
@@ -13,9 +13,17 @@ import {
   isProductionItemReady,
   evaluateStrategicNodes,
   authorizeFactionUnitBorrow,
+  calculateSymbioticExtractionSettlement,
+  fiefBuildingService,
+  evaluateOccupationFatigueAndRebellion,
+  canUnlockDroneTier,
+  settleResourceTriadExtraction,
+  calculateAdministrativeOverloadFuelMultiplier,
+  MUNICIPAL_BUILDINGS_CATALOG,
   StrategicNode,
   FactionHangarStock,
 } from '@domains/economy';
+import { calculateSupplyLineHourlyFuelBurn, CANONICAL_H3_DRONE_CATALOG } from '@domains/tactics';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -201,7 +209,109 @@ const sergeantReq = authorizeFactionUnitBorrow(
 assert(sergeantReq.approved === true, 'Test 5.3: Sargento es autorizado para comandar tanque de facción');
 assert(sergeantReq.remainingStock === 2, `Test 5.4: Stock de facción decrementa a 2 (obtenido: ${sergeantReq.remainingStock})`);
 
+// ------------------------------------------------------------------------------
+// SUITE 6: ECONOMÍA SIMBIÓTICA (5-10% ALIADO VS 50% RIVAL) Y ANTI-SNOWBALL
+// ------------------------------------------------------------------------------
+console.log('\n--- SUITE 6: ECONOMÍA SIMBIÓTICA Y FRENO LOGÍSTICO ANTI-SNOWBALL ---');
+
+const alliedSettlement = calculateSymbioticExtractionSettlement({
+  municipalityId: 'MUN_ZULIA_CABIMAS',
+  extractorOwnerClanId: 'clan-ferro',
+  municipalityControllingClanId: 'clan-ferro',
+  grossYieldEc: 1000,
+  exclusiveResourceNode: 'lithium',
+  ledger: { alliedTaxRate: 0.08 },
+});
+assert(alliedSettlement.appliedTaxRate === 0.08, 'Test 6.1: Municipio propio aplica impuesto reducido del 8%');
+assert(alliedSettlement.retainedTaxEc === 80 && alliedSettlement.netExtractorYieldEc === 920, 'Test 6.2: Neto del extractor aliado es 920 EC');
+assert(alliedSettlement.receivesAlliedPatrolEscort === true, 'Test 6.3: Extractor aliado recibe escolta de patrullas');
+
+const governingVault = { clanId: 'clan-orinoco', energyCredits: 1000 };
+const rivalHarvest = fiefBuildingService.harvestPrivateExtractorWithSymbioticTax({
+  municipalityId: 'MUN_CARACAS_LIBERTADOR',
+  extractorOwnerClanId: 'clan-ferro',
+  municipalityControllingClanId: 'clan-orinoco',
+  exclusiveResourceNode: 'silicon',
+  grossYieldEc: 1000,
+  governingClanTreasury: governingVault,
+});
+assert(rivalHarvest.settlement.isRivalTerritory === true, 'Test 6.4: Extractor en municipio rival sin tratado marcado como territorio hostil');
+assert(rivalHarvest.settlement.retainedTaxEc === 500 && rivalHarvest.settlement.netExtractorYieldEc === 500, 'Test 6.5: Retención automática del 50% en territorio rival');
+assert(governingVault.energyCredits === 1500, `Test 6.6: Bóveda gobernante recibe 500 EC automáticamente (actual: ${governingVault.energyCredits})`);
+
+const nearCapitalFuel = calculateSupplyLineHourlyFuelBurn({
+  baseHourlyFuel: 10,
+  bfsHopsFromCapital: 1,
+  isSupplyConnected: true,
+  hasBorderStateFuelPerk: false,
+});
+const farWithPerkFuel = calculateSupplyLineHourlyFuelBurn({
+  baseHourlyFuel: 10,
+  bfsHopsFromCapital: 4,
+  isSupplyConnected: true,
+  hasBorderStateFuelPerk: true,
+});
+assert(nearCapitalFuel.finalHourlyFuelBurn === 12.5, `Test 6.7: 1 salto BFS consume 12.5 fuel/h (obtenido: ${nearCapitalFuel.finalHourlyFuelBurn})`);
+assert(farWithPerkFuel.finalHourlyFuelBurn === 16, `Test 6.8: 4 saltos BFS con Perk -20% consume 16 fuel/h (obtenido: ${farWithPerkFuel.finalHourlyFuelBurn})`);
+
+const fatigueOk = evaluateOccupationFatigueAndRebellion({
+  clanId: 'clan-ferro',
+  controlledStatesCount: 4,
+  adminCapacityStates: 5,
+  baseHourlyUpkeepEc: 1000,
+});
+assert(fatigueOk.maintenanceMultiplier === 1.0 && !fatigueOk.triggersInternalRebellion, 'Test 6.9: Bajo capacidad administrativa no hay fatiga');
+
+const fatigueSnowball = evaluateOccupationFatigueAndRebellion({
+  clanId: 'clan-ferro',
+  controlledStatesCount: 9,
+  adminCapacityStates: 5,
+  baseHourlyUpkeepEc: 1000,
+});
+assert(fatigueSnowball.maintenanceMultiplier > 5, `Test 6.10: Sobre-extensión de +4 estados dispara mantenimiento exponencial (${fatigueSnowball.maintenanceMultiplier}x)`);
+assert(fatigueSnowball.triggersInternalRebellion === true && fatigueSnowball.opensLightningRaidWindow === true, 'Test 6.11: Fatiga de ocupación dispara riesgo de rebelión y ventana relámpago');
+
+// ------------------------------------------------------------------------------
+// SUITE 7: ECONOMÍA AL/CB/MC, 9 DRONES EN 3 NIVELES, 6 EDIFICIOS Y SOBRECARGA
+// ------------------------------------------------------------------------------
+console.log('\n--- SUITE 7: TRIADA AL/CB/MC, 9 DRONES, 6 EDIFICIOS Y SOBRECARGA ---');
+
+assert(Object.keys(CANONICAL_H3_DRONE_CATALOG).length === 9, 'Test 7.1: Catálogo H3 registra exactamente 9 drones autónomos');
+assert(Object.keys(MUNICIPAL_BUILDINGS_CATALOG).length === 6, 'Test 7.2: Catálogo Municipal registra exactamente 6 edificios públicos');
+
+const neoUnlockDenied = canUnlockDroneTier('neo_tank', {
+  hasBasicFactory: true,
+  corpControlledMunicipalities: 2,
+  hasAdvancedWorkshop: true,
+  stateControlRatio: 0.55,
+  hasIndustrialComplex: true,
+});
+assert(!neoUnlockDenied.allowed, 'Test 7.3: Neo-Tanque Nivel 3 rechazado si control estatal <= 60%');
+
+const neoUnlockOk = canUnlockDroneTier('neo_tank', {
+  hasBasicFactory: true,
+  corpControlledMunicipalities: 2,
+  hasAdvancedWorkshop: true,
+  stateControlRatio: 0.65,
+  hasIndustrialComplex: true,
+});
+assert(neoUnlockOk.allowed, 'Test 7.4: Neo-Tanque Nivel 3 desbloqueado con >60% estado + Complejo Industrial');
+
+const triadFreeZone = settleResourceTriadExtraction({
+  gross: { alloys: 100, fuel: 100, microchips: 100 },
+  isAlliedMunicipality: true,
+  hasCorporateFreeZonePerk: true,
+  hasCustomsRefineryBuilding: true, // +20% -> 120, 0% impuesto
+});
+assert(triadFreeZone.netPlayer.alloys === 120 && triadFreeZone.retainedCorpVault.alloys === 0, 'Test 7.5: Aduana (+20%) + Zona Franca Corporativa (0% tax) liquida 120 AL netos');
+
+const overload4States = calculateAdministrativeOverloadFuelMultiplier({
+  controlledStatesCount: 4, // 2 estados por encima de 2 -> +30% CB/h
+  hasVanguardLogisticsInBorderState: false,
+});
+assert(overload4States.overloadPenaltyRatio === 0.3 && overload4States.netFuelMultiplier === 1.3, 'Test 7.6: 4 estados controlados aplican +30% sobrecarga de CB/h');
+
 console.log('\n------------------------------------------------------------------------------');
-console.log('RESUMEN FASE 1 (NODOS ESTRATÉGICOS, FORJA Y HANGAR DE FACCIÓN): 14/14 PASARON');
+console.log('RESUMEN FASE 1+3+5+H3 (AL/CB/MC, 9 DRONES, 6 EDIFICIOS Y SOBRECARGA): 31/31 PASARON');
 console.log('✅ TODAS LAS PRUEBAS DETERMINISTAS SUPERADAS AL 100%');
 console.log('==============================================================================');

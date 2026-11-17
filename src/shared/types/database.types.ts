@@ -3855,6 +3855,342 @@ export type Database = {
         }
         Relationships: []
       }
+      buildings: {
+        Row: {
+          building_type: string
+          corp_id: string | null
+          created_at: string
+          h3_index: number
+          hp: number
+          id: string
+          is_disabled: boolean
+          level: number
+          municipality_id: string | null
+          owner_user_id: string | null
+          stored_resources: Json
+          tax_rate: number
+        }
+        Insert: {
+          building_type: string
+          corp_id?: string | null
+          created_at?: string
+          h3_index: number
+          hp?: number
+          id?: string
+          is_disabled?: boolean
+          level?: number
+          municipality_id?: string | null
+          owner_user_id?: string | null
+          stored_resources?: Json
+          tax_rate?: number
+        }
+        Update: {
+          building_type?: string
+          corp_id?: string | null
+          created_at?: string
+          h3_index?: number
+          hp?: number
+          id?: string
+          is_disabled?: boolean
+          level?: number
+          municipality_id?: string | null
+          owner_user_id?: string | null
+          stored_resources?: Json
+          tax_rate?: number
+        }
+        Relationships: []
+      }
+      corporations: {
+        Row: {
+          active_state_perks: Json
+          controlled_municipalities_count: number
+          controlled_states_count: number
+          id: string
+          leader_user_id: string | null
+          name: string
+          tag: string
+          tech_level: number
+          treasury_alloys: number
+          treasury_chips: number
+          treasury_fuel: number
+        }
+        Insert: {
+          active_state_perks?: Json
+          controlled_municipalities_count?: number
+          controlled_states_count?: number
+          id?: string
+          leader_user_id?: string | null
+          name: string
+          tag: string
+          tech_level?: number
+          treasury_alloys?: number
+          treasury_chips?: number
+          treasury_fuel?: number
+        }
+        Update: {
+          active_state_perks?: Json
+          controlled_municipalities_count?: number
+          controlled_states_count?: number
+          id?: string
+          leader_user_id?: string | null
+          name?: string
+          tag?: string
+          tech_level?: number
+          treasury_alloys?: number
+          treasury_chips?: number
+          treasury_fuel?: number
+        }
+        Relationships: []
+      }
+      drones: {
+        Row: {
+          ai_rules: Json
+          corp_id: string | null
+          current_h3: number
+          current_wp_index: number
+          fuel: number
+          hp: number
+          id: string
+          last_tick_processed: number
+          max_fuel: number
+          owner_user_id: string
+          patrol_direction: number
+          status: string
+          ticks_deployed: number
+          ticks_on_building: number
+          unit_type: string
+          waypoints: number[]
+        }
+        Insert: {
+          ai_rules?: Json
+          corp_id?: string | null
+          current_h3: number
+          current_wp_index?: number
+          fuel: number
+          hp?: number
+          id?: string
+          last_tick_processed?: number
+          max_fuel: number
+          owner_user_id: string
+          patrol_direction?: number
+          status?: string
+          ticks_deployed?: number
+          ticks_on_building?: number
+          unit_type: string
+          waypoints?: number[]
+        }
+        Update: {
+          ai_rules?: Json
+          corp_id?: string | null
+          current_h3?: number
+          current_wp_index?: number
+          fuel?: number
+          hp?: number
+          id?: string
+          last_tick_processed?: number
+          max_fuel?: number
+          owner_user_id?: string
+          patrol_direction?: number
+          status?: string
+          ticks_deployed?: number
+          ticks_on_building?: number
+          unit_type?: string
+          waypoints?: number[]
+        }
+        Relationships: []
+      }
+      map_hexes: {
+        Row: {
+          capture_progress: number
+          contesting_corp_id: string | null
+          h3_index: number
+          last_updated_tick: number
+          municipality_id: string | null
+          owner_corp_id: string | null
+          terrain_type: string
+          updated_at: string
+        }
+        Insert: {
+          capture_progress?: number
+          contesting_corp_id?: string | null
+          h3_index: number
+          last_updated_tick?: number
+          municipality_id?: string | null
+          owner_corp_id?: string | null
+          terrain_type?: string
+          updated_at?: string
+        }
+        Update: {
+          capture_progress?: number
+          contesting_corp_id?: string | null
+          h3_index?: number
+          last_updated_tick?: number
+          municipality_id?: string | null
+          owner_corp_id?: string | null
+          terrain_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      territories: {
+        Row: {
+          control_percentage: number
+          id: string
+          level: string
+          manager_user_id: string | null
+          name: string
+          owner_corp_id: string | null
+          parent_id: string | null
+          total_hexes: number
+          updated_at: string
+        }
+        Insert: {
+          control_percentage?: number
+          id: string
+          level: string
+          manager_user_id?: string | null
+          name: string
+          owner_corp_id?: string | null
+          parent_id?: string | null
+          total_hexes?: number
+          updated_at?: string
+        }
+        Update: {
+          control_percentage?: number
+          id?: string
+          level?: string
+          manager_user_id?: string | null
+          name?: string
+          owner_corp_id?: string | null
+          parent_id?: string | null
+          total_hexes?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      municipal_managers: {
+        Row: {
+          appointed_by_clan_id: string
+          audit_trail_logs: Json
+          corruption_risk_score: number
+          early_warning_radar_active: boolean
+          local_tax_rate: number
+          manager_user_id: string | null
+          manager_user_name: string
+          municipality_id: string
+          rapid_repair_workshop_active: boolean
+          sam_battery_active: boolean
+          state_id: string
+          updated_at: string
+        }
+        Insert: {
+          appointed_by_clan_id: string
+          audit_trail_logs?: Json
+          corruption_risk_score?: number
+          early_warning_radar_active?: boolean
+          local_tax_rate?: number
+          manager_user_id?: string | null
+          manager_user_name?: string
+          municipality_id: string
+          rapid_repair_workshop_active?: boolean
+          sam_battery_active?: boolean
+          state_id: string
+          updated_at?: string
+        }
+        Update: {
+          appointed_by_clan_id?: string
+          audit_trail_logs?: Json
+          corruption_risk_score?: number
+          early_warning_radar_active?: boolean
+          local_tax_rate?: number
+          manager_user_id?: string | null
+          manager_user_name?: string
+          municipality_id?: string
+          rapid_repair_workshop_active?: boolean
+          sam_battery_active?: boolean
+          state_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      municipal_micro_grids: {
+        Row: {
+          cell_size_meters: number
+          cells_payload: Json
+          controlling_clan_id: string | null
+          grid_columns: number
+          grid_rows: number
+          majority_threshold: number
+          municipality_id: string
+          public_slots_unlocked: boolean
+          sovereignty_ratio_by_clan: Json
+          state_id: string
+          total_cells: number
+          updated_at: string
+        }
+        Insert: {
+          cell_size_meters?: number
+          cells_payload?: Json
+          controlling_clan_id?: string | null
+          grid_columns?: number
+          grid_rows?: number
+          majority_threshold?: number
+          municipality_id: string
+          public_slots_unlocked?: boolean
+          sovereignty_ratio_by_clan?: Json
+          state_id: string
+          total_cells?: number
+          updated_at?: string
+        }
+        Update: {
+          cell_size_meters?: number
+          cells_payload?: Json
+          controlling_clan_id?: string | null
+          grid_columns?: number
+          grid_rows?: number
+          majority_threshold?: number
+          municipality_id?: string
+          public_slots_unlocked?: boolean
+          sovereignty_ratio_by_clan?: Json
+          state_id?: string
+          total_cells?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      territorial_tax_ledgers: {
+        Row: {
+          accumulated_vault_tax_ec: number
+          allied_tax_rate: number
+          controlling_clan_id: string | null
+          exclusive_resource_node: string
+          municipality_id: string
+          rival_retention_rate: number
+          treaty_override_rate: Json
+          updated_at: string
+        }
+        Insert: {
+          accumulated_vault_tax_ec?: number
+          allied_tax_rate?: number
+          controlling_clan_id?: string | null
+          exclusive_resource_node?: string
+          municipality_id: string
+          rival_retention_rate?: number
+          treaty_override_rate?: Json
+          updated_at?: string
+        }
+        Update: {
+          accumulated_vault_tax_ec?: number
+          allied_tax_rate?: number
+          controlling_clan_id?: string | null
+          exclusive_resource_node?: string
+          municipality_id?: string
+          rival_retention_rate?: number
+          treaty_override_rate?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       world_provinces: {
         Row: {
           base_terrain: string
@@ -4232,6 +4568,39 @@ export type Database = {
         Returns: Json
       }
       start_chest_unlock: { Args: { p_slot_index: number }; Returns: Json }
+      rpc_cleanup_stale_sparse_hexes: {
+        Args: { p_current_tick: number }
+        Returns: Json
+      }
+      rpc_evaluate_signal_capture_tick: {
+        Args: {
+          p_drones_payload?: Json
+          p_municipality_id: string
+          p_tick_minutes?: number
+        }
+        Returns: Json
+      }
+      rpc_recalculate_geopolitical_control: {
+        Args: { p_current_tick?: number }
+        Returns: Json
+      }
+      rpc_execute_municipal_manager_action: {
+        Args: {
+          p_action_type: string
+          p_is_suspicious?: boolean
+          p_municipality_id: string
+          p_new_value: string
+        }
+        Returns: Json
+      }
+      rpc_settle_symbiotic_extraction_tax: {
+        Args: {
+          p_extractor_clan_id: string
+          p_gross_yield_ec: number
+          p_municipality_id: string
+        }
+        Returns: Json
+      }
       transmute_tech_scrap: { Args: { p_batches?: number }; Returns: Json }
     }
     Enums: {

@@ -1,8 +1,10 @@
-# PLAN MAESTRO DE EJECUCIÓN - FASE GENERAL 2: EL DESPLIEGUE LOCAL
-**Proyecto:** *Tactical Command: Wars of Legacy*  
-**Repositorio Oficial:** `https://github.com/iseadavidfreelance-droid/TacticalCommand`  
-**Estado:** Activo - En Ejecución  
-**Objetivo Fundamental:** Transición del desarrollo teórico hacia una aplicación web funcional, estable y jugable en entorno local (`localhost`), con base de datos aprovisionada, repositorio sincronizado y pruebas de experiencia de usuario (feedback humano).
+# PLAN MAESTRO DE EJECUCIÓN HISTÓRICO — FASE GENERAL 2: EL DESPLIEGUE LOCAL
+
+> **Estado Documental:** Especificación Histórica Archivada — Alineada a **DRONEPUNK 0.0.1**  
+> **Documento:** `docs/archive_legacy/FASE_2_DESPLIEGUE_LOCAL_MASTER_PLAN.md`  
+> **Proyecto:** **DRONEPUNK 0.0.1**  
+> **Estado Histórico:** Archivado tras consolidación local y transición hacia la arquitectura de 4 dominios  
+> **Objetivo Original:** Transición del desarrollo teórico hacia una aplicación web funcional, estable y jugable en entorno local (`localhost`), con base de datos Supabase aprovisionada (32 migraciones SQL), repositorio sincronizado y pruebas de experiencia de usuario.
 
 ---
 
@@ -12,37 +14,36 @@
 ┌────────────────────────────────┐       ┌────────────────────────────────┐       ┌────────────────────────────────┐
 │            FASE 1              │       │            FASE 2              │       │            FASE 3              │
 │      DESARROLLO TEÓRICO        │  ──►  │       DESPLIEGUE LOCAL         │  ──►  │       DESPLIEGUE CLOUD         │
-│  • GDD & Reglas Canónicas      │       │  • Instalación de Runtimes     │       │  • Vercel Edge / Static CDN    │
-│  • Motores Tácticos (Ts)       │       │  • Sincronización GitHub       │       │  • Supabase Cloud Production   │
-│  • 22 Migraciones SQL          │       │  • Aprovisionamiento DB        │       │  • Dominio & SSL Oficial       │
-│  • Arquitectura UI / Canvas    │       │  • npm install & dev server    │       │  • Pipeline CI/CD Automatizado │
+│  • GDD & Pilares Canónicos     │       │  • Instalación de Runtimes     │       │  • Vercel Edge / Static CDN    │
+│  • Motores 4 Dominios (TS)     │       │  • Sincronización Git          │       │  • Supabase Cloud Production   │
+│  • 32 Migraciones SQL          │       │  • Aprovisionamiento DB        │       │  • Dominio & SSL Oficial       │
+│  • Arquitectura UI / WebGL     │       │  • npm install & dev server    │       │  • Pipeline CI/CD Automatizado │
 │  • Red Teaming & Simulación    │       │  • Playtesting Humano Local    │       │  • Monitorización & Telemetría │
 └────────────────────────────────┘       └────────────────────────────────┘       └────────────────────────────────┘
-             [COMPLETADO]                           [FASE ACTUAL]                            [FASE FINAL]
+         [HISTÓRICO BASE]                      [FASE DOCUMENTADA]                   [DESPLIEGUE OBJETIVO]
 ```
 
 ### Principios Operativos de la Fase 2:
-1. **Cero Suposiciones:** Todo cambio de código debe compilar y probarse en tiempo de ejecución.
-2. **Prioridad a la Jugabilidad Local (Single Player & Hotseat):** El modo multijugador online Realtime se mantendrá debidamente aislado y comentado para evitar cuellos de botella de red mientras se garantiza que el motor táctico sea 100% robusto y no sufra crasheos.
-3. **Persistencia Progresiva:** Pasar de un estado en memoria 100% volátil a un esquema con fallback local (`localStorage`) e hidratación gradual contra Supabase.
-4. **Trazabilidad Git Continua:** Cada hito superado debe reflejarse en un commit atómico y descriptivo en el repositorio de GitHub.
+1. **Cero Suposiciones:** Todo cambio de código debe compilar (`npx tsc --noEmit`) y probarse en tiempo de ejecución.
+2. **Prioridad a la Jugabilidad Local (Single Player & Hotseat):** El modo multijugador online Realtime se aísla de forma segura cuando no existe sesión remota, garantizando que el motor táctico `1-100 HP` sea 100% robusto y libre de bloqueos.
+3. **Persistencia Progresiva:** Pasar de un estado en memoria volátil a un esquema con fallback local (`localStorage`) e hidratación gradual contra Supabase (`supabase/migrations/`).
+4. **Trazabilidad Git Continua:** Cada hito superado debe reflejarse en un commit atómico y descriptivo en el repositorio.
 
 ---
 
-## 2. DIAGNÓSTICO DEL ENTORNO ANFITRIÓN (HOST REALITY CHECK)
+## 2. DIAGNÓSTICO DEL ENTORNO ANFITRIÓN (HOST REALITY CHECK HISTÓRICO)
 
-En el estado actual de la máquina local, se ha verificado:
-* **Node.js / Bun:** No detectados en el PATH.
-* **Git CLI:** No detectado en el PATH.
-* **Directorio `.git`:** No inicializado en la carpeta del espacio de trabajo.
-* **`node_modules`:** Inexistente.
-* **Base de datos Supabase:** Esquemas escritos en SQL (`/supabase/migrations`), pero ninguna instancia (local o remota) se encuentra corriendo ni conectada.
+En la etapa inicial de aprovisionamiento de la máquina local se documentó el checklist de verificación previa:
+* **Node.js / Bun:** Verificación de binarios en el `PATH`.
+* **Git CLI:** Verificación de cliente Git y rama principal.
+* **`node_modules`:** Instalación limpia de dependencias (`package.json`).
+* **Base de datos Supabase:** Esquemas escritos en SQL (`supabase/migrations/`, 32 migraciones + `supabase/CONSOLIDATED_FULL_DATABASE_DEPLOY.sql` + `supabase/seed.sql`).
 
-Por tanto, el despliegue local requiere un orden secuencial estricto en 5 Hitos.
+Por tanto, el despliegue local siguió un orden secuencial estricto en Hitos.
 
 ---
 
-## 3. LOS 5 HITOS ESTRUCTURALES DE LA FASE 2
+## 3. HITOS ESTRUCTURALES DE LA FASE 2
 
 ```
                                       CRONOGRAMA DE HITOS - FASE 2
@@ -51,7 +52,7 @@ Por tanto, el despliegue local requiere un orden secuencial estricto en 5 Hitos.
     ▼                 ▼                 ▼                 ▼                 ▼                 ▼
 [ HITO 2.1 ]      [ HITO 2.2 ]      [ HITO 2.3 ]      [ HITO 2.4 ]      [ HITO 2.5 ]      [ HITO 2.6 ]
  Entorno Host &    Git & Repositorio Aprovisionamiento  Dependencias &    Estabilización    Playtesting &
- Runtimes          GitHub            Supabase DB        Dev Server (3000) Core Loop Local   Vercel Prep
+ Runtimes          Remoto            Supabase DB        Dev Server (3000) Core Loop Local   Vercel Prep
 ```
 
 ---
@@ -62,71 +63,46 @@ Por tanto, el despliegue local requiere un orden secuencial estricto en 5 Hitos.
 
 * **Paso 2.1.1: Instalación de Node.js / Bun**
   * Opción Recomendada: Instalar **Node.js LTS (v20 o v22)** desde el sitio oficial (`nodejs.org`) o mediante administrador de paquetes (`winget install OpenJS.NodeJS.LTS`).
-  * Alternativa de alto rendimiento: Instalar **Bun** (`winget install Oven-sh.Bun` o `powershell -c "irm bun.sh/install.ps1 | iex"`).
-  * *Verificación:* `node -v` y `npm -v` (o `bun -v`) deben responder con versiones válidas.
+  * Alternativa de alto rendimiento: Instalar **Bun** (`winget install Oven-sh.Bun`).
+  * *Verificación:* `node -v` y `npm -v` deben responder con versiones válidas.
 
 * **Paso 2.1.2: Instalación de Git for Windows**
-  * Descargar e instalar Git (`winget install Git.Git`).
-  * Configurar identidad de autor:
-    ```bash
-    git config --global user.name "iseadavidfreelance-droid"
-    git config --global user.email "tu_email@ejemplo.com"
-    ```
-  * *Verificación:* `git --version` debe reportar `git version 2.x.x`.
+  * Instalar Git (`winget install Git.Git`) y configurar identidad de autor antes de sincronizar cambios.
 
 ---
 
-### HITO 2.2: INICIALIZACIÓN Y VINCULACIÓN CON GITHUB
+### HITO 2.2: INICIALIZACIÓN Y VINCULACIÓN DEL REPOSITORIO
 
-**Meta:** Conectar el espacio de trabajo local con el repositorio remoto `https://github.com/iseadavidfreelance-droid/TacticalCommand`.
+**Meta:** Mantener el espacio de trabajo local (`DRONEPUNK`) conectado con el repositorio remoto del proyecto.
 
-* **Paso 2.2.1: Inicialización del Repositorio Local**
+* **Paso 2.2.1: Verificación del Repositorio Local**
   ```powershell
-  cd c:\Users\Morín\TacticalCommand
-  git init -b main
+  cd c:\Users\Usuario\DRONEPUNK
+  git status
   ```
 
 * **Paso 2.2.2: Configuración del `.gitignore`**
-  Verificar que `.gitignore` incluya:
-  ```gitignore
-  node_modules/
-  dist/
-  .env
-  .env.local
-  .DS_Store
-  *.log
-  ```
-
-* **Paso 2.2.3: Vinculación del Remote y Primer Commit Estructural**
-  ```powershell
-  git remote add origin https://github.com/iseadavidfreelance-droid/TacticalCommand.git
-  git add .
-  git commit -m "feat(core): consolidación arquitectónica de Fase 1 - Motores, GDD y Migraciones SQL"
-  git branch -M main
-  # Sincronización con el origen (pull previo si el repositorio remoto ya contiene README/archivos)
-  git pull origin main --rebase --allow-unrelated-histories
-  git push -u origin main
-  ```
+  Verificar que `.gitignore` excluya `node_modules/`, `dist/`, `.env`, `.env.local`, `.DS_Store` y `*.log`.
 
 ---
 
 ### HITO 2.3: APROVISIONAMIENTO Y DESPLIEGUE DE LA BASE DE DATOS SUPABASE
 
-**Meta:** Levantar una instancia funcional de PostgreSQL gestionada por Supabase y ejecutar las 22 migraciones más los datos semilla.
+**Meta:** Levantar una instancia funcional de PostgreSQL gestionada por Supabase y ejecutar las **32 migraciones** de `supabase/migrations/` más los datos semilla (`supabase/seed.sql`).
 
 Existen **dos rutas viables** para este paso:
 
 #### Ruta A: Supabase Cloud (Recomendada para agilidad sin Docker)
 1. Iniciar sesión en [database.new](https://database.new) (Supabase Dashboard).
-2. Crear un nuevo proyecto gratuito denominado `tactical-command-dev`.
+2. Crear un proyecto de desarrollo denominado `dronepunk-dev`.
 3. Obtener la **Project URL** y la **anon public API Key** desde `Project Settings -> API`.
-4. En el SQL Editor de Supabase Dashboard, ejecutar los archivos de migración en orden secuencial (del 01 al 22) o usar la CLI de Supabase vinculada:
+4. En el SQL Editor de Supabase Dashboard, ejecutar `supabase/CONSOLIDATED_FULL_DATABASE_DEPLOY.sql` o usar la CLI de Supabase vinculada sobre las 32 migraciones:
    ```powershell
    npx supabase login
    npx supabase link --project-ref <tu-project-ref>
    npx supabase db push
    ```
-5. Ejecutar `supabase/seed.sql` para poblar usuarios y perfiles de prueba.
+5. Ejecutar `supabase/seed.sql` para poblar usuarios, feudos y perfiles de prueba.
 
 #### Ruta B: Supabase Local con Docker
 1. Contar con Docker Desktop instalado y corriendo.
@@ -135,7 +111,7 @@ Existen **dos rutas viables** para este paso:
    npx supabase init
    npx supabase start
    ```
-3. Aplicar migraciones locales automáticamente:
+3. Aplicar las 32 migraciones locales automáticamente:
    ```powershell
    npx supabase db reset
    ```
@@ -161,81 +137,75 @@ Existen **dos rutas viables** para este paso:
 * **Paso 2.4.1: Instalación de Paquetes**
   ```powershell
   npm install
-  # o con bun:
-  bun install
   ```
 
 * **Paso 2.4.2: Verificación de Tipos (TypeScript)**
   ```powershell
   npm run lint
   ```
-  *Resolver cualquier advertencia de tipado en interfaces o props antes de arrancar.*
+  *Resolver cualquier advertencia de tipado (`npx tsc --noEmit`) antes de arrancar.*
 
 * **Paso 2.4.3: Arranque del Servidor de Desarrollo**
   ```powershell
   npm run dev
   ```
   * Abrir en el navegador: `http://localhost:3000`
-  * Confirmar que la aplicación renderiza el Cuartel General (`WarLobbyHub`) sin errores en la consola DevTools.
+  * Confirmar que la aplicación renderiza el Cuartel General (`src/domains/world/components/WarLobbyHub.tsx`) sin errores en consola DevTools.
 
 ---
 
 ### HITO 2.5: ESTABILIZACIÓN DEL CORE LOOP TÁCTICO LOCAL
 
-**Meta:** Garantizar que una sesión completa de juego (despliegue, combate, IA, economía, victoria) sea fluida y esté 100% libre de bloqueos.
+**Meta:** Garantizar que una sesión completa de juego (despliegue desde Almacén Físico de 16 Chasis, combate `1-100 HP`, IA, economía, victoria) sea fluida y libre de bloqueos.
 
 * **Paso 2.5.1: Aislamiento del Módulo Multijugador Realtime**
-  * Mantener el hook `useMatchSync.ts` debidamente documentado y comentado como infraestructura lista para la Fase 3/4.
-  * En `App.tsx`, asegurar que no se disparen suscripciones WebSocket que fallen por timeout o desconexión.
+  * Mantener el hook `src/domains/tactics/hooks/useMatchSync.ts` y `src/domains/world/hooks/useSiegeRealtime.ts` con fallback seguro cuando no hay sesión Realtime activa.
+  * En `src/App.tsx`, asegurar que no se disparen suscripciones WebSocket bloqueantes en modo offline/local.
 
-* **Paso 2.5.2: Corrección del Foco Inicial de Unidades**
-  * En `src/App.tsx`, cambiar la asignación fija `'p1_inf_hq'` y `'p2_inf_hq'` por resolución dinámica:
-    ```typescript
-    const firstP1 = initialMap.startingUnits.find(u => u.ownerId === 'p1');
-    const firstP2 = initialMap.startingUnits.find(u => u.ownerId === 'p2');
-    setSelectedUnitId(firstP1 ? firstP1.id : '');
-    setTargetEnemyId(firstP2 ? firstP2.id : '');
-    ```
+* **Paso 2.5.2: Resolución Dinámica del Foco Inicial de Unidades**
+  * En `src/App.tsx`, resolver dinámicamente las primeras unidades desplegadas del jugador activo y del rival desde el mapa inicial en lugar de depender de IDs rígidos.
 
 * **Paso 2.5.3: Blindaje del Reloj Fischer contra Race Conditions**
-  * Asegurar que el cambio automático de turno cuando el reloj llega a 0 verifique que las animaciones de combate hayan concluido y que el bot no esté a medio procesar.
+  * Asegurar que el cambio automático de turno cuando el reloj llega a 0 verifique que las animaciones de combate hayan concluido y que la IA táctica (`src/domains/tactics/core/aiBot.ts`) no esté a medio procesar.
 
 * **Paso 2.5.4: Fallback de Persistencia Local (`localStorage`)**
-  * Implementar persistencia de emergencia en el cliente para que el oro ganado, las tropas compradas y las partidas ganadas se guarden en `localStorage` de inmediato, evitando el reinicio de partida al refrescar la ventana.
+  * Implementar persistencia de respaldo en el cliente para que los créditos, los chasis físicos del hangar (`user_unit_hangar`) y las partidas completadas se conserven en `localStorage` cuando Supabase no esté conectado.
 
 ---
 
-### HITO 2.6: PLAYTESTING HUMANO Y PRE-REQUISITOS DE VERCEL
+### HITO 2.6: PLAYTESTING Y PRE-REQUISITOS DE PRODUCCIÓN
 
-**Meta:** Someter el juego a sesiones reales de juego en el navegador por un humano, registrar feedback de ergonomía y verificar la compilación estática de producción.
+**Meta:** Someter **DRONEPUNK 0.0.1** a sesiones reales de juego en navegador (humanas y automatizadas con `npm run test:qa`) y verificar la compilación estática de producción.
 
-* **Protocolo de Playtesting Humano:**
-  1. Jugar 3 partidas completas en modo **Blitz Skirmish** contra el Bot en dificultad Normal y Difícil.
-  2. Jugar 1 partida en modo **Hotseat 2 Jugadores**.
-  3. Probar la activación de un Superpoder CO (SCOP) y comprobar la aparición de viñetas cómicas (Bark Engine).
-  4. Comprar una unidad en la fábrica y validar el descuento de fondos.
-  5. Entrar a los módulos logísticos (Hangar de Armería, Complejo Industrial, Estudio Táctico) y volver al Lobby Bélico sin recargar la página.
-  6. Ganar por captura de Cuartel General enemigo y validar el despliegue del modal de victoria.
+* **Protocolo de Playtesting:**
+  1. Jugar partidas completas en modo **Blitz Skirmish** contra la IA (`src/domains/tactics/core/aiBot.ts`) en dificultad Normal y Difícil.
+  2. Jugar una partida en modo **Hotseat 2 Jugadores** en escala continua `1-100 HP` (`src/domains/tactics/core/canonicalCombat.ts`).
+  3. Probar la activación de un Superpoder CO (SCOP) y comprobar la aparición de viñetas cómicas (`src/domains/game-feel/core/barkEngine.ts`).
+  4. Producir una unidad en `src/domains/tactics/components/ProductionModal.tsx` validando la Doble Llave Material (fondos in-match + stock del Almacén Físico de 16 Chasis o kit F2P ilimitado `infantry` / `recon` Tier 1).
+  5. Navegar a los módulos logísticos (Hangar Físico en `src/domains/economy/components/UnitHangarModal.tsx`, Complejo Industrial en `src/domains/economy/components/IndustrialComplexView.tsx`, Mercado P2P en `src/domains/economy/components/P2PMarketplaceView.tsx`) y volver al Lobby Bélico sin desmontar el estado.
+  6. Ganar por eliminación de todas las tropas rivales o captura de Cuartel General (`src/domains/tactics/core/hqCaptureVictory.ts`) y validar el despliegue del modal de victoria (`src/shared/ui/MatchSummaryModal.tsx`).
 
-* **Verificación de Build de Producción:**
+* **Verificación de Build y Suites Deterministas:**
   ```powershell
+  npm run test:all
+  npm run test:geotactics
   npm run build
   npm run preview
   ```
-  * Confirmar que la carpeta `dist/` se genera de forma limpia, sin advertencias críticas de Rollup.
+  * Confirmar que la carpeta `dist/` se genera de forma limpia, sin errores críticos de Rollup/Vite.
 
 ---
 
 ## 4. MATRIZ DE CRITERIOS DE ACEPTACIÓN (DEFINITION OF DONE - FASE 2)
 
-| Requisito | Criterio de Éxito | Estado |
+| Requisito | Criterio de Éxito | Estado Histórico |
 |:---|:---|:---:|
-| **Control de Versiones** | Repositorio GitHub actualizado con commits limpios y rama `main` protegida. | ⏳ Pendiente |
-| **Ambiente Local** | Servidor Vite corriendo en `localhost:3000` con cero advertencias bloqueantes. | ⏳ Pendiente |
-| **Base de Datos** | 22 migraciones y `seed.sql` aplicados en Supabase (Local o Cloud). | ⏳ Pendiente |
-| **Jugabilidad Core** | Partida jugable de principio a fin (movimiento, combate, victoria) sin crasheos. | ⏳ Pendiente |
-| **Persistencia** | Progreso de jugador (oro, XP, desbloqueos) retenido tras recargar la página. | ⏳ Pendiente |
-| **Build Ready** | `npm run build` genera `dist/` válido listo para ser conectado al repo de Vercel. | ⏳ Pendiente |
+| **Control de Versiones** | Repositorio actualizado con commits limpios y rama `main` sincronizada. | ✅ Consolidado |
+| **Ambiente Local** | Servidor Vite corriendo en `localhost:3000` sin errores bloqueantes. | ✅ Consolidado |
+| **Base de Datos** | 32 migraciones (`supabase/migrations/`) y `supabase/seed.sql` aplicables en Supabase (Local o Cloud). | ✅ Consolidado |
+| **Jugabilidad Core** | Partida jugable de principio a fin en `1-100 HP` con Almacén Físico de 16 Chasis. | ✅ Consolidado |
+| **Persistencia** | Progreso de jugador y hangar retenidos entre sesiones. | ✅ Consolidado |
+| **Build Ready** | `npm run build` genera `dist/` válido listo para despliegue estático. | ✅ Consolidado |
 
 ---
-*Documento canónico aprobado para guiar las operaciones de la Fase General 2.*
+*Especificación Histórica Archivada — Alineada al canon de **DRONEPUNK 0.0.1**.*

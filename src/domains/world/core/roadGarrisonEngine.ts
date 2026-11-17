@@ -21,6 +21,17 @@ import {
   AerialInterceptionResult,
 } from '../types/tacticalRoadTypes';
 import { roadNetworkEngine } from './roadNetworkEngine';
+import type { DroneGambitProgram } from '@shared';
+
+export interface DronePatrolShiftSimulationResult {
+  programId: string;
+  unitId: string;
+  shiftDurationHours: number;
+  waypointsDistanceKm: number;
+  routeFound: boolean;
+  pathNodeIds: string[];
+  estimatedRoundTrips: number;
+}
 
 export interface ClanTreasury {
   clanId: string;
@@ -606,7 +617,7 @@ export class RoadGarrisonEngine {
   }
 
   /**
-   * Simula un tick determinista de combate operacional (inspirado en Alice military.cpp)
+   * Simula un tick determinista de combate operacional (inspirado en el módulo militar de Project Alice)
    * Integra:
    * - Bonificación activa (+25% por comandante titular)
    * - Bonificación de reserva (+10% por comandante en reserva de apoyo)
@@ -694,6 +705,57 @@ export class RoadGarrisonEngine {
       }
       this.garrisons.delete(garrisonId);
     }
+  }
+
+  /**
+   * Simula un turno autónomo offline (8h por defecto) de patrulla A <-> B sobre la red vial A*.
+   */
+  public simulateAutonomousDronePatrolShift(
+    gambit: DroneGambitProgram,
+    clanId: string,
+    speedKmh: number = 45
+  ): DronePatrolShiftSimulationResult {
+    const [wpA, wpB] = gambit.patrolWaypoints;
+    const snapA = roadNetworkEngine.snapCoordinatesToNearestNode(wpA);
+    const snapB = roadNetworkEngine.snapCoordinatesToNearestNode(wpB);
+
+    let routeFound = false;
+    let pathNodeIds: string[] = [];
+    let routeDistanceKm = 0;
+
+    if (snapA.nearestNode && snapB.nearestNode) {
+      const route = roadNetworkEngine.findOptimalRoadRoute(
+        snapA.nearestNode.id,
+        snapB.nearestNode.id,
+        clanId
+      );
+      if (route.found) {
+        routeFound = true;
+        pathNodeIds = route.pathNodeIds;
+        routeDistanceKm = route.totalDistanceKm;
+      }
+    }
+
+    if (routeDistanceKm <= 0) {
+      const midLatRad = (((wpA[1] + wpB[1]) / 2) * Math.PI) / 180;
+      const dx = (wpA[0] - wpB[0]) * 111.32 * Math.cos(midLatRad);
+      const dy = (wpA[1] - wpB[1]) * 110.57;
+      routeDistanceKm = Math.max(0.5, Number(Math.sqrt(dx * dx + dy * dy).toFixed(2)));
+    }
+
+    const roundTripKm = routeDistanceKm * 2;
+    const maxPatrolKm = Math.max(1, speedKmh) * Math.max(1, gambit.shiftDurationHours);
+    const estimatedRoundTrips = Math.max(1, Math.floor(maxPatrolKm / roundTripKm));
+
+    return {
+      programId: gambit.programId,
+      unitId: gambit.unitId,
+      shiftDurationHours: gambit.shiftDurationHours,
+      waypointsDistanceKm: routeDistanceKm,
+      routeFound,
+      pathNodeIds,
+      estimatedRoundTrips,
+    };
   }
 }
 

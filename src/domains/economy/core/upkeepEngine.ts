@@ -2,8 +2,8 @@
  * ==============================================================================
  * MOTOR DE MANTENIMIENTO, PRODUCCIÓN Y SOBRE-EXPANSIÓN (UPKEEP ENGINE)
  * ==============================================================================
- * Especificación Canónica: METAGAME_DESIGN/03_ECONOMY_PRODUCTION_PIPELINE.md §4
- * y METAGAME_DESIGN/08_RISK-STYLE_EXPANSION_RULES.md §4
+ * Especificación Canónica: docs/02_MASTER_METAGAME_INDUSTRY_ECONOMY.md §4
+ * y docs/ANALISIS_PROJECT_ALICE_RUTAS_INGENIERIA_MAPA_METAPOLITICA.md
  * ==============================================================================
  */
 
@@ -39,6 +39,18 @@ export interface UpkeepCalculationOutput {
   overexpansionTaxHourly: number; // T_Over en Créditos / Plata
   garrisonSalaryMultiplier: number; // Omega(S_fort)
   productionMultiplier: number; // Factor final aplicable a la producción
+}
+
+export interface OccupationFatigueEvaluation {
+  clanId: string;
+  controlledStatesCount: number;
+  adminCapacityStates: number;
+  excessStates: number;
+  maintenanceMultiplier: number;
+  effectiveHourlyUpkeepEc: number;
+  rebellionRiskPercent: number;
+  triggersInternalRebellion: boolean;
+  opensLightningRaidWindow: boolean;
 }
 
 export class TerritorialUpkeepEngine {
@@ -181,12 +193,92 @@ export class TerritorialUpkeepEngine {
       productionMultiplier,
     };
   }
+
+  /**
+   * Freno Anti-Snowball por Fatiga de Ocupación Global:
+   * Controlar estados por encima de la capacidad administrativa dispara exponencialmente
+   * el mantenimiento global, provoca riesgo de rebelión interna y abre ventanas de incursión relámpago.
+   */
+  public static evaluateOccupationFatigueAndRebellion(params: {
+    clanId: string;
+    controlledStatesCount: number;
+    adminCapacityStates: number;
+    baseHourlyUpkeepEc: number;
+  }): OccupationFatigueEvaluation {
+    const capacity = Math.max(1, params.adminCapacityStates);
+    const excessStates = Math.max(0, params.controlledStatesCount - capacity);
+    const maintenanceMultiplier =
+      excessStates > 0
+        ? Number(
+            (
+              1 +
+              MASTER_METAGAME_CONSTANTS.OVER_EXPANSION_COEFFICIENT *
+                Math.pow(excessStates, MASTER_METAGAME_CONSTANTS.OVER_EXPANSION_EXPONENT)
+            ).toFixed(4)
+          )
+        : 1.0;
+
+    const effectiveHourlyUpkeepEc = Math.round(
+      Math.max(0, params.baseHourlyUpkeepEc) * maintenanceMultiplier
+    );
+    const rebellionRiskPercent =
+      excessStates > 0 ? Math.min(100, Math.round(18 * Math.pow(excessStates, 1.6))) : 0;
+
+    return {
+      clanId: params.clanId,
+      controlledStatesCount: params.controlledStatesCount,
+      adminCapacityStates: capacity,
+      excessStates,
+      maintenanceMultiplier,
+      effectiveHourlyUpkeepEc,
+      rebellionRiskPercent,
+      triggersInternalRebellion: rebellionRiskPercent >= 65,
+      opensLightningRaidWindow: excessStates >= 2 || rebellionRiskPercent >= 40,
+    };
+  }
+}
+
+export function evaluateOccupationFatigueAndRebellion(params: {
+  clanId: string;
+  controlledStatesCount: number;
+  adminCapacityStates: number;
+  baseHourlyUpkeepEc: number;
+}): OccupationFatigueEvaluation {
+  return TerritorialUpkeepEngine.evaluateOccupationFatigueAndRebellion(params);
+}
+
+/**
+ * Contrapeso Anti-Monopolio ("Sobrecarga Administrativa"):
+ * Cada estado controlado por encima de 2 incrementa en +15% el consumo global de CB/h
+ * de todas las unidades de la corporación (mitigado por -30% si aplica Perk Vanguardia en frontera).
+ */
+export function calculateAdministrativeOverloadFuelMultiplier(params: {
+  controlledStatesCount: number;
+  hasVanguardLogisticsInBorderState?: boolean;
+}): {
+  excessStatesAbove2: number;
+  overloadPenaltyRatio: number;
+  vanguardDiscountRatio: number;
+  netFuelMultiplier: number;
+} {
+  const excessStatesAbove2 = Math.max(0, params.controlledStatesCount - 2);
+  const overloadPenaltyRatio = Number((excessStatesAbove2 * 0.15).toFixed(4));
+  const vanguardDiscountRatio = params.hasVanguardLogisticsInBorderState ? 0.3 : 0.0;
+  const netFuelMultiplier = Number(
+    Math.max(0.5, (1 + overloadPenaltyRatio) * (1 - vanguardDiscountRatio)).toFixed(4)
+  );
+  return {
+    excessStatesAbove2,
+    overloadPenaltyRatio,
+    vanguardDiscountRatio,
+    netFuelMultiplier,
+  };
 }
 
 // ==============================================================================
 // FUNCIONES CANÓNICAS DE SOBRE-EXPANSIÓN IMPERIAL Y RGO (PROJECT ALICE V2)
 // Especificación: docs/00_GEOTACTICS_ONLINE_MASTER_SPEC.md §5
-// y docs/PLAN_MAESTRO_REESTRUCTURACION_HEGEMONIA.md §3
+// y docs/02_MASTER_METAGAME_INDUSTRY_ECONOMY.md §3
 // ==============================================================================
 
 export interface ImperialUpkeepRegionInput {

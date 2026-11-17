@@ -3,10 +3,20 @@
  * MOTOR DE NODOS ESTRATÉGICOS, HANGAR DE FACCIÓN Y COLA DE PRODUCCIÓN
  * ==============================================================================
  * Especificación Canónica: docs/00_GEOTACTICS_ONLINE_MASTER_SPEC.md
- * Plan Maestro: PLAN_MAESTRO_IMPLEMENTACION_GEOTACTICS_ALICE_CERO_INCERTIDUMBRE.md
+ * Plan Maestro: docs/PLAN_IMPLEMENTACION_FEUDOS_CADENA_INDUSTRIAL.md
  * Migración: supabase/migrations/20261105000001_geotactics_strategic_nodes_and_queues.sql
  * ==============================================================================
  */
+
+import {
+  MASTER_METAGAME_CONSTANTS,
+  type ExclusiveResourceNodeType,
+  type TerritorialTaxLedger,
+  type ResourceTriad,
+  type DroneArchetypeId,
+  type MunicipalBuildingType,
+  type MunicipalBuildingSpec,
+} from '@shared';
 
 export interface StrategicNode {
   id: string;
@@ -279,5 +289,264 @@ export function authorizeFactionUnitBorrow(
     unitCode: request.unitCode,
     tier: request.tier,
     remainingStock: stockEntry.stockQuantity - 1,
+  };
+}
+
+// ============================================================================
+// 5. ECONOMÍA SIMBIÓTICA: RETENCIÓN FISCAL TERRITORIAL (5-10% ALIADO VS 50% RIVAL)
+// ============================================================================
+
+export interface SymbioticExtractionInput {
+  municipalityId: string;
+  extractorOwnerClanId: string;
+  municipalityControllingClanId: string | null;
+  grossYieldEc: number;
+  exclusiveResourceNode: ExclusiveResourceNodeType;
+  ledger?: Partial<TerritorialTaxLedger>;
+}
+
+export interface SymbioticExtractionSettlement {
+  municipalityId: string;
+  extractorOwnerClanId: string;
+  municipalityControllingClanId: string | null;
+  exclusiveResourceNode: ExclusiveResourceNodeType;
+  grossYieldEc: number;
+  appliedTaxRate: number;
+  appliedTaxRatePercent: number;
+  retainedTaxEc: number;
+  netExtractorYieldEc: number;
+  controllingClanVaultDeltaEc: number;
+  isRivalTerritory: boolean;
+  receivesAlliedPatrolEscort: boolean;
+  hasTreatyExemption: boolean;
+}
+
+/**
+ * Liquida la extracción de fábricas y extractores privados sobre micro-celdas
+ * aplicando la regla simbiótica:
+ * - Municipio propio/aliado o tratado comercial: retención baja (5%-10%) + escolta aliada.
+ * - Municipio de Corporación rival: retención automática de hasta 50% transferida a la bóveda gobernante.
+ */
+export function calculateSymbioticExtractionSettlement(
+  input: SymbioticExtractionInput
+): SymbioticExtractionSettlement {
+  const gross = Math.max(0, Math.floor(input.grossYieldEc));
+  const alliedRateRaw = input.ledger?.alliedTaxRate ?? 0.08;
+  const alliedRate = Math.max(
+    MASTER_METAGAME_CONSTANTS.ALLIED_TAX_RATE_MIN,
+    Math.min(MASTER_METAGAME_CONSTANTS.ALLIED_TAX_RATE_MAX, alliedRateRaw)
+  );
+  const rivalRateRaw =
+    input.ledger?.rivalRetentionRate ?? MASTER_METAGAME_CONSTANTS.RIVAL_RETENTION_RATE_MAX;
+  const rivalRate = Math.max(
+    0.10,
+    Math.min(MASTER_METAGAME_CONSTANTS.RIVAL_RETENTION_RATE_MAX, rivalRateRaw)
+  );
+
+  const treatyRate = input.ledger?.treatyOverrideRate?.[input.extractorOwnerClanId];
+
+  let appliedTaxRate = 0;
+  let isRivalTerritory = false;
+  let receivesAlliedPatrolEscort = false;
+  let hasTreatyExemption = false;
+
+  if (!input.municipalityControllingClanId) {
+    appliedTaxRate = 0;
+    isRivalTerritory = false;
+    receivesAlliedPatrolEscort = false;
+  } else if (input.extractorOwnerClanId === input.municipalityControllingClanId) {
+    appliedTaxRate = alliedRate;
+    isRivalTerritory = false;
+    receivesAlliedPatrolEscort = true;
+  } else if (treatyRate !== undefined) {
+    appliedTaxRate = Math.max(
+      0,
+      Math.min(MASTER_METAGAME_CONSTANTS.RIVAL_RETENTION_RATE_MAX, treatyRate)
+    );
+    isRivalTerritory = false;
+    receivesAlliedPatrolEscort = true;
+    hasTreatyExemption = true;
+  } else {
+    appliedTaxRate = rivalRate;
+    isRivalTerritory = true;
+    receivesAlliedPatrolEscort = false;
+  }
+
+  const retainedTaxEc = Math.floor(gross * appliedTaxRate);
+  const netExtractorYieldEc = Math.max(0, gross - retainedTaxEc);
+
+  return {
+    municipalityId: input.municipalityId,
+    extractorOwnerClanId: input.extractorOwnerClanId,
+    municipalityControllingClanId: input.municipalityControllingClanId,
+    exclusiveResourceNode: input.exclusiveResourceNode,
+    grossYieldEc: gross,
+    appliedTaxRate,
+    appliedTaxRatePercent: Number((appliedTaxRate * 100).toFixed(1)),
+    retainedTaxEc,
+    netExtractorYieldEc,
+    controllingClanVaultDeltaEc: input.municipalityControllingClanId ? retainedTaxEc : 0,
+    isRivalTerritory,
+    receivesAlliedPatrolEscort,
+    hasTreatyExemption,
+  };
+}
+
+// ============================================================================
+// 6. CATÁLOGO DE 6 EDIFICIOS MUNICIPALES, DESBLOQUEO DE TIERS Y TRIADA AL/CB/MC
+// ============================================================================
+
+export const MAX_MUNICIPAL_PUBLIC_SLOTS = 5;
+
+export const MUNICIPAL_BUILDINGS_CATALOG: Record<
+  MunicipalBuildingType,
+  MunicipalBuildingSpec
+> = {
+  EARLY_WARNING_RADAR: {
+    type: 'EARLY_WARNING_RADAR',
+    name: 'Torre de Radar de Alerta',
+    cost: { alloys: 400, fuel: 100, microchips: 80 },
+    radiusHexes: 15,
+    description:
+      'Elimina niebla de guerra, revela unidades en FOREST/MOUNTAIN y emite alerta push cuando un enemigo cruza la frontera.',
+  },
+  RAPID_REPAIR_WORKSHOP: {
+    type: 'RAPID_REPAIR_WORKSHOP',
+    name: 'Taller de Reparación Rápida',
+    cost: { alloys: 600, fuel: 200, microchips: 50 },
+    radiusHexes: 3,
+    description:
+      'Recarga 100% CB y repara +3 HP/h (+30 HP/h base 100) a drones aliados en rango.',
+  },
+  FIXED_AA_BATTERY: {
+    type: 'FIXED_AA_BATTERY',
+    name: 'Batería Antiaérea Fija',
+    cost: { alloys: 500, fuel: 150, microchips: 100 },
+    radiusHexes: 4,
+    description:
+      'Ataca automáticamente en cada tick a cualquier Dron Bombardero enemigo en su radio sin consumir CB de jugadores.',
+  },
+  JAMMER_CENTER: {
+    type: 'JAMMER_CENTER',
+    name: 'Centro de Interferencia (Jammer)',
+    cost: { alloys: 450, fuel: 100, microchips: 150 },
+    radiusHexes: 6,
+    description:
+      'Guerra electrónica: reduce -50% la velocidad de conquista enemiga en su radio y oculta fábricas privadas aliadas.',
+  },
+  CUSTOMS_REFINERY: {
+    type: 'CUSTOMS_REFINERY',
+    name: 'Aduana / Refinería Fiscal',
+    cost: { alloys: 700, fuel: 250, microchips: 60 },
+    radiusHexes: 'MUNICIPALITY',
+    description:
+      'Aumenta +20% la extracción de recursos de todas las fábricas privadas del municipio.',
+  },
+  COMMAND_BUNKER: {
+    type: 'COMMAND_BUNKER',
+    name: 'Búnker de Mando (Sede)',
+    cost: { alloys: 1000, fuel: 400, microchips: 200 },
+    radiusHexes: 'MUNICIPALITY',
+    description:
+      'Otorga +25% resistencia a la captura en todo el municipio. Si es destruido o capturado, el municipio cae al instante.',
+  },
+};
+
+const DRONE_UNLOCK_TIER_MAP: Record<DroneArchetypeId, 1 | 2 | 3> = {
+  infantry_swarm: 1,
+  recon_explorer: 1,
+  light_artillery: 1,
+  medium_tank: 2,
+  anti_air: 2,
+  logistics_apc: 2,
+  bomber_drone: 3,
+  neo_tank: 3,
+  tactical_missile: 3,
+};
+
+export function canUnlockDroneTier(
+  unitType: DroneArchetypeId,
+  state: {
+    hasBasicFactory: boolean;
+    corpControlledMunicipalities: number;
+    hasAdvancedWorkshop: boolean;
+    stateControlRatio: number;
+    hasIndustrialComplex: boolean;
+  }
+): { allowed: boolean; tierLevel: 1 | 2 | 3; reason?: string } {
+  const tierLevel = DRONE_UNLOCK_TIER_MAP[unitType];
+  if (tierLevel === 1) {
+    return state.hasBasicFactory
+      ? { allowed: true, tierLevel }
+      : { allowed: false, tierLevel, reason: 'Requiere Fábrica Básica individual.' };
+  }
+  if (tierLevel === 2) {
+    if (state.corpControlledMunicipalities < 1 || !state.hasAdvancedWorkshop) {
+      return {
+        allowed: false,
+        tierLevel,
+        reason: 'Nivel 2 requiere Corporación con >= 1 municipio y Taller Avanzado.',
+      };
+    }
+    return { allowed: true, tierLevel };
+  }
+  if (state.stateControlRatio <= 0.60 || !state.hasIndustrialComplex) {
+    return {
+      allowed: false,
+      tierLevel,
+      reason: 'Nivel 3 requiere Control Estatal >60% y Complejo Industrial.',
+    };
+  }
+  return { allowed: true, tierLevel };
+}
+
+export function settleResourceTriadExtraction(params: {
+  gross: ResourceTriad;
+  isAlliedMunicipality: boolean;
+  alliedTaxRate?: number;
+  hasCorporateFreeZonePerk?: boolean;
+  hasCustomsRefineryBuilding?: boolean;
+}): {
+  adjustedGross: ResourceTriad;
+  netPlayer: ResourceTriad;
+  retainedCorpVault: ResourceTriad;
+  appliedTaxRate: number;
+} {
+  const refineryMult = params.hasCustomsRefineryBuilding ? 1.2 : 1.0;
+  const adjustedGross: ResourceTriad = {
+    alloys: Math.floor(Math.max(0, params.gross.alloys) * refineryMult),
+    fuel: Math.floor(Math.max(0, params.gross.fuel) * refineryMult),
+    microchips: Math.floor(Math.max(0, params.gross.microchips) * refineryMult),
+  };
+
+  let appliedTaxRate: number;
+  if (!params.isAlliedMunicipality) {
+    appliedTaxRate = MASTER_METAGAME_CONSTANTS.RIVAL_RETENTION_RATE_MAX; // 50%
+  } else if (params.hasCorporateFreeZonePerk) {
+    appliedTaxRate = 0.0; // Perk Zona Franca Corporativa: 0%
+  } else {
+    const raw = params.alliedTaxRate ?? 0.1;
+    appliedTaxRate = Math.max(
+      MASTER_METAGAME_CONSTANTS.ALLIED_TAX_RATE_MIN,
+      Math.min(MASTER_METAGAME_CONSTANTS.ALLIED_TAX_RATE_MAX, raw)
+    );
+  }
+
+  const retainedCorpVault: ResourceTriad = {
+    alloys: Math.floor(adjustedGross.alloys * appliedTaxRate),
+    fuel: Math.floor(adjustedGross.fuel * appliedTaxRate),
+    microchips: Math.floor(adjustedGross.microchips * appliedTaxRate),
+  };
+  const netPlayer: ResourceTriad = {
+    alloys: Math.max(0, adjustedGross.alloys - retainedCorpVault.alloys),
+    fuel: Math.max(0, adjustedGross.fuel - retainedCorpVault.fuel),
+    microchips: Math.max(0, adjustedGross.microchips - retainedCorpVault.microchips),
+  };
+
+  return {
+    adjustedGross,
+    netPlayer,
+    retainedCorpVault,
+    appliedTaxRate,
   };
 }

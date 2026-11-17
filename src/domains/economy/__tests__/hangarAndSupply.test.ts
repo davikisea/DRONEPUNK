@@ -2,8 +2,8 @@
  * ==============================================================================
  * SUITE DE PRUEBAS CANÓNICAS: HANGAR, DOBLE LLAVE Y SOFT CAP DE SUMINISTROS
  * ==============================================================================
- * Reemplaza la suite legada de mazos CCG.
- * Especificación: docs/00_GEOTACTICS_ONLINE_MASTER_SPEC.md (v0.0.1-alfa)
+ * Valida el Almacén Físico de 16 Chasis (Pilar 1) y el Soft Cap logístico.
+ * Especificación: docs/00_GEOTACTICS_ONLINE_MASTER_SPEC.md (DRONEPUNK 0.0.1)
  * Pilares: Advance Wars 1-100 HP + Doble Llave Material + Soft Cap Logístico (14 tropas)
  * ==============================================================================
  */

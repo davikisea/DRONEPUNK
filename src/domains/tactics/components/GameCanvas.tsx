@@ -83,8 +83,11 @@ const TERRAIN_PALETTE: Record<TerrainType, { bg: string; border: string; detail:
   bridge:   { bg: '#735738', border: '#42311f', detail: '#a37e55', label: 'Puente' },
   commtower:{ bg: '#385566', border: '#20323d', detail: '#5ca2c9', label: 'Torre Com.' },
   silo:     { bg: '#4f5459', border: '#2f3236', detail: '#8b949e', label: 'Silo Misil' },
+  usedSilo: { bg: '#3e4246', border: '#25282b', detail: '#6b7280', label: 'Silo Usado' },
   lab:      { bg: '#3e5449', border: '#24332c', detail: '#659c81', label: 'Laboratorio' },
   pipe:     { bg: '#5c636b', border: '#33373b', detail: '#8a949f', label: 'Oleoducto' },
+  pipeSeam: { bg: '#6b5c4f', border: '#3b332b', detail: '#b89f8a', label: 'Junta Tub.' },
+  rubble:   { bg: '#524f46', border: '#2e2c26', detail: '#8a8575', label: 'Escombros' },
 };
 
 export const GameCanvas: React.FC<GameCanvasProps> = ({

@@ -87,4 +87,107 @@ export interface SecessionEvaluationResult {
   reason: string;
 }
 
+// ============================================================================
+// POLÍTICA MACRO ESCALADA: GESTOR MUNICIPAL, PERKS ESTATALES Y CORPORACIÓN
+// ============================================================================
+
+export type MunicipalAuditActionType =
+  | 'toggle_radar'
+  | 'toggle_workshop'
+  | 'toggle_sam_battery'
+  | 'adjust_local_tax'
+  | 'sabotage_radar_pre_incursion'
+  | 'fiscal_diversion_detected';
+
+export interface MunicipalAuditLogEntry {
+  id: string;
+  municipalityId: string;
+  actorUserId: string;
+  actorUserName: string;
+  actionType: MunicipalAuditActionType;
+  previousValue: string;
+  newValue: string;
+  isSuspiciousCorruption: boolean;
+  timestamp: string;
+}
+
+export interface MunicipalPublicBuildingsState {
+  earlyWarningRadarActive: boolean;
+  rapidRepairWorkshopActive: boolean;
+  samBatteryActive: boolean;
+}
+
+export interface MunicipalManagerRole {
+  managerUserId: string;
+  managerUserName: string;
+  municipalityId: string;
+  stateId: string;
+  appointedByClanId: string;
+  publicBuildingsState: MunicipalPublicBuildingsState;
+  localTaxRate: number;
+  corruptionRiskScore: number;
+  auditTrailLogs: MunicipalAuditLogEntry[];
+  updatedAt: string;
+}
+
+export interface StateLevelPerkState {
+  stateId: string;
+  controllingClanId: string | null;
+  controlledMunicipalitiesCount: number;
+  totalMunicipalitiesCount: number;
+  controlRatio: number;
+  isPerkUnlocked: boolean;
+  borderFuelDiscountMultiplier: number;
+  adjacentConquestSpeedMultiplier: number;
+}
+
+export interface CorporateMacroPrivilegeState {
+  clanId: string;
+  controlledMunicipalitiesCount: number;
+  advancedTechTreeUnlocked: boolean;
+  unlockedHeavyChassis: string[];
+  officialDiplomacyEnabled: boolean;
+  nonAggressionPacts: string[];
+  customTariffTreaties: Record<string, number>;
+}
+
+// ============================================================================
+// INFRAESTRUCTURA MUNICIPAL (6 EDIFICIOS) Y PERKS ESTATALES (3 RAMAS / 8 PERKS)
+// ============================================================================
+
+export type MunicipalBuildingType =
+  | 'EARLY_WARNING_RADAR'
+  | 'RAPID_REPAIR_WORKSHOP'
+  | 'FIXED_AA_BATTERY'
+  | 'JAMMER_CENTER'
+  | 'CUSTOMS_REFINERY'
+  | 'COMMAND_BUNKER';
+
+export interface MunicipalBuildingSpec {
+  type: MunicipalBuildingType;
+  name: string;
+  cost: { alloys: number; fuel: number; microchips: number };
+  radiusHexes: number | 'MUNICIPALITY';
+  description: string;
+}
+
+export type StatePerkBranch = 'EXPANSION' | 'INDUSTRIAL' | 'FORTRESS';
+
+export type StatePerkId =
+  | 'VANGUARD_LOGISTICS'
+  | 'BLITZKRIEG_DOCTRINE'
+  | 'ASYMMETRIC_WARFARE'
+  | 'MICROCHIP_SUBSIDY'
+  | 'CORPORATE_FREE_ZONE'
+  | 'CENTRALIZED_SUPPLY'
+  | 'CIVIL_MOBILIZATION'
+  | 'INTEGRATED_DEFENSE_NET';
+
+export interface StatePerkSpec {
+  id: StatePerkId;
+  branch: StatePerkBranch;
+  name: string;
+  description: string;
+}
+
 

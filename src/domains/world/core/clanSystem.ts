@@ -2,16 +2,16 @@
  * ==============================================================================
  * MOTOR DE CORPORACIONES MILITARES (CLANES), IDENTIDAD Y GUERRA TERRITORIAL
  * ==============================================================================
- * Proyecto: Tactical Command: Wars of Legacy
- * Especificación Canónica: docs/PROPUESTA_REINGENIERIA_SOCIAL_Y_CLANES.md
- * Referencias: docs/03_MASTER_COMMANDERS_BARK_AND_SOCIAL.md §4 & docs/02 §5
+ * Proyecto: DRONEPUNK 0.0.1
+ * Especificación Canónica: docs/03_MASTER_COMMANDERS_BARK_AND_SOCIAL.md
+ * Referencias: docs/03_MASTER_COMMANDERS_BARK_AND_SOCIAL.md §4 & docs/02_MASTER_METAGAME_INDUSTRY_ECONOMY.md §5
  * 
  * Reglas Canónicas Implementadas:
  * 1. Bóveda de Guerra Escalonada (Tier 1 a 3): según combatientes activos en el ciclo de 24h.
  * 2. Embargo por Deshonor Rebalanceado (Split 50% Tesorería / 50% Top 3: 50%/30%/20%).
- * 3. Protocolo de Rescate de Camarada (Comrade Rescue): fianza pagada por aliados, recompensas de XP y tributo de cartas.
+ * 3. Protocolo de Rescate de Camarada (Comrade Rescue): fianza pagada por aliados, recompensas de XP y tributo de suministros.
  * 4. Licencias de Cuartel (Military Furlough): 2 días mensuales de gracia justificada.
- * 5. Logística Fraternal: Donaciones de cartas (8 Comunes / 2 Raras / Domingos de Épicas) con recompensas de Oro y XP.
+ * 5. Logística Fraternal: Donaciones de chasis/planos (8 Comunes / 2 Raras / Domingos de Épicas) con recompensas de Oro y XP.
  * 6. Transferencias P2P de Emergencia: Arancel fiscal del 4% canalizado a la tesorería corporativa.
  * 7. Guerra Territorial de Clanes: 7 Sectores Estratégicos disputados en ciclos de 72h con multiplicador 2.0x en 2v2.
  * 8. Proyectos del Alto Mando: Sumideros de tesorería para buffs colectivos (Sobrealimentación Industrial, Asedios).
@@ -50,6 +50,7 @@ export interface Clan {
   activeWarBuffs?: ActiveClanBuff[];
   clanBannerId?: string;
   prioritySectorId?: number;
+  color?: string;
 }
 
 export interface ClanMember {
@@ -174,7 +175,7 @@ export const CANONICAL_TERRITORY_SECTORS: TerritorySector[] = [
   {
     sectorId: 1,
     name: 'Base Aérea Águila Negra',
-    description: '+10% probabilidad de cartas y planos aéreos en cofres.',
+    description: '+10% probabilidad de chasis y planos aéreos en recompensas de sector.',
     strategicBuffType: 'buff_air_drop',
     totalDeploymentPoints: 1250,
     clanDeploymentPoints: {},
@@ -264,7 +265,7 @@ export const CLAN_PROJECTS: Record<string, ClanProject> = {
 };
 
 // ------------------------------------------------------------------------------
-// SOLICITUDES Y DONACIONES DE CARTAS
+// SOLICITUDES Y DONACIONES DE CHASIS Y SUMINISTROS
 // ------------------------------------------------------------------------------
 export interface ClanCardRequest {
   id: string;
@@ -561,7 +562,7 @@ export class ClanEngine {
   }
 
   /**
-   * Crear Solicitud de Donación de Cartas:
+   * Crear Solicitud de Donación de Chasis:
    * - Enfriamiento de 8 horas.
    * - Cuotas: 8 comunes, 2 raras, 1 épica (solo domingos).
    */
@@ -584,7 +585,7 @@ export class ClanEngine {
       return { success: false, errorMessage: 'Requieres Nivel de Mando 8 para solicitar suministros logísticos.' };
     }
     if (now - requester.joinedAt < 7 * 86400000) {
-      return { success: false, errorMessage: 'Requieres al menos 7 días de permanencia en el clan para solicitar cartas.' };
+      return { success: false, errorMessage: 'Requieres al menos 7 días de permanencia en el clan para solicitar chasis.' };
     }
     if (lastRequestAt && now - lastRequestAt < 8 * 3600000) {
       const hoursLeft = Math.ceil((8 * 3600000 - (now - lastRequestAt)) / 3600000);
@@ -595,7 +596,7 @@ export class ClanEngine {
     if (rarity === 'rare') amount = 2;
     if (rarity === 'epic') {
       if (!isSunday) {
-        return { success: false, errorMessage: 'Las cartas épicas solo pueden solicitarse durante el Domingo de Suministros.' };
+        return { success: false, errorMessage: 'Los chasis épicos solo pueden solicitarse durante el Domingo de Suministros.' };
       }
       amount = 1;
     }
@@ -619,7 +620,7 @@ export class ClanEngine {
   }
 
   /**
-   * Donar cartas a una solicitud activa:
+   * Donar chasis a una solicitud activa:
    * Retribuye al donante con Oro y XP instantáneos.
    */
   public static donateCards(
@@ -634,7 +635,7 @@ export class ClanEngine {
     errorMessage?: string;
   } {
     if (request.requesterId === donor.userId) {
-      return { success: false, errorMessage: 'No puedes donarte cartas a ti mismo.' };
+      return { success: false, errorMessage: 'No puedes donarte chasis a ti mismo.' };
     }
     if (request.isFulfilled) {
       return { success: false, errorMessage: 'Esta solicitud ya ha sido completada en su totalidad.' };
@@ -837,5 +838,21 @@ export class ClanEngine {
         };
       }
     }
+  }
+
+  /**
+   * Acredita la retención fiscal territorial (5-10% aliado o hasta 50% a extractores rivales)
+   * directamente en la bóveda de la Corporación gobernante del municipio.
+   */
+  public static creditTerritorialTaxToVault(
+    clan: Clan,
+    retainedGoldOrEc: number,
+    retainedSteel: number = 0
+  ): Clan {
+    return {
+      ...clan,
+      treasuryGold: clan.treasuryGold + Math.max(0, Math.floor(retainedGoldOrEc)),
+      treasurySteel: clan.treasurySteel + Math.max(0, Math.floor(retainedSteel)),
+    };
   }
 }

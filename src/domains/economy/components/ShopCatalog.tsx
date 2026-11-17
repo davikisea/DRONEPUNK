@@ -126,7 +126,7 @@ export const ShopCatalog: React.FC<ShopCatalogProps> = ({
               </span>
             </h3>
             <p className="text-[11px] text-[#7B8A4A] mt-0.5 font-bold">
-              Personalizaciones 100% cosméticas. Estadísticas idénticas y niveladas a Nivel 11 en torneos oficiales.
+              Personalizaciones 100% cosméticas. Estadísticas idénticas y paridad Tier 1 en torneos oficiales.
             </p>
           </div>
         </div>

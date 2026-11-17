@@ -2,7 +2,7 @@
  * ==============================================================================
  * MOTOR DE REFUERZOS Y LOGÍSTICA DE COMBATE (REINFORCEMENT ENGINE)
  * ==============================================================================
- * Especificación Canónica: METAGAME_DESIGN/MASTER_METAGAME_SPEC_V1.md §5.1
+ * Especificación Canónica: docs/05_MASTER_GAME_ENGINE_AND_NETWORKING.md & docs/00_GEOTACTICS_ONLINE_MASTER_SPEC.md §5
  * Invariantes:
  * 1. Petición única de refuerzos por batalla (MaxRequests = 1).
  * 2. Latencia determinista: Llegada en Ronda T + 4.

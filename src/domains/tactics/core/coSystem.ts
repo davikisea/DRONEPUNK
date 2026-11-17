@@ -1,6 +1,6 @@
 /**
  * SISTEMA CANÓNICO DE COMANDANTES (COMMANDING OFFICERS - COs)
- * Especificación Advance Wars / WarsWorld / TacticalCommand
+ * Especificación Advance Wars / WarsWorld / DRONEPUNK 0.0.1
  * 
  * Reglas Oficiales:
  * 1. Medidor de Poder:
@@ -86,7 +86,7 @@ export const DEFENSIVE_CHARGE_MULT = 1.0;
 export const OFFENSIVE_CHARGE_MULT = 0.5;
 
 /**
- * Escala un delta de daño/cura según la escala continua (1-100 HP vs legacy 1-10 HP)
+ * Escala un delta de daño/cura según la escala continua 1-100 HP (manteniendo compatibilidad interna de coeficientes base)
  */
 function scaleHpValue(u: { hp: number; maxHp?: number }, hp10Value: number): { delta: number; maxHp: number } {
   const is100 = u.hp > 10 || u.maxHp === 100;

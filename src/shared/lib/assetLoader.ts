@@ -168,10 +168,10 @@ class TacticalAssetLoader {
           ctx.imageSmoothingEnabled = false;
 
           if (rotated) {
-            // TexturePacker rota 90° antihorario en el atlas; para restaurar rotamos 90° horario (+PI/2)
+            // TexturePacker rota 90° horario en el atlas; para restaurar rotamos 90° antihorario (-PI/2)
             ctx.save();
-            ctx.translate(w, 0);
-            ctx.rotate(Math.PI / 2);
+            ctx.translate(0, h);
+            ctx.rotate(-Math.PI / 2);
             ctx.drawImage(img, x, y, h, w, 0, 0, h, w);
             ctx.restore();
           } else {
@@ -305,6 +305,13 @@ class TacticalAssetLoader {
 
   public getOverallProgress(): number {
     return this.currentProgress;
+  }
+
+  /**
+   * Obtiene directamente un fotograma crudo extraído de un atlas spritesheet cargado.
+   */
+  public getRawSheetSprite(sheetName: string, frameName: string): HTMLCanvasElement | null {
+    return this.realSprites.get(`${sheetName}/${frameName}`) || null;
   }
 
   /**
@@ -1279,6 +1286,65 @@ class TacticalAssetLoader {
 
     return canvas;
   }
+}
+
+export const UNIT_GREEN_SPRITE_PATHS: Record<string, string> = {
+  green_infantry: '/assets/units/green-earth/Infantry-0.png',
+  green_mech: '/assets/units/green-earth/Mech-0.png',
+  green_recon: '/assets/units/green-earth/Recon-0.png',
+  green_apc: '/assets/units/green-earth/APC-0.png',
+  green_tank: '/assets/units/green-earth/Tank-0.png',
+  green_md_tank: '/assets/units/green-earth/MdTank-0.png',
+  green_neotank: '/assets/units/green-earth/NeoTank-0.png',
+  green_megatank: '/assets/units/green-earth/MegaTank-0.png',
+  green_anti_air: '/assets/units/green-earth/Anti-Air-0.png',
+  green_artillery: '/assets/units/green-earth/Artillery-0.png',
+  green_rocket: '/assets/units/green-earth/Rocket-0.png',
+  green_missile: '/assets/units/green-earth/Missile-0.png',
+  green_b_copter: '/assets/units/green-earth/B-Copter-0.png',
+  green_t_copter: '/assets/units/green-earth/T-Copter-0.png',
+  green_fighter: '/assets/units/green-earth/Fighter-0.png',
+  green_bomber: '/assets/units/green-earth/Bomber-0.png',
+  green_black_bomb: '/assets/units/green-earth/BlackBomb-0.png',
+  green_battleship: '/assets/units/green-earth/Battleship-0.png',
+};
+
+const UNIT_CODE_TO_GREEN_SPRITE: Record<string, string> = {
+  // 16 Chasis Tácticos Canónicos + alias
+  infantry: 'green_infantry',
+  mech: 'green_mech',
+  recon: 'green_recon',
+  apc: 'green_apc',
+  tank: 'green_tank',
+  tank_light: 'green_tank',
+  tank_medium: 'green_md_tank',
+  md_tank: 'green_md_tank',
+  neotank: 'green_neotank',
+  anti_air: 'green_anti_air',
+  artillery: 'green_artillery',
+  rocket: 'green_rocket',
+  missiles: 'green_missile',
+  missile: 'green_missile',
+  b_copter: 'green_b_copter',
+  chopper_battle: 'green_b_copter',
+  t_copter: 'green_t_copter',
+  fighter: 'green_fighter',
+  bomber: 'green_bomber',
+  battleship: 'green_battleship',
+  // 9 Drones Autónomos H3
+  infantry_swarm: 'green_infantry',
+  recon_explorer: 'green_recon',
+  light_artillery: 'green_artillery',
+  medium_tank: 'green_md_tank',
+  logistics_apc: 'green_apc',
+  bomber_drone: 'green_black_bomb',
+  neo_tank: 'green_megatank',
+  tactical_missile: 'green_missile',
+};
+
+export function resolveUnitSpriteKey(unitCode: string): string {
+  const normalized = unitCode.trim().toLowerCase().replace(/-/g, '_');
+  return UNIT_CODE_TO_GREEN_SPRITE[normalized] || 'green_tank';
 }
 
 export const assetLoader = TacticalAssetLoader.getInstance();

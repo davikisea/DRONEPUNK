@@ -31,7 +31,7 @@ echo # =========================================================================
 echo # TACTICAL COMMAND: WARS OF LEGACY - LOCAL ENVIRONMENT VARIABLES
 echo # ==============================================================================
 echo VITE_APP_ENV="development"
-echo VITE_APP_URL="http://localhost:3000"
+echo VITE_APP_URL="http://localhost:5000"
 echo VITE_VERCEL_ENV="development"
 echo VITE_APP_VERSION="1.0.0"
 echo.
@@ -47,7 +47,7 @@ echo VITE_ENABLE_ANALYTICS="false"
 echo.
 echo # --- Gemini AI Integration ---
 echo GEMINI_API_KEY=""
-echo APP_URL="http://localhost:3000"
+echo APP_URL="http://localhost:5000"
 ) > .env.local
 
 echo [*] Archivo .env.local configurado correctamente con credenciales de Supabase.
@@ -66,7 +66,7 @@ echo       INSTALACION COMPLETADA CON EXITO
 echo =====================================================================
 echo.
 echo Abriendo aplicacion en el navegador y arrancando servidor local...
-start http://localhost:3000
+start http://localhost:5000
 npm run dev
 
 pause

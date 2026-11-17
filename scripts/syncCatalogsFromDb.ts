@@ -2,9 +2,9 @@
  * ==============================================================================
  * SCRIPT DE SINCRONIZACIÓN Y GENERACIÓN DDL -> TYPESCRIPT (SSOT CATALOG SYNC)
  * ==============================================================================
- * Conforme a plan_catalog_ssot_synchronization.md
+ * Conforme al canon SSOT de DRONEPUNK 0.0.1 (docs/04_MASTER_DATABASE_AND_SECURITY_SPEC.md)
  * Extrae o compila las tablas maestras de catálogo desde PostgreSQL / Migraciones
- * y genera el bundle inmutable y tipado: src/engine/data/catalogs.generated.ts
+ * y genera el bundle inmutable y tipado: src/shared/data/catalogs.generated.ts
  * ==============================================================================
  */
 

@@ -3,7 +3,7 @@
  * INTEGRACIÓN CONTINUA DE COMBATE TÁCTICO, SEAMLESS ZOOM Y DOBLE LLAVE (FASE 4)
  * ==============================================================================
  * Especificación Canónica: docs/00_GEOTACTICS_ONLINE_MASTER_SPEC.md §3, §4 & §5
- * Plan Maestro: PLAN_MAESTRO_IMPLEMENTACION_GEOTACTICS_ALICE_CERO_INCERTIDUMBRE.md
+ * Plan Maestro: docs/00_GEOTACTICS_ONLINE_MASTER_SPEC.md §5 & docs/05_MASTER_GAME_ENGINE_AND_NETWORKING.md
  * ==============================================================================
  * Controla:
  * 1. Semantic LOD (LOD 1 Global -> LOD 2 Operacional -> LOD 3 Táctico a z >= 13.0).

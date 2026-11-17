@@ -14,8 +14,8 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Radio, Users, Sparkles, MessageSquare } from 'lucide-react';
+import { motion } from 'motion/react';
+import { Radio, Users } from 'lucide-react';
 import {
   CANONICAL_CO_REGISTRY,
   COId,
@@ -24,6 +24,7 @@ import {
   getCOFullBodyUrl,
 } from '@domains/tactics';
 import { audioManager } from '../core/audioManager';
+import { barkEngine } from '../core/barkEngine';
 
 export type BarkBalloonType = 'radio' | 'panic' | 'thought' | 'shout' | 'whisper';
 
@@ -86,6 +87,34 @@ export const CommanderBarkWidget: React.FC<CommanderBarkWidgetProps> = ({
   const [clickCounter, setClickCounter] = useState(0);
   const [isSquashing, setIsSquashing] = useState(false);
   const barkTimerRef = useRef<number | null>(null);
+  const squashTimerRef = useRef<number | null>(null);
+  const onClearExternalMessageRef = useRef(onClearExternalMessage);
+  onClearExternalMessageRef.current = onClearExternalMessage;
+
+  // Limpiar temporizadores pendientes al desmontar
+  useEffect(() => {
+    return () => {
+      if (barkTimerRef.current) clearTimeout(barkTimerRef.current);
+      if (squashTimerRef.current) clearTimeout(squashTimerRef.current);
+    };
+  }, []);
+
+  // Canalizar eventos del barkEngine directamente al bocadillo inferior izquierdo (sin duplicar toasts en Lobby Map-First)
+  useEffect(() => {
+    const unsubscribe = barkEngine.subscribe((bark) => {
+      if (!bark) return;
+      const resolvedShape: BarkBalloonType =
+        bark.bubbleShape === 'speech' ? 'radio' : bark.bubbleShape;
+      setActiveBark({
+        id: bark.id,
+        text: bark.text,
+        balloonType: resolvedShape || 'radio',
+        stamp: bark.onomatopoeia || '¡TACTICAL!',
+        durationMs: bark.durationMs,
+      });
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Reaccionar a mensajes externos (eventos del mapa o clics en el juego)
   useEffect(() => {
@@ -93,10 +122,11 @@ export const CommanderBarkWidget: React.FC<CommanderBarkWidgetProps> = ({
       setActiveBark(externalMessage);
       if (barkTimerRef.current) clearTimeout(barkTimerRef.current);
       barkTimerRef.current = window.setTimeout(() => {
-        onClearExternalMessage?.();
+        barkTimerRef.current = null;
+        onClearExternalMessageRef.current?.();
       }, externalMessage.durationMs ?? 6000);
     }
-  }, [externalMessage, onClearExternalMessage]);
+  }, [externalMessage]);
 
   // Reaccionar a cambio de sector seleccionado en el mapa
   useEffect(() => {
@@ -123,11 +153,21 @@ export const CommanderBarkWidget: React.FC<CommanderBarkWidgetProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onOpenDossier]);
 
-  // Manejador de clic directo sobre el comandante (Squash & Stretch + Bark + SFX)
+  // Manejador de clic directo sobre el comandante o su nube de diálogo (Squash & Stretch + Bark + SFX)
   const handleCommanderClick = () => {
     audioManager.playHoverTick();
     setIsSquashing(true);
-    setTimeout(() => setIsSquashing(false), 160);
+    if (squashTimerRef.current) clearTimeout(squashTimerRef.current);
+    squashTimerRef.current = window.setTimeout(() => {
+      setIsSquashing(false);
+      squashTimerRef.current = null;
+    }, 160);
+
+    if (barkTimerRef.current) {
+      clearTimeout(barkTimerRef.current);
+      barkTimerRef.current = null;
+    }
+    onClearExternalMessage?.();
 
     const barksList = DEFAULT_DOCTRINE_BARKS[canonicalId] ?? DEFAULT_DOCTRINE_BARKS.stella;
     const nextIndex = (clickCounter + 1) % barksList.length;
@@ -171,9 +211,8 @@ export const CommanderBarkWidget: React.FC<CommanderBarkWidgetProps> = ({
         key={activeBark.id + activeBark.text}
         initial={{ opacity: 0, y: 12, scale: 0.94 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.9 }}
         transition={{ type: 'spring', stiffness: 420, damping: 24 }}
-        className={`relative p-2.5 sm:p-3 rounded-[12px_4px_12px_4px] max-w-[280px] sm:max-w-[340px] mb-2 pointer-events-auto backdrop-blur-sm ${containerStyle}`}
+        className={`relative p-2.5 sm:p-3 rounded-[12px_4px_12px_4px] max-w-[280px] sm:max-w-[340px] mb-2 pointer-events-auto cursor-pointer select-none backdrop-blur-sm ${containerStyle}`}
         onClick={handleCommanderClick}
         title="Haz clic para solicitar una nueva directiva táctica"
       >
@@ -214,19 +253,17 @@ export const CommanderBarkWidget: React.FC<CommanderBarkWidgetProps> = ({
       aria-label="Oficial al Mando de Vanguardia (Bark Engine)"
     >
       {/* 1. Bocadillo Reactivo del Bark Engine */}
-      <AnimatePresence mode="wait">
-        {renderBalloon()}
-      </AnimatePresence>
+      {renderBalloon()}
 
-      {/* 2. Personaje Recortado e Integrado (Mayor Stella / CO Activo) */}
+      {/* 2. Personaje Recortado e Integrado (Mayor Stella / CO Activo - Vista 40% Busto) */}
       <div className="pointer-events-auto relative flex flex-col items-start group">
         {/* Halo Diegético de Facción (Sin caja blanca: silueta transparente con profundidad) */}
         <div
-          className="absolute -bottom-1 -left-1 w-32 h-32 rounded-full blur-xl opacity-35 pointer-events-none transition-colors duration-300"
+          className="absolute bottom-1 left-1 w-28 h-24 rounded-full blur-xl opacity-35 pointer-events-none transition-colors duration-300"
           style={{ backgroundColor: factionMeta.primaryHex }}
         />
 
-        {/* Figura del Comandante Recortada con Respiración Idle y Squash & Stretch */}
+        {/* Figura del Comandante Recortada al 40% Superior con Respiración Idle y Squash & Stretch */}
         <button
           type="button"
           onClick={handleCommanderClick}
@@ -239,16 +276,18 @@ export const CommanderBarkWidget: React.FC<CommanderBarkWidgetProps> = ({
               : 'transform 0.22s cubic-bezier(0.22, 1, 0.36, 1)',
           }}
         >
-          <img
-            src={fullBodyUrl}
-            alt={`${activeCO.name} - Oficial de Vanguardia`}
-            className="h-[170px] sm:h-[210px] w-auto object-contain object-bottom drop-shadow-[5px_5px_0px_#0A0B08] filter brightness-105 group-hover:scale-105 transition-transform duration-200 co-idle-breathe"
-            draggable={false}
-            onError={(e) => {
-              // Fallback seguro si la imagen tardara en cargar
-              (e.target as HTMLElement).style.display = 'none';
-            }}
-          />
+          <div className="relative overflow-hidden h-[114px] sm:h-[134px] flex items-start justify-center">
+            <img
+              src={fullBodyUrl}
+              alt={`${activeCO.name} - Oficial de Vanguardia`}
+              className="h-[285px] sm:h-[335px] w-auto max-w-none object-cover object-top drop-shadow-[5px_5px_0px_#0A0B08] filter brightness-105 group-hover:scale-105 transition-transform duration-200 co-idle-breathe"
+              draggable={false}
+              onError={(e) => {
+                // Fallback seguro si la imagen tardara en cargar
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
+          </div>
 
           {/* Prompt flotante sutil al pasar el cursor */}
           <span className="opacity-0 group-hover:opacity-100 transition-opacity absolute top-4 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-[4px_1px_4px_1px] bg-[#0A0B08]/90 text-amber-300 border border-amber-400 font-mono font-black text-[9px] uppercase tracking-wider shadow-[2px_2px_0px_#000] pointer-events-none whitespace-nowrap z-20">
@@ -256,8 +295,8 @@ export const CommanderBarkWidget: React.FC<CommanderBarkWidgetProps> = ({
           </span>
         </button>
 
-        {/* 3. Placa Base Militar Diegética a los pies del Personaje */}
-        <div className="relative z-20 -mt-2.5 flex items-center gap-1.5 p-1 px-2 rounded-[8px_2px_8px_2px] bg-[#1E2019]/95 border-2 border-[#0A0B08] shadow-[4px_4px_0px_#0A0B08] backdrop-blur text-left">
+        {/* 3. Placa Base Militar Diegética en la base del busto */}
+        <div className="relative z-20 -mt-1 flex items-center gap-1.5 p-1 px-2 rounded-[8px_2px_8px_2px] bg-[#1E2019]/95 border-2 border-[#0A0B08] shadow-[4px_4px_0px_#0A0B08] backdrop-blur text-left">
           {/* Badge de Facción Heráldico */}
           <span
             className={`px-1.5 py-0.5 rounded-[4px_1px_4px_1px] font-display font-black text-[10px] uppercase border border-[#0A0B08] text-white ${

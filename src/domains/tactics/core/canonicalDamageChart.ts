@@ -4,7 +4,7 @@
  * Define las matrices de daño primario (con consumo de munición pesada)
  * y secundario (ametralladora de munición infinita) para todas las unidades tácticas.
  * 
- * Extraído de la lógica canónica de WarsWorld y adaptado a las especificaciones de TacticalCommand.
+ * Extraído de la lógica canónica de WarsWorld y adaptado a las especificaciones de DRONEPUNK 0.0.1.
  */
 
 export interface WeaponDamageMap {
@@ -343,16 +343,23 @@ export const CANONICAL_DAMAGE_CHART: Record<string, UnitWeaponry> = {
 };
 
 /**
- * Normaliza nombres alternativos de unidades al formato interno de TacticalCommand
+ * Normaliza nombres alternativos de unidades al formato interno de DRONEPUNK 0.0.1
  */
 export function normalizeUnitCode(code: string): string {
-  const c = code.toLowerCase().replace('-', '_');
+  const c = code.toLowerCase().replace(/-/g, '_');
   if (c === 'tank') return 'tank_light';
-  if (c === 'mediumtank') return 'tank_medium';
+  if (c === 'mediumtank' || c === 'medium_tank' || c === 'md_tank') return 'tank_medium';
   if (c === 'antiair') return 'anti_air';
-  if (c === 'battlecopter' || c === 'copter') return 'b_copter';
+  if (c === 'battlecopter' || c === 'copter' || c === 'chopper_battle') return 'b_copter';
   if (c === 'transport_copter' || c === 'transportcopter' || c === 'tcopter') return 't_copter';
   if (c === 'missile' || c === 'missile_launcher') return 'missiles';
+  if (c === 'infantry_swarm') return 'infantry';
+  if (c === 'recon_explorer') return 'recon';
+  if (c === 'light_artillery') return 'artillery';
+  if (c === 'logistics_apc') return 'apc';
+  if (c === 'bomber_drone') return 'bomber';
+  if (c === 'neo_tank' || c === 'heavy_tank') return 'neotank';
+  if (c === 'tactical_missile') return 'rocket';
   return c;
 }
 
@@ -412,7 +419,14 @@ export function getCanonicalBaseDamage(
  */
 export function isIndirectFireUnit(unitCode: string): boolean {
   const code = normalizeUnitCode(unitCode);
-  return code === 'artillery' || code === 'rocket' || code === 'missile' || code === 'battleship' || code === 'piperunner';
+  return (
+    code === 'artillery' ||
+    code === 'rocket' ||
+    code === 'missile' ||
+    code === 'missiles' ||
+    code === 'battleship' ||
+    code === 'piperunner'
+  );
 }
 
 /**
@@ -425,4 +439,96 @@ export function canDirectlyAttack(attackerCode: string, defenderCode: string): b
 }
 
 export const COMBAT_EFFECTIVENESS_MATRIX = CANONICAL_DAMAGE_CHART;
+
+// ==============================================================================
+// MATRIZ BALÍSTICA 8x8 CANÓNICA DEL CEREBRO GEOTÁCTICO PERSISTENTE H3
+// ==============================================================================
+
+import type { DroneArchetypeId } from '@shared';
+
+export const H3_DRONE_BASE_DAMAGE_MATRIX: Record<
+  DroneArchetypeId,
+  Partial<Record<DroneArchetypeId, number>>
+> = {
+  infantry_swarm: {
+    infantry_swarm: 0.55,
+    recon_explorer: 0.12,
+    light_artillery: 0.15,
+    medium_tank: 0.05,
+    anti_air: 0.05,
+    neo_tank: 0.01,
+    logistics_apc: 0.15,
+    tactical_missile: 0.15,
+  },
+  recon_explorer: {
+    infantry_swarm: 0.70,
+    recon_explorer: 0.35,
+    light_artillery: 0.45,
+    medium_tank: 0.06,
+    anti_air: 0.04,
+    neo_tank: 0.01,
+    logistics_apc: 0.45,
+    tactical_missile: 0.45,
+  },
+  light_artillery: {
+    infantry_swarm: 0.90,
+    recon_explorer: 0.80,
+    light_artillery: 0.75,
+    medium_tank: 0.70,
+    anti_air: 0.75,
+    neo_tank: 0.40,
+    logistics_apc: 0.80,
+    tactical_missile: 0.80,
+  },
+  medium_tank: {
+    infantry_swarm: 0.75,
+    recon_explorer: 0.85,
+    light_artillery: 0.70,
+    medium_tank: 0.55,
+    anti_air: 0.65,
+    neo_tank: 0.15,
+    logistics_apc: 0.75,
+    tactical_missile: 0.75,
+  },
+  anti_air: {
+    infantry_swarm: 1.05,
+    recon_explorer: 0.60,
+    light_artillery: 0.50,
+    medium_tank: 0.25,
+    anti_air: 0.45,
+    bomber_drone: 1.00,
+    neo_tank: 0.10,
+    logistics_apc: 0.50,
+    tactical_missile: 0.50,
+  },
+  bomber_drone: {
+    infantry_swarm: 1.10,
+    recon_explorer: 1.05,
+    light_artillery: 1.05,
+    medium_tank: 1.05,
+    anti_air: 0.95,
+    neo_tank: 0.90,
+    logistics_apc: 1.05,
+    tactical_missile: 1.05,
+  },
+  neo_tank: {
+    infantry_swarm: 1.25,
+    recon_explorer: 1.25,
+    light_artillery: 1.15,
+    medium_tank: 1.05,
+    anti_air: 1.15,
+    neo_tank: 0.55,
+    logistics_apc: 1.25,
+    tactical_missile: 1.25,
+  },
+  logistics_apc: {},
+  tactical_missile: {},
+};
+
+export function getH3DroneBaseDamageRatio(
+  attacker: DroneArchetypeId,
+  defender: DroneArchetypeId
+): number {
+  return H3_DRONE_BASE_DAMAGE_MATRIX[attacker]?.[defender] ?? 0;
+}
 

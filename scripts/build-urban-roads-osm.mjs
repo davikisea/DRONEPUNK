@@ -3,7 +3,7 @@
  * GENERADOR DE RED VIAL URBANA Y CIUDADES REALES (C4ISR VECTOR PIPELINE)
  * ==============================================================================
  * Genera theatre_cities.json y theatre_urban_roads.json con precisión geográfica real
- * para el umbral de Zoom Operacional x10 de GEOTACTICS: ONLINE.
+ * para el umbral de Zoom Operacional x10 de DRONEPUNK 0.0.1.
  * ==============================================================================
  */
 

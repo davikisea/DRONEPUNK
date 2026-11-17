@@ -3,8 +3,7 @@
  * SUITE DE PRUEBAS UNITARIAS: CORPORACIONES MILITARES, BÓVEDA, IDENTIDAD Y GUERRA
  * ==============================================================================
  * Cobertura de especificaciones:
- * - docs/PROPUESTA_REINGENIERIA_SOCIAL_Y_CLANES.md
- * - docs/03_MASTER_COMMANDERS_BARK_AND_SOCIAL.md §4 & docs/02 §5
+ * - docs/03_MASTER_COMMANDERS_BARK_AND_SOCIAL.md §4 & docs/02_MASTER_METAGAME_INDUSTRY_ECONOMY.md
  * - docs/04_MASTER_DATABASE_AND_SECURITY_SPEC.md §3.3
  */
 
@@ -256,8 +255,8 @@ export function runClanTests(): {
     }
   });
 
-  // 6. Solicitud y Donación de Cartas Fraternal
-  record('Logística Fraternal: Solicitud de cartas según rareza y recompensas al donante', () => {
+  // 6. Solicitud y Donación de Chasis Fraternal
+  record('Logística Fraternal: Solicitud de chasis según tier/rareza y recompensas al donante', () => {
     const member: ClanMember = {
       userId: 'u_requester',
       userName: 'Tanque_01',
@@ -271,7 +270,7 @@ export function runClanTests(): {
       joinedAt: Date.now() - 10 * 86400000, // 10 días de antigüedad (> 7)
     };
 
-    // Solicitud común (8 cartas)
+    // Solicitud común (8 chasis)
     const reqCommon = ClanEngine.requestCardDonation('clan_01', member, 8, 'c_infantry', 'Infantería Pesada', 'common', null);
     if (!reqCommon.success || reqCommon.newRequest?.amountRequested !== 8) {
       throw new Error(`Solicitud común inválida: ${reqCommon.errorMessage}`);
@@ -283,7 +282,7 @@ export function runClanTests(): {
       throw new Error('Solicitud épica fuera de domingo debió fallar');
     }
 
-    // Donación de cartas: 2 comunes
+    // Donación de chasis: 2 comunes
     const donor: ClanMember = {
       userId: 'u_donor',
       userName: 'Donante Generoso',

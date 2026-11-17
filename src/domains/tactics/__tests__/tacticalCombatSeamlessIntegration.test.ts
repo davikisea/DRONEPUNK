@@ -2,7 +2,7 @@
  * ==============================================================================
  * SUITE DE PRUEBAS FASE 4: SEAMLESS ZOOM, DOBLE LLAVE Y HANDSHAKE 120s
  * ==============================================================================
- * Ejecución: npx tsx src/engine/tacticalCombatSeamlessIntegration.test.ts
+ * Ejecución: npx tsx src/domains/tactics/__tests__/tacticalCombatSeamlessIntegration.test.ts
  * ==============================================================================
  */
 
@@ -11,8 +11,14 @@ import {
   validateDoubleKeyDeployment,
   settleCombatLossesAndScrap,
   evaluateDefensiveHandshake,
+  resolveDeterministicH3Combat,
+  CANONICAL_GAMBIT_PRESETS,
+  serializeDoctrineCode,
+  deserializeDoctrineCode,
+  simulateDroneDryRun,
   DestroyedUnitRecord,
 } from '@domains/tactics';
+import { latLngToH3Res9, h3GridDisk } from '@domains/world';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -156,7 +162,51 @@ const evalExpired = evaluateDefensiveHandshake(expiresAt, false, pastTime);
 assert(!evalExpired.isHandshakeActive, 'Test 4.6: Handshake cerrado formalmente tras expirar 120s');
 assert(evalExpired.combatMode === 'pve_garrison', 'Test 4.7: Guarnición IA asume la defensa del búnker de forma autónoma');
 
+// ------------------------------------------------------------------------------
+// SUITE 5: ECUACIÓN DETERMINISTA H3 (0.75 * 0.80 * 0.70 = 0.42), GAMBITS Y DRY-RUN
+// ------------------------------------------------------------------------------
+console.log('\n--- SUITE 5: ECUACIÓN DETERMINISTA H3, PRESETS GAMBITS Y DRY-RUN ---');
+
+// Tanque Medio al 80% HP (8.0) atacando Infantería al 100% HP (10.0) en Zona Urbana (3★ = 30%)
+const exactH3Combat = resolveDeterministicH3Combat({
+  attackerType: 'medium_tank',
+  defenderType: 'infantry_swarm',
+  attackerHp10: 8.0,
+  defenderHp10: 10.0,
+  attackerTerrain: 'PLAIN',
+  defenderTerrain: 'URBAN',
+  distanceHexes: 1,
+});
+assert(exactH3Combat.damageHp10 === 4.2 && exactH3Combat.damageHp100 === 42, `Test 5.1: Daño exacto = 4.2 HP / 42 HP internos (obtenido: ${exactH3Combat.damageHp10} / ${exactH3Combat.damageHp100})`);
+assert(exactH3Combat.defenderHp10After === 5.8 && exactH3Combat.counterAttackOccurred === true, 'Test 5.2: Infantería sobreviviente (5.8 HP) contraataca en el mismo tick');
+
+const bomberOverUrban = resolveDeterministicH3Combat({
+  attackerType: 'anti_air',
+  defenderType: 'bomber_drone',
+  attackerHp10: 10.0,
+  defenderHp10: 10.0,
+  defenderTerrain: 'URBAN',
+  distanceHexes: 1,
+});
+assert(bomberOverUrban.damageHp10 === 10.0 && bomberOverUrban.defenderEliminated === true, 'Test 5.3: Bombardero aéreo defiende a 0★ sin bono de terreno');
+
+const docCode = serializeDoctrineCode(CANONICAL_GAMBIT_PRESETS.NIGHT_PAINTER);
+const decodedDoc = deserializeDoctrineCode(docCode);
+assert(decodedDoc.name === 'Pintor Nocturno' && decodedDoc.rules.length === 4, 'Test 5.4: Serialización y deserialización de Código de Doctrina');
+
+const startHex = latLngToH3Res9(10.3994, -71.4539);
+const targetHex = h3GridDisk(startHex, 1)[1]!;
+const dryRun = simulateDroneDryRun({
+  unitType: 'recon_explorer',
+  startH3: startHex,
+  waypoints: [targetHex, startHex],
+  initialFuel: 40,
+  rules: CANONICAL_GAMBIT_PRESETS.NIGHT_PAINTER.rules,
+});
+assert(dryRun.checkpoints.length === 3 && dryRun.checkpoints[0]!.hours === 4 && dryRun.checkpoints[1]!.hours === 8 && dryRun.checkpoints[2]!.hours === 12, 'Test 5.5: Dry-Run genera checkpoints exactos de 4h, 8h y 12h');
+assert(dryRun.exhaustedFuelAtTick === 40 && dryRun.checkpoints[2]!.remainingFuel === 0, 'Test 5.6: Dry-Run detecta agotamiento de CB exacto a las 10h (tick 40)');
+
 console.log('\n------------------------------------------------------------------------------');
-console.log('RESUMEN FASE 4 (SEAMLESS ZOOM, DOBLE LLAVE Y HANDSHAKE 120s): 17/17 PASARON');
-console.log('✅ TODAS LAS PRUEBAS DETERMINISTAS DE FASE 4 SUPERADAS AL 100%');
+console.log('RESUMEN FASE 4 + BALÍSTICA DETERMINISTA H3 + DRY-RUN: 23/23 PASARON');
+console.log('✅ TODAS LAS PRUEBAS DETERMINISTAS SUPERADAS AL 100%');
 console.log('==============================================================================');

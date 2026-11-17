@@ -2,7 +2,7 @@
  * ==============================================================================
  * DUAL RESOURCE HEADER (C4ISR DUAL CONTROL BAR)
  * ==============================================================================
- * Conforme a @tactical-command-intel y PLAN_MAESTRO_IMPLEMENTACION_GEOTACTICS_ALICE
+ * Conforme a @tactical-command-intel y docs/07_MASTER_UI_UX_WAR_ROOM.md
  * - Bloque Izquierdo: Recursos Individuales ($G, EC, tech_scrap, Rango/Nivel)
  * - Bloque Derecho: Recursos de Facción (Estandarte de Clan, Bóveda, Manpower/Stock, TCP)
  * ==============================================================================
@@ -13,14 +13,13 @@ import {
   Coins,
   Zap,
   Wrench,
-  Shield,
-  Users,
-  Trophy,
-  Flame,
   Globe,
   Radio,
-  Lock,
   LogIn,
+  Hammer,
+  Gem,
+  Clock,
+  Crosshair,
 } from 'lucide-react';
 import { TacticalGhostBar } from './TacticalGhostBar';
 import { audioManager } from '@domains/game-feel';
@@ -31,11 +30,15 @@ export interface DualResourceHeaderProps {
   userEnergyEc: number;
   maxEnergyEc?: number;
   userTechScrap: number;
+  userSteel?: number;
+  userRareEarth?: number;
+  userComposites?: number;
   userLevel: number;
   userXp: number;
   nextLevelXp: number;
   userTrophies?: number;
   activeStreak?: number;
+  cycleTimerText?: string;
 
   // Recursos de Facción / Corporación
   clanTag?: string;
@@ -52,6 +55,7 @@ export interface DualResourceHeaderProps {
   onOpenProfile?: () => void;
   onToggleDrawer?: () => void;
   isDrawerOpen?: boolean;
+  onSelectCountryScale?: () => void;
 }
 
 export const DualResourceHeader: React.FC<DualResourceHeaderProps> = ({
@@ -59,11 +63,12 @@ export const DualResourceHeader: React.FC<DualResourceHeaderProps> = ({
   userEnergyEc,
   maxEnergyEc = 1000,
   userTechScrap,
+  userSteel = 420,
+  userRareEarth = 140,
   userLevel,
   userXp,
   nextLevelXp,
-  userTrophies = 0,
-  activeStreak = 0,
+  cycleTimerText = '04:59',
   clanTag = 'IVS',
   clanName = 'Iron Vanguard Syndicate',
   clanEmblem = '🛡️',
@@ -76,15 +81,25 @@ export const DualResourceHeader: React.FC<DualResourceHeaderProps> = ({
   onOpenProfile,
   onToggleDrawer,
   isDrawerOpen = false,
+  onSelectCountryScale,
 }) => {
-  const xpPercent = Math.min(100, Math.round((userXp / Math.max(1, nextLevelXp)) * 100));
-
   return (
-    <header className="relative z-30 px-3 py-1.5 flex items-center justify-between gap-2 max-w-full bg-[#1A1B15] border-b-2 border-[#0A0B08] shadow-[0_4px_0px_#0A0B08] shrink-0 select-none">
+    <header
+      data-testid="persistent-top-header"
+      className="fixed top-0 left-0 right-0 h-12 z-30 px-3 flex items-center justify-between gap-2 max-w-full bg-[#0E100C]/90 backdrop-blur-md border-b border-[#46521F] shadow-[0_3px_0px_rgba(10,11,8,0.85)] shrink-0 select-none"
+    >
       {/* -------------------------------------------------------------------- */}
-      {/* BLOQUE IZQUIERDO: COMANDO Y RECURSOS INDIVIDUALES                    */}
+      {/* BLOQUE IZQUIERDO: IDENTIDAD DE MANDO + RECURSOS TABULARES            */}
       {/* -------------------------------------------------------------------- */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2 min-w-0">
+        {/* Insignia Oficial de Marca DRONEPUNK */}
+        <div className="flex items-center gap-1.5 px-2 py-1 bg-[#181914] border border-[#C46A3A]/60 rounded-[6px_2px_6px_2px] shrink-0">
+          <img src="/icon.svg" alt="DRONEPUNK" className="w-6 h-6 object-contain" />
+          <span className="hidden sm:inline font-display font-black text-[11px] tracking-wider uppercase text-[#F2E8D5]">
+            DRONEPUNK
+          </span>
+        </div>
+
         {/* Insignia de Nivel y Rango */}
         <button
           type="button"
@@ -92,17 +107,17 @@ export const DualResourceHeader: React.FC<DualResourceHeaderProps> = ({
             audioManager.play('menu_select');
             onOpenProfile?.();
           }}
-          className="flex items-center gap-2 px-2.5 py-1 bg-[#2B2C24] hover:bg-[#383A2E] border border-[#7B8A4A] rounded-[8px_2px_8px_2px] shadow-[2px_2px_0px_#0A0B08] transition-transform active:scale-95 text-left cursor-pointer"
-          title="Ver Expediente de Mando"
+          className="flex items-center gap-1.5 px-2 py-1 bg-[#1B1D17] hover:bg-[#2B2C24] border border-[#7B8A4A] rounded-[6px_2px_6px_2px] transition-transform active:scale-95 text-left cursor-pointer shrink-0"
+          title="Ver Expediente de Mando [P]"
         >
-          <div className="w-7 h-7 rounded-[4px_1px_4px_1px] bg-[#46521F] border border-[#7B8A4A] flex items-center justify-center font-black text-xs text-[#F2E8D5]">
+          <div className="w-6 h-6 rounded-[4px_1px_4px_1px] bg-[#46521F] border border-[#7B8A4A] flex items-center justify-center font-black text-[11px] text-[#F2E8D5]">
             N{userLevel}
           </div>
           <div className="hidden sm:flex flex-col">
-            <span className="text-[10px] font-black uppercase tracking-wider text-[#F2E8D5] leading-none">
+            <span className="text-[9px] font-black uppercase tracking-wider text-[#F2E8D5] leading-none">
               {userLevel >= 8 ? 'VETERANO' : userLevel >= 4 ? 'SARGENTO' : userLevel >= 2 ? 'CABO' : 'RECLUTA'}
             </span>
-            <div className="w-16 mt-1">
+            <div className="w-14 mt-1">
               <TacticalGhostBar
                 value={userXp}
                 max={nextLevelXp}
@@ -113,62 +128,81 @@ export const DualResourceHeader: React.FC<DualResourceHeaderProps> = ({
           </div>
         </button>
 
-        {/* Fondos Tácticos ($G) */}
-        <div
-          className="flex items-center gap-1.5 px-2 py-1 bg-[#22231C] border border-[#46521F] rounded-[6px_2px_6px_2px] shadow-[2px_2px_0px_#0A0B08]"
-          title="Fondos Tácticos ($G) para despliegues en partida"
-        >
-          <Coins className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
-          <span className="font-mono font-black text-xs text-[#F2E8D5]">
-            ${userGold.toLocaleString()}
-          </span>
-        </div>
-
-        {/* Créditos Energéticos (EC) */}
-        <div
-          className="flex items-center gap-1.5 px-2 py-1 bg-[#22231C] border border-[#46521F] rounded-[6px_2px_6px_2px] shadow-[2px_2px_0px_#0A0B08]"
-          title={`Créditos Energéticos (EC): ${userEnergyEc}/${maxEnergyEc}`}
-        >
-          <Zap className="w-3.5 h-3.5 text-[#00FF66] shrink-0" />
-          <span className="font-mono font-black text-xs text-[#00FF66]">
-            {userEnergyEc.toLocaleString()}
-          </span>
-          <span className="text-[9px] text-[#7B8A4A] font-bold">EC</span>
-        </div>
-
-        {/* Chatarra Balística (tech_scrap) */}
-        <div
-          className="hidden md:flex items-center gap-1.5 px-2 py-1 bg-[#22231C] border border-[#46521F] rounded-[6px_2px_6px_2px] shadow-[2px_2px_0px_#0A0B08]"
-          title="Chatarra Balística recuperada de combates (refundible en Altos Hornos)"
-        >
-          <Wrench className="w-3.5 h-3.5 text-[#C46A3A] shrink-0" />
-          <span className="font-mono font-black text-xs text-[#F2E8D5]">
-            {userTechScrap.toLocaleString()}
-          </span>
-          <span className="text-[9px] text-[#C46A3A] font-bold">SCRAP</span>
-        </div>
-
-        {/* Trofeos & Racha */}
-        {userTrophies > 0 && (
-          <div className="hidden lg:flex items-center gap-1.5 px-2 py-1 bg-[#22231C] border border-[#46521F] rounded-[6px_2px_6px_2px]">
-            <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="font-mono font-black text-xs text-[#F2E8D5]">
-              {userTrophies}
-            </span>
-            {activeStreak > 0 && (
-              <span className="flex items-center gap-0.5 text-[10px] text-[#C46A3A] font-black">
-                <Flame className="w-3 h-3 fill-current" />
-                {activeStreak}
-              </span>
-            )}
-          </div>
+        {/* Acceso Directo Escala País */}
+        {onSelectCountryScale && (
+          <button
+            type="button"
+            data-testid="header-country-btn"
+            onClick={() => {
+              audioManager.play('menu_select');
+              onSelectCountryScale();
+            }}
+            className="hidden md:flex items-center gap-1 px-2 py-1 bg-[#181914] hover:bg-[#25271F] border border-[#46521F] hover:border-amber-400 rounded text-[10px] font-mono font-bold text-amber-300 cursor-pointer shrink-0"
+            title="Inspeccionar País (Escala Nacional)"
+          >
+            <Globe className="w-3 h-3" />
+            <span>VENEZUELA</span>
+          </button>
         )}
+
+        {/* Contadores de Recursos Individuales (EC, Acero, Tierras Raras, Chatarra, $G) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto tabular-nums">
+          <div
+            className="flex items-center gap-1 px-2 py-1 bg-[#181914] border border-[#2E3323] rounded text-[11px] font-mono"
+            title={`Créditos Energéticos (EC): ${userEnergyEc}/${maxEnergyEc}`}
+          >
+            <Zap className="w-3 h-3 text-[#00FF66] shrink-0" />
+            <span className="font-black text-[#00FF66]">{userEnergyEc.toLocaleString()}</span>
+            <span className="text-[9px] text-[#7B8A4A] font-bold">EC</span>
+          </div>
+
+          <div
+            className="flex items-center gap-1 px-2 py-1 bg-[#181914] border border-[#2E3323] rounded text-[11px] font-mono"
+            title="Acero Refinado"
+          >
+            <Hammer className="w-3 h-3 text-sky-300 shrink-0" />
+            <span className="font-black text-[#F2E8D5]">{userSteel.toLocaleString()}t</span>
+          </div>
+
+          <div
+            className="hidden sm:flex items-center gap-1 px-2 py-1 bg-[#181914] border border-[#2E3323] rounded text-[11px] font-mono"
+            title="Tierras Raras"
+          >
+            <Gem className="w-3 h-3 text-cyan-400 shrink-0" />
+            <span className="font-black text-cyan-200">{userRareEarth.toLocaleString()}</span>
+          </div>
+
+          <div
+            className="hidden lg:flex items-center gap-1 px-2 py-1 bg-[#181914] border border-[#2E3323] rounded text-[11px] font-mono"
+            title="Chatarra Tecnológica (tech_scrap)"
+          >
+            <Wrench className="w-3 h-3 text-[#C46A3A] shrink-0" />
+            <span className="font-black text-[#F2E8D5]">{userTechScrap.toLocaleString()}</span>
+            <span className="text-[8px] text-[#C46A3A] font-bold">SCRAP</span>
+          </div>
+
+          <div
+            className="flex items-center gap-1 px-2 py-1 bg-[#181914] border border-[#2E3323] rounded text-[11px] font-mono"
+            title="Fondos Tácticos ($G)"
+          >
+            <Coins className="w-3 h-3 text-amber-400 shrink-0" />
+            <span className="font-black text-amber-300">${userGold.toLocaleString()}</span>
+          </div>
+
+          <div
+            className="hidden md:flex items-center gap-1 px-2 py-1 bg-[#181914] border border-[#2E3323] rounded text-[10px] font-mono text-[#A9B87A]"
+            title="Temporizador de Ciclo Macroeconómico"
+          >
+            <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+            <span className="font-bold text-[#F2E8D5]">{cycleTimerText}</span>
+          </div>
+        </div>
       </div>
 
       {/* -------------------------------------------------------------------- */}
-      {/* BLOQUE DERECHO: CORPORACIÓN / FACCIÓN Y CONTROL DEL TEATRO           */}
+      {/* BLOQUE DERECHO: CORPORACIÓN / FACCIÓN + TOGGLE INSPECTOR             */}
       {/* -------------------------------------------------------------------- */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 shrink-0">
         {isGuestMode ? (
           <button
             type="button"
@@ -176,77 +210,52 @@ export const DualResourceHeader: React.FC<DualResourceHeaderProps> = ({
               audioManager.play('menu_confirm');
               onOpenAuthModal?.();
             }}
-            className="flex items-center gap-1.5 px-3 py-1 bg-[#C46A3A] hover:bg-[#d67845] text-[#F2E8D5] font-black text-xs uppercase tracking-wider border border-[#F2E8D5] rounded-[6px_2px_6px_2px] shadow-[2px_2px_0px_#0A0B08] active:translate-y-0.5 cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-[#C46A3A] hover:bg-[#d67845] text-[#F2E8D5] font-black text-[11px] uppercase tracking-wider border border-[#F2E8D5] rounded cursor-pointer"
           >
             <LogIn className="w-3.5 h-3.5" />
-            <span>Ingresar al Estado Mayor</span>
+            <span>Ingresar</span>
           </button>
         ) : (
           <>
             {/* Estandarte y Bóveda del Clan */}
             <div
-              className="flex items-center gap-2 px-2.5 py-1 bg-[#22231C] border border-[#7B8A4A] rounded-[8px_2px_8px_2px] shadow-[2px_2px_0px_#0A0B08]"
+              className="hidden xl:flex items-center gap-2 px-2 py-0.5 bg-[#181914] border border-[#46521F] rounded"
               style={{ borderLeftColor: clanColor, borderLeftWidth: '3px' }}
-              title={`Corporación Militar: [${clanTag}] ${clanName} • Bóveda Común: ${clanVaultEc.toLocaleString()} EC`}
+              title={`Corporación Militar: ${clanTag} ${clanName} • Bóveda: ${clanVaultEc.toLocaleString()} EC • ${clanSharedStockCount} Chasis`}
             >
-              <span className="text-sm">{clanEmblem}</span>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-1">
-                  <span className="font-black text-xs tracking-wider text-[#F2E8D5]">
-                    [{clanTag}]
-                  </span>
-                  <span className="hidden xl:inline text-[10px] text-[#7B8A4A] font-bold">
-                    {clanName}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-[9px] text-[#F2E8D5]">
-                  <span className="text-[#00FF66] font-mono font-bold">
-                    {clanVaultEc.toLocaleString()} EC Bóveda
-                  </span>
-                  <span className="text-[#7B8A4A]">•</span>
-                  <span className="text-amber-400 font-mono font-bold">
-                    {clanSharedStockCount} Chasis Clan
-                  </span>
-                </div>
-              </div>
+              <span className="text-xs">{clanEmblem}</span>
+              <span className="font-black text-[11px] text-[#F2E8D5]">{clanTag}</span>
+              <span className="text-[10px] text-[#00FF66] font-mono font-bold tabular-nums">
+                {clanVaultEc.toLocaleString()} EC
+              </span>
             </div>
 
             {/* Puntos de Control Territorial (TCP) */}
             <div
-              className="hidden sm:flex flex-col gap-0.5 px-2 py-1 bg-[#1A1B15] border border-[#46521F] rounded-[6px_2px_6px_2px]"
-              title={`Puntos de Control Territorial de Facción en el Teatro: ${factionTcpControl}/10000 TCP`}
+              className="hidden sm:flex items-center gap-1.5 px-2 py-1 bg-[#181914] border border-[#2E3323] rounded text-[10px] font-mono"
+              title={`Control Territorial de Facción: ${factionTcpControl}/10000 TCP`}
             >
-              <div className="flex items-center justify-between gap-2 text-[9px] font-black uppercase text-[#F2E8D5]">
-                <span className="flex items-center gap-1">
-                  <Globe className="w-2.5 h-2.5 text-[#00FF66]" />
-                  Control TCP
-                </span>
-                <span className="font-mono text-[#00FF66]">{factionTcpControl}</span>
-              </div>
-              <div className="w-20 h-1.5 bg-[#0A0B08] rounded-[2px] overflow-hidden border border-[#46521F]">
-                <div
-                  className="h-full bg-gradient-to-r from-[#46521F] to-[#00FF66] transition-[width] duration-300"
-                  style={{ width: `${Math.min(100, (factionTcpControl / 10000) * 100)}%` }}
-                />
-              </div>
+              <Radio className="w-3 h-3 text-[#00FF66]" />
+              <span className="font-black text-[#00FF66] tabular-nums">{factionTcpControl} TCP</span>
             </div>
 
-            {/* Botón Toggle del Cajón Lateral Paradox */}
+            {/* Toggle Inspector Derecho */}
             <button
               type="button"
+              data-testid="toggle-inspector-header-btn"
               onClick={() => {
                 audioManager.play('menu_select');
                 onToggleDrawer?.();
               }}
-              className={`flex items-center gap-1.5 px-2.5 py-1 font-black text-xs uppercase tracking-wider border rounded-[6px_2px_6px_2px] shadow-[2px_2px_0px_#0A0B08] transition-all cursor-pointer ${
+              className={`flex items-center gap-1 px-2.5 py-1 font-mono font-black text-[10px] uppercase tracking-wider border rounded cursor-pointer transition-colors ${
                 isDrawerOpen
-                  ? 'bg-[#C46A3A] border-[#F2E8D5] text-[#F2E8D5]'
-                  : 'bg-[#2B2C24] hover:bg-[#383A2E] border-[#7B8A4A] text-[#F2E8D5]'
+                  ? 'bg-[#46521F] border-amber-400 text-amber-300'
+                  : 'bg-[#1B1D17] hover:bg-[#2B2C24] border-[#7B8A4A] text-[#F2E8D5]'
               }`}
-              title="Abrir/Cerrar Consola de Macrogestión (Estilo Paradox)"
+              title="Mostrar/Ocultar Inspector Derecho"
             >
-              <Radio className={`w-3.5 h-3.5 ${isDrawerOpen ? 'animate-pulse' : ''}`} />
-              <span className="hidden sm:inline">CONSOLA</span>
+              <Crosshair className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">INSPECTOR</span>
             </button>
           </>
         )}

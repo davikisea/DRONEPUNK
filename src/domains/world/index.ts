@@ -13,13 +13,27 @@ export {
   ZOOM_GLOBAL,
   ZOOM_OPERACIONAL,
   ZOOM_TACTICO,
+  TACTICAL_SPRITE_MAX_ZOOM,
+  getTacticalCellPixelSizeAtZoom,
   TILE_SIZE,
   EARTH_RADIUS_M,
+  MUNICIPAL_GRID_COLS,
+  MUNICIPAL_GRID_ROWS,
+  MUNICIPAL_TOTAL_MICRO_CELLS,
+  MICRO_CELL_SIZE_METERS,
+  H3_RES9_EDGE_METERS,
   lngLatToGridCoords,
   tileFractionToLngLat,
   gridCoordsToLngLat,
   getTileBounds,
   traceSupplyLine,
+  lngLatToMunicipalMicroCell,
+  latLngToH3Res9,
+  h3Res9ToLatLng,
+  h3Res9ToParentRes4,
+  h3GridDistance,
+  h3GridDisk,
+  h3GridPathCells,
   type LngLat,
   type QuadLngLatBounds,
   type TacticalGridCoords,
@@ -32,8 +46,18 @@ export {
   type RoadAdjacencyResult,
   type SpatialBoundingBox,
 } from './core/spatialRoadIndex';
-export { roadNetworkEngine, RoadNetworkEngine } from './core/roadNetworkEngine';
-export { roadGarrisonEngine, RoadGarrisonEngine } from './core/roadGarrisonEngine';
+export {
+  roadNetworkEngine,
+  RoadNetworkEngine,
+  OSM_HEX_TERRAIN_CATALOG,
+  canUnitTraverseOsmHex,
+} from './core/roadNetworkEngine';
+export {
+  roadGarrisonEngine,
+  RoadGarrisonEngine,
+  type ClanTreasury,
+  type DronePatrolShiftSimulationResult,
+} from './core/roadGarrisonEngine';
 export {
   TerritorialSiegeOrchestrator,
   type VulnerabilityWindowConfig,
@@ -46,9 +70,20 @@ export {
   recalculateSovereignty,
   executeTerritorialExpansion,
   calculateIndustrialYieldWithNodes,
+  initializeMunicipalMicroGrid,
+  recalculateMunicipalGridSovereignty,
+  evaluateSignalCaptureTick,
+  executeFifteenMinuteTickPipeline,
   type ExpansionOrder,
   type ExpansionResult,
   type RegionGridMap,
+  type SignalCaptureTickResult,
+  type H3PersistentDroneState,
+  type H3PersistentBuildingState,
+  type H3MunicipalityContext,
+  type H3TickCorporationContext,
+  type FifteenMinuteTickInput,
+  type FifteenMinuteTickOutput,
 } from './core/territorialExpansionEngine';
 export {
   politicalAliceEngine,
@@ -58,6 +93,7 @@ export {
   POLITICAL_EDICTS_CATALOG,
   CANONICAL_VENEZUELA_REGIONS,
   CANONICAL_VENEZUELA_ADJACENCIES,
+  type PoliticalEdictId,
 } from './core/politicalAliceEngine';
 export {
   TacticalBitMap,
@@ -71,13 +107,26 @@ export {
   type ClanMember,
   type ClanRole,
   type VaultTier,
+  type CardRarity,
+  type ClanCardRequest,
   type UserProfileIdentity,
   type SafeguardInventory,
   type TerritorySector,
 } from './core/clanSystem';
 
 // Services
-export { stateSovereigntyService } from './services/stateSovereigntyService';
+export {
+  generateGbaSectorBlueprint,
+  validateGbaSectorMatrix,
+  getGbaPipelineCacheSize,
+  isLandAtCabimasPolygon,
+  registerLandPolygons,
+  GBA_CALIBRATION_PRESETS,
+} from './core/gbaMapPipeline';
+export {
+  stateSovereigntyService,
+  STATE_PERKS_CATALOG,
+} from './services/stateSovereigntyService';
 export { spatialDeploymentService } from './services/spatialDeploymentService';
 
 // Hooks
@@ -86,13 +135,37 @@ export { useSiegeRealtime } from './hooks/useSiegeRealtime';
 
 // Types
 export type {
+  FactionId,
   StateSovereigntyRecord,
   UserRoleContext,
   SovereignStateUpdateInput,
   ProvincialStrataState,
   SecessionEvaluationResult,
+  MunicipalAuditActionType,
+  MunicipalAuditLogEntry,
+  MunicipalPublicBuildingsState,
+  MunicipalManagerRole,
+  StateLevelPerkState,
+  CorporateMacroPrivilegeState,
+  MunicipalBuildingType,
+  MunicipalBuildingSpec,
+  StatePerkBranch,
+  StatePerkId,
+  StatePerkSpec,
 } from './types/stateSovereigntyTypes';
 export * from './types/tacticalRoadTypes';
+export {
+  ZULIA_MUNICIPALITIES_CATALOG,
+  getZuliaMunicipalityMeta,
+  type MapScaleLevel,
+  type InspectorTabId,
+  type CountrySelectionTarget,
+  type StateSelectionTarget,
+  type MunicipalitySelectionTarget,
+  type CellSelectionTarget,
+  type MapSelectionTarget,
+  type ZuliaMunicipalityMeta,
+} from './types/mapSelectionTypes';
 
 // Components
 export {
@@ -105,6 +178,9 @@ export { WarLobbyHub } from './components/WarLobbyHub';
 export { WarRoomModal } from './components/WarRoomModal';
 export { ClanHeadquartersView } from './components/ClanHeadquartersView';
 export { MetaCommandConsole } from './components/MetaCommandConsole';
+export { UnifiedRegionInspector } from './components/UnifiedRegionInspector';
+export { RightActionDock } from './components/RightActionDock';
+export { LeftCollapsibleRail } from './components/LeftCollapsibleRail';
 export { GarrisonManagementDrawer } from './components/GarrisonManagementDrawer';
 export { TerritorySiegeModal } from './components/TerritorySiegeModal';
 export { TerritoryInspectorModal } from './components/TerritoryInspectorModal';

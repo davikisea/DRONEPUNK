@@ -1,6 +1,6 @@
 /**
- * Tactical Command: Wars of Legacy - Motor de Retroalimentación Háptica
- * Especificación: docs/orchestration/01_UI_AND_MOBILE_ERGONOMICS.md
+ * DRONEPUNK 0.0.1 - Motor de Retroalimentación Háptica
+ * Especificación: docs/06_MASTER_DEVOPS_QA_AND_TELEMETRY.md
  * Integración nativa con Web Vibration API
  */
 
@@ -10,6 +10,8 @@ export type HapticPattern =
   | 'attack'       // Impacto balístico / inicio de combate
   | 'trap'         // Emboscada detectada en niebla de guerra
   | 'co_power'     // Activación de Superpoder CO / COP / SCOP
+  | 'unit_order'   // Confirmación de orden táctica de unidad
+  | 'success'      // Confirmación positiva / despliegue exitoso
   | 'error';       // Orden inválida, terreno bloqueado o sin combustible
 
 const HAPTIC_PROFILES: Record<HapticPattern, number | number[]> = {
@@ -18,6 +20,8 @@ const HAPTIC_PROFILES: Record<HapticPattern, number | number[]> = {
   attack: [40, 30, 60],
   trap: [80, 50, 120, 50, 200],
   co_power: [100, 40, 100, 40, 250],
+  unit_order: 20,
+  success: [20, 30, 40],
   error: [30, 20, 30],
 };
 

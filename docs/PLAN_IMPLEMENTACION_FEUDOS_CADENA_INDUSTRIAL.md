@@ -1,7 +1,8 @@
 # 🛠️ ESPECIFICACIÓN DE IMPLEMENTACIÓN: FEUDOS URBANOS, MICROGESTIÓN Y MERCADO PLAYER-DRIVEN
 
+> **Proyecto y Versión:** `DRONEPUNK 0.0.1`  
 > **Documento:** `docs/PLAN_IMPLEMENTACION_FEUDOS_CADENA_INDUSTRIAL.md`  
-> **Propósito:** Especificación canónica de tareas frontend (`@domains/economy`, `@domains/world`, `@domains/tactics`) y backend (Supabase / PostgreSQL) para la integración de la red intra-urbana, sistema de 10 parcelas, cadena industrial estilo *Project Alice / Albion Online*, ticker económico estilo *Wplace*, Hangar Físico de 16 tropas (CERO cartas) y colocación de assets en coordenadas.  
+> **Propósito:** Especificación canónica de tareas frontend (`@domains/economy`, `@domains/world`, `@domains/tactics`) y backend (Supabase / PostgreSQL) para la integración de la red intra-urbana, sistema de 10 parcelas, cadena industrial estilo *Project Alice / Albion Online*, ticker económico estilo *Wplace*, Almacén Físico de 16 Chasis Militares (4 vanguardia + 12 reserva, munición descartable forjada) y colocación de assets en coordenadas.  
 > **Estado:** 100% Implementado y Sincronizado con la Arquitectura Modular de 4 Dominios + Shared.
 
 ---
@@ -58,7 +59,7 @@ CREATE TABLE IF NOT EXISTS public.tactical_fief_constructions (
 ### 1.3 Cuadrícula de 10 Parcelas, Cola de Forja y Hangar Físico (`user_industrial_plots`, `unit_production_queue`, `user_unit_hangar`, `faction_unit_hangar`)
 Desplegados en `supabase/migrations/20261031000013_economy_idle_rework_territorial_plots.sql`, `supabase/migrations/20261103000001_master_metagame_v2_rework.sql` y `supabase/migrations/20261105000001_geotactics_strategic_nodes_and_queues.sql`:
 - **`public.user_industrial_plots`:** 10 parcelas por jugador (`plot_index` 1 a 10) con ciclo circadiano de 12h + 4h de gracia, merma suavizada del $1.5\%/\text{h}$ (piso de seguridad $60\%$) y $70\%$ de merma protegida en `Cargamento Varado` (`StrandedCargo`).
-- **`public.user_unit_hangar` & `public.faction_unit_hangar`:** Almacén físico de **16 tropas máximo por jugador (4 slots de despliegue activo + 12 en reserva)**, con **CERO cartas (NO TCG/CCG ni gacha)**, operando a escala continua de **1 a 100 HP enteros (Pilar 2)** y **Tiers T1 a T5 con progresión horizontal estricta de +2% por tier (+0%, +2%, +4%, +6%, +8% máximo en T5, Pilar 4)**.
+- **`public.user_unit_hangar` & `public.faction_unit_hangar`:** Almacén físico de **16 chasis militares máximo por jugador (4 slots de despliegue activo en vanguardia + 12 en reserva táctica, munición descartable forjada)**, operando a escala continua de **1 a 100 HP enteros (Pilar 2)** y **Tiers T1 a T5 con progresión horizontal estricta de +2% por tier (+0%, +2%, +4%, +6%, +8% máximo en T5, Pilar 4)**.
 - **`public.unit_production_queue` & RPCs (`queue_unit_production`, `claim_finished_unit`):** Ensamblaje físico con tiempos deterministas ($0\text{s}$ para Infantería T1 y Recon T1 F2P; $60\text{s}$ a $1,800\text{s}$ base para unidades mecanizadas, blindadas, aéreas y navales).
 
 ---
@@ -84,7 +85,7 @@ Desplegados en `supabase/migrations/20261031000013_economy_idle_rework_territori
    * `src/domains/economy/hooks/useTerritoryEconomyTicker.ts` y `src/domains/economy/core/upkeepEngine.ts`: Ejecutan el **Ticker Económico Continuo estilo Wplace** (acumulación por minuto de EC y Acero), el mantenimiento energético imperial (`TerritorialUpkeepEngine`, `calculateImperialUpkeep`) y el **Buff Regional de Conquista de Capitales (+5% recursos/logística en la región, Pilar 5)**.
 
 5. **Forja, Hangar Físico de 16 Tropas y Reciclaje de Chatarra al 35% (`@domains/economy` & `@domains/tactics`):**
-   * `src/domains/economy/core/strategicAndProductionEngine.ts`, `src/domains/economy/hooks/useUserHangar.ts` y `src/domains/economy/components/UnitHangarModal.tsx`: Gestionan la forja y almacenamiento en el **Hangar Físico de 16 tropas (4 activas + 12 reserva, CERO cartas)** con **Tiers T1 a T5 (+2% por tier, máximo +8% en T5)**.
+   * `src/domains/economy/core/strategicAndProductionEngine.ts`, `src/domains/economy/hooks/useUserHangar.ts` y `src/domains/economy/components/UnitHangarModal.tsx`: Gestionan la forja y almacenamiento en el **Almacén Físico de 16 Chasis Militares (4 vanguardia + 12 reserva, munición descartable forjada)** con **Tiers T1 a T5 (+2% por tier, máximo +8% en T5)**.
    * `src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts` (`validateDoubleKeyDeployment`, `settleCombatLossesAndScrap`) y `src/shared/types/metagame.ts` (`calculateLossScrapRecovery`): Aplican la pérdida física real de unidades destruidas (donde **0 tropas supervivientes en el tablero = derrota inapelable, Pilar 3**) y acreditan el **35% de recuperación en chatarra tecnológica (`tech_scrap`, `RECYCLE_SCRAP_RATE = 0.35` / `SALVAGE_TECH_SCRAP_RATE = 0.35`, Pilar 6)**.
 
 6. **Conexión con el Mercado Libre P2P (`src/domains/economy/components/P2PMarketplaceView.tsx` / `@domains/economy`):**

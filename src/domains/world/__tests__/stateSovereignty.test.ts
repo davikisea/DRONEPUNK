@@ -7,7 +7,7 @@
  * ==============================================================================
  */
 
-import { stateSovereigntyService } from '../services/stateSovereigntyService';
+import { stateSovereigntyService, STATE_PERKS_CATALOG } from '../services/stateSovereigntyService';
 import type { UserRoleContext } from '../types/stateSovereigntyTypes';
 
 function assert(condition: boolean, msg: string) {
@@ -150,9 +150,114 @@ try {
 
   unsubscribe();
 
+  // ----------------------------------------------------------------------------
+  // SUITE 4: Política Macro Escalada (Gestor Municipal, Corrupción, Perks >60% y Corporación)
+  // ----------------------------------------------------------------------------
+  console.log('\n--- SUITE 4: POLÍTICA MACRO ESCALADA (GESTOR, PERKS >60% Y DIPLOMACIA) ---');
+
+  const rejectedAppoint = stateSovereigntyService.appointMunicipalManager({
+    municipalityId: 'MUN_ZULIA_CABIMAS',
+    stateId: 'REG_VE_02',
+    municipalityControllingClanId: 'clan-ferro',
+    majorityRatio: 0.48,
+    managerUserId: 'user-mgr-01',
+    managerUserName: 'Gestor Cabimas',
+    actorContext: ferroLeaderUser,
+  });
+  assert(rejectedAppoint.success === false, 'No se puede nombrar Gestor Municipal con <= 50% de celdas');
+
+  const validAppoint = stateSovereigntyService.appointMunicipalManager({
+    municipalityId: 'MUN_ZULIA_CABIMAS',
+    stateId: 'REG_VE_02',
+    municipalityControllingClanId: 'clan-ferro',
+    majorityRatio: 0.62,
+    managerUserId: 'user-mgr-01',
+    managerUserName: 'Gestor Cabimas',
+    actorContext: ferroLeaderUser,
+  });
+  assert(validAppoint.success === true && !!validAppoint.manager, 'Gestor Municipal nombrado tras superar 50%');
+
+  const unauthorizedMgrAction = stateSovereigntyService.executeMunicipalManagerAction({
+    municipalityId: 'MUN_ZULIA_CABIMAS',
+    actorUserId: 'intruder-99',
+    actorUserName: 'Intruso',
+    actionType: 'toggle_radar',
+    buildingEnabled: false,
+  });
+  assert(unauthorizedMgrAction.success === false, 'Usuario no asignado como Gestor Municipal es rechazado');
+
+  const sabotageAction = stateSovereigntyService.executeMunicipalManagerAction({
+    municipalityId: 'MUN_ZULIA_CABIMAS',
+    actorUserId: 'user-mgr-01',
+    actorUserName: 'Gestor Cabimas',
+    actionType: 'toggle_radar',
+    buildingEnabled: false,
+    isPreIncursionWindow: true,
+  });
+  assert(sabotageAction.success === true, 'Acción del Gestor ejecutada y auditada');
+  assert(sabotageAction.auditEntry?.isSuspiciousCorruption === true, 'Apagar radar en ventana pre-incursión marca riesgo de corrupción');
+  assert((sabotageAction.manager?.corruptionRiskScore ?? 0) > 0, 'Índice de riesgo de corrupción incrementado en bitácora');
+  assert(sabotageAction.manager?.publicBuildingsState.earlyWarningRadarActive === false, 'Radar desactivado tras orden');
+  console.log('✅ [PASSED] Test 4.1: RBAC de Gestor Municipal y trazabilidad de sabotaje pre-incursión verificados');
+  passedTests++;
+
+  const perksLocked = stateSovereigntyService.evaluateStateLevelPerks({
+    stateId: 'REG_VE_02',
+    clanId: 'clan-ferro',
+    controlledMunicipalitiesCount: 12,
+    totalMunicipalitiesCount: 21,
+  });
+  assert(perksLocked.isPerkUnlocked === false, 'Con 12/21 (~57.1%) aún no se desbloquean Perks Estatales (>60%)');
+
+  const perksUnlocked = stateSovereigntyService.evaluateStateLevelPerks({
+    stateId: 'REG_VE_02',
+    clanId: 'clan-ferro',
+    controlledMunicipalitiesCount: 13,
+    totalMunicipalitiesCount: 21,
+  });
+  assert(perksUnlocked.isPerkUnlocked === true, 'Con 13/21 (~61.9% > 60%) se activan Perks Estatales');
+  assert(perksUnlocked.borderFuelDiscountMultiplier === 0.80, 'Perk Estatal otorga -20% de consumo de combustible fronterizo');
+  assert(perksUnlocked.adjacentConquestSpeedMultiplier === 1.15, 'Perk Estatal otorga +15% velocidad de conquista en municipios adyacentes');
+
+  const corpPrivs = stateSovereigntyService.evaluateCorporateMacroPrivileges({
+    clanId: 'clan-ferro',
+    controlledMunicipalitiesCount: 1,
+    addNonAggressionPactWithClanId: 'clan-caribe',
+    setCustomTariffForClan: { targetClanId: 'clan-caribe', rate: 0.06 },
+  });
+  assert(corpPrivs.advancedTechTreeUnlocked === true, 'Corporación con >= 1 municipio desbloquea Árbol Tecnológico Avanzado');
+  assert(corpPrivs.unlockedHeavyChassis.includes('neotank') && corpPrivs.unlockedHeavyChassis.includes('bomber'), 'Neotanque y Bombardero habilitados en Hangar Físico');
+  assert(corpPrivs.officialDiplomacyEnabled === true && corpPrivs.nonAggressionPacts.includes('clan-caribe'), 'Diplomacia Oficial y pactos habilitados');
+  console.log('✅ [PASSED] Test 4.2: Perks Estatales (>60%) y Privilegios Corporativos (>=1 municipio) verificados');
+  passedTests++;
+
+  // Suite 5: 8 Perks Estatales (>60% = 1, >85% = 2, tope global = 3)
+  assert(Object.keys(STATE_PERKS_CATALOG).length === 8, 'Catálogo de Perks Estatales debe contener exactamente 8 perks en 3 ramas');
+  const perksCapRejected = stateSovereigntyService.configureCorporationStatePerks({
+    clanId: 'clan-ferro',
+    statesControlRatios: { REG_VE_02: 0.90, REG_VE_05: 0.90 },
+    requestedPerksByState: {
+      REG_VE_02: ['VANGUARD_LOGISTICS', 'BLITZKRIEG_DOCTRINE'],
+      REG_VE_05: ['MICROCHIP_SUBSIDY', 'CORPORATE_FREE_ZONE'],
+    },
+  });
+  assert(perksCapRejected.success === false, 'Tope global máximo de 3 Perks Estatales simultáneos bloquea 4 perks');
+
+  const perksConfigured = stateSovereigntyService.configureCorporationStatePerks({
+    clanId: 'clan-ferro',
+    statesControlRatios: { REG_VE_02: 0.88, REG_VE_05: 0.65 },
+    requestedPerksByState: {
+      REG_VE_02: ['VANGUARD_LOGISTICS', 'CENTRALIZED_SUPPLY'],
+      REG_VE_05: ['CIVIL_MOBILIZATION'],
+    },
+  });
+  assert(perksConfigured.success === true && perksConfigured.activeGlobalPerks.length === 3, 'Configuración de 2 perks (>85%) + 1 perk (>60%) = 3 globales aprobada');
+  console.log('✅ [PASSED] Test 5.1: 8 Perks Estatales en 3 ramas y tope global de 3 perks verificados');
+  passedTests++;
+
   console.log('------------------------------------------------------------------------------');
-  console.log(`RESUMEN SOBERANÍA Y RBAC SPRINT 1: ${passedTests}/5 PASARON`);
-  console.log('✅ TODAS LAS PRUEBAS DE SOBERANÍA Y CONTROL DE ESTADOS SUPERADAS (100% ÉXITO)');
+  console.log(`RESUMEN SOBERANÍA, RBAC Y PERKS ESTATALES: ${passedTests}/8 PASARON`);
+  console.log('✅ TODAS LAS PRUEBAS DE SOBERANÍA Y POLÍTICA MACRO SUPERADAS (100% ÉXITO)');
   console.log('==============================================================================\n');
 } catch (e) {
   console.error('Error fatal durante la ejecución de pruebas:', e);

@@ -1,7 +1,7 @@
 # VOLUMEN 4: ESQUEMA MAESTRO DE BASE DE DATOS Y SEGURIDAD (SUPABASE / POSTGRESQL)
 **Documento Canónico Unificado:** `04_MASTER_DATABASE_AND_SECURITY_SPEC.md`  
-**Proyecto:** *Tactical Command: Wars of Legacy (GEOTACTICS: ONLINE)*  
-**Versión:** 6.0.0-CANONICAL-MODULAR-SPEC  
+**Proyecto:** *DRONEPUNK 0.0.1*  
+**Versión:** 0.0.1  
 **Estado:** Documento de Verdad Absoluta (SSOT - Single Source of Truth)  
 **Archivos Consolidados y Sincronizados:**  
 - `02_DATABASE_SCHEMA.md` (Completo)  
@@ -15,6 +15,7 @@
 - Migración 29 (`20261107_theatre_cabimas_realtime.sql`)  
 - Migración 30 (`20261108_system_catalog_manifest.sql`)  
 - Migración 31 (`20261109_territorial_vulnerability_windows.sql`)  
+- Migración 32 (`20261110_fix_database_audit_regressions.sql`)  
 - Tipos generados y contratos de dominio en `src/shared/types/database.types.ts` y `src/shared/types/metagame.ts`.
 
 ---
@@ -24,7 +25,7 @@
 El backend opera sobre **PostgreSQL 15+ en Supabase** con soporte para replicación en tiempo real (Supabase Realtime WebSockets / CDC `postgres_changes`) y seguridad a nivel de fila (Row Level Security - RLS) multi-tenant.
 
 ### 1.1 Invariantes de Base de Datos (Los 7 Pilares Canónicos + Regla Financiera)
-1. **Pilar 1 — Cero Cartas (NO TCG/CCG) y Almacén Físico de 16 Tropas:** Prohibición absoluta de mazos de cartas, fragmentos o niveles de cartas. Cada comandante posee un almacén físico (`public.user_unit_hangar`, alias conceptual `player_hangar`) con capacidad máxima de **16 unidades físicas por jugador** (**4 slots de despliegue activo** + **12 unidades en reserva**) y unidades operacionales en teatro (`public.tactical_spatial_deployments`, alias conceptual `operational_units`).
+1. **Pilar 1 — Almacén Físico de 16 Chasis Militares:** Cada comandante posee un almacén físico (`public.user_unit_hangar`, alias conceptual `player_hangar`) con capacidad máxima estricta de **16 unidades físicas por jugador** (**4 slots de despliegue activo** + **12 unidades en reserva**, operando como munición descartable forjada mediante el trigger `check_user_hangar_capacity_limit` de la Migración 32) y unidades operacionales en teatro (`public.tactical_spatial_deployments`, alias conceptual `operational_units`).
 2. **Pilar 2 — Escala Balística Continua de 1 a 100 HP Enteros:** Todas las unidades en catálogo (`public.units_catalog.hp_max = 100`), hangar (`public.user_unit_hangar.hp BETWEEN 1 AND 100`) y teatro espacial (`public.tactical_spatial_deployments.hp BETWEEN 0 AND 100`) operan en escala entera centesimal 1–100 HP.
 3. **Pilar 3 — Derrota Inapelable por Aniquilación (0 Tropas Supervivientes):** La pérdida de la totalidad de las unidades activas en el tablero (`end_reason = 'army_wiped'`) decreta la derrota inmediata.
 4. **Pilar 4 — Progresión Horizontal de Tiers T1 a T5 (+2% por Tier, Máximo +8% en T5):** Las patentes (`public.user_patents`) y ensamblajes (`tier BETWEEN 1 AND 5`) otorgan $+2\%$ de estadística por salto sobre T1 ($\text{T1}=0\%, \text{T2}=+2\%, \text{T3}=+4\%, \text{T4}=+6\%, \text{T5}=+8\%$).
@@ -546,7 +547,7 @@ CREATE TABLE public.garrison_deployments (
 ```
 
 ### 2.7 Salvaguarda Táctica y Ofertas Flash por Tilt
-> **Nota de Gobernanza Canónica (Pilar 1):** Las columnas históricas `reward_cards_amount` se conservan en el esquema por compatibilidad retroactiva de migraciones previas, pero bajo el Pilar 1 (Cero Cartas) toda recompensa material se liquida en chasis físicos (`user_unit_hangar`), aleaciones (`refined_steel`) o chatarra (`tech_scrap`).
+> **Nota de Gobernanza Canónica (Pilar 1):** Las columnas históricas `reward_cards_amount` se conservan en el esquema por compatibilidad retroactiva de migraciones previas, pero bajo el Pilar 1 (Almacén Físico de 16 Chasis Militares) toda recompensa material se liquida en chasis físicos (`user_unit_hangar`), aleaciones (`refined_steel`) o chatarra (`tech_scrap`).
 
 ```sql
 -- 17. TABLA: safeguard_crafting_jobs
@@ -626,7 +627,7 @@ CREATE TABLE public.territory_control (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- 19. TABLA: regions (Topología Geopolítica Alice de GEOTACTICS - Migración 26)
+-- 19. TABLA: regions (Topología Geopolítica Alice de DRONEPUNK 0.0.1 - Migración 26)
 CREATE TABLE public.regions (
     id TEXT PRIMARY KEY,
     country_iso VARCHAR(2) NOT NULL REFERENCES public.world_countries(iso_code) ON DELETE RESTRICT,
@@ -760,7 +761,7 @@ CREATE INDEX idx_unit_prod_queue_clan ON public.unit_production_queue(clan_id);
 CREATE INDEX idx_unit_prod_queue_ready ON public.unit_production_queue(ready_at, is_claimed);
 ```
 
-### 2.10 Soberanía Estatal RBAC, Teatro Operacional Realtime, Manifiesto SSOT y Ventanas de Vulnerabilidad (Migraciones 28 a 31)
+### 2.10 Soberanía Estatal RBAC, Teatro Operacional Realtime, Manifiesto SSOT, Ventanas de Vulnerabilidad y Auditoría (Migraciones 28 a 32)
 *Servicios Asociados:* `src/domains/world/services/stateSovereigntyService.ts`, `src/domains/world/services/spatialDeploymentService.ts`, `src/domains/tactics/services/operationalUnitsService.ts`, `src/domains/economy/services/fiefBuildingService.ts`, `src/shared/services/catalogRegistryService.ts`.
 
 ```sql
@@ -924,8 +925,8 @@ Calcula la producción territorial de las **10 parcelas del feudo** (`user_indus
 ### 3.5 Reconfiguración y Adquisición de Parcelas (`reconfigure_industrial_plot` & `acquire_industrial_plot`)
 Permite cambiar el tipo de empresa de una de las 10 parcelas previa demolición con 50% de reembolso de materiales, o adquirir parcelas adicionales según el nivel de cuenta alcanzado.
 
-### 3.6 Liquidador Autónomo del Banco Central NPC (`fulfill_stale_p2p_orders`)
-Función cron/RPC que inspecciona órdenes P2P estancadas con más de 6 horas activas. El Banco Central de Intendencia Militar absorbe los materiales al precio medio de mercado y transfiere los fondos al vendedor deduciendo la tasa vigente.
+### 3.6 Liquidador Histórico de Órdenes Estancadas (`fulfill_stale_p2p_orders` — Deprecado por Mercado 100% Player-Driven)
+Función RPC histórica introducida en la Migración 13; en **DRONEPUNK 0.0.1** el Mercado P2P opera **100% impulsado por jugadores (*player-driven*)** mediante `execute_p2p_market_transaction` (actualizada en la Migración 32) y las órdenes activas sin comprador tras 6 horas pasan a estado `'stranded'` (*Cargamento Varado* en `industrialEngine.ts`) sin intervención de liquidador automatizado.
 
 ### 3.7 Intercambio de Trofeos Elo, Escudo de Descenso y Season Reset (`calculate_trophy_exchange`)
 *Implementación de Referencia:* `supabase/migrations/20261031000014_unified_matchmaking_and_ranked_ladder.sql`.
@@ -1085,7 +1086,7 @@ Toda interacción con Supabase está desacoplada en los 4 dominios canónicos y 
 - **Dominio Tactics (`src/domains/tactics/`):**
   - `src/domains/tactics/services/operationalUnitsService.ts` y `src/domains/tactics/core/operationalUnitsEngine.ts`: Divisiones operacionales en teatro y cinemática geodésica.
   - `src/domains/tactics/hooks/useMatchSync.ts`: Sincronización de turnos, deltas y reconexión vía `rpc_reconnect_match_state`.
-  - `src/domains/tactics/components/GeotacticsLoadingScreen.ts`: Verificación de `get_catalog_manifest_header()` durante el arranque táctico.
+  - `src/domains/tactics/components/GeotacticsLoadingScreen.tsx`: Verificación de `get_catalog_manifest_header()` durante el arranque táctico.
 
 ### 5.2 Persistencia Realtime en Teatro Operacional (Cabimas / Zulia `REG_VE_02`)
 *Implementación de Referencia:* `supabase/migrations/20261107_theatre_cabimas_realtime.sql`, `src/domains/world/services/spatialDeploymentService.ts` y `src/domains/world/services/stateSovereigntyService.ts`.
@@ -1095,12 +1096,12 @@ Toda interacción con Supabase está desacoplada en los 4 dominios canónicos y 
 - **`REPLICA IDENTITY FULL` y Canal CDC:** Las tablas `state_sovereignty`, `tactical_spatial_deployments`, `tactical_fief_constructions` y `region_operational_state` operan con `REPLICA IDENTITY FULL` dentro de `supabase_realtime`, haciendo streaming en `theatre:${regionId}` y `sovereignty:global` mediante eventos `postgres_changes` (`INSERT`, `UPDATE`, `DELETE`) sin polling HTTP.
 
 ### 5.3 Catálogos Estáticos Compilados con Hot-Reloading vía Manifiesto SSOT
-*Implementación de Referencia:* `supabase/migrations/20261108_system_catalog_manifest.sql`, `scripts/syncCatalogsFromDb.ts`, `src/shared/services/catalogRegistryService.ts` y `src/domains/tactics/components/GeotacticsLoadingScreen.ts`.
+*Implementación de Referencia:* `supabase/migrations/20261108_system_catalog_manifest.sql`, `scripts/syncCatalogsFromDb.ts`, `src/shared/services/catalogRegistryService.ts` y `src/domains/tactics/components/GeotacticsLoadingScreen.tsx`.
 - **Dilema Resuelto:** Se elimina el compromiso entre latencia de red y flexibilidad de balance.
   - En combate y pathfinding a 60 FPS: consultas sincrónicas en memoria ($O(1)$ < 0.05 ms por lookup).
   - Como Single Source of Truth (SSOT): PostgreSQL almacena las tablas canónicas (`units_catalog`, `terrain_catalog`, `unit_weapon_damage_matrix`, etc.).
 - **`system_catalog_manifest`:** Tabla que consolida un hash SHA-256 (`content_hash`) y el payload JSON del estado actual de balance (`bundle_json`).
 - **Mecanismo Anti-Drift:**
   - Build-time: `npm run sync:catalogs` ejecuta `scripts/syncCatalogsFromDb.ts` para compilar los catálogos estáticos base (`catalogs.generated.ts`).
-  - Runtime: `GeotacticsLoadingScreen` (`src/domains/tactics/components/GeotacticsLoadingScreen.ts`) invoca `catalogRegistry.verifyAndSyncWithRemoteManifest(300)` que verifica `get_catalog_manifest_header()` (< 300 ms). Si detecta un nuevo hash, descarga el delta consolidado y aplica el parche reactivo en caliente (`applyDynamicPatch`) sin requerir redespliegue del frontend.
+  - Runtime: `GeotacticsLoadingScreen` (`src/domains/tactics/components/GeotacticsLoadingScreen.tsx`) invoca `catalogRegistry.verifyAndSyncWithRemoteManifest(300)` que verifica `get_catalog_manifest_header()` (< 300 ms). Si detecta un nuevo hash, descarga el delta consolidado y aplica el parche reactivo en caliente (`applyDynamicPatch`) sin requerir redespliegue del frontend.
   - Offline-First: Si Supabase es inaccesible, el motor opera con el 100% de capacidades utilizando los catálogos compilados o la caché local previa en `localStorage`.

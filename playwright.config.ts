@@ -14,7 +14,7 @@ export default defineConfig({
     ['html', { outputFolder: 'playwright-report', open: 'never' }]
   ],
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: 'http://localhost:5000',
     trace: 'off',
     screenshot: 'only-on-failure',
     video: 'off',
@@ -28,8 +28,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npx vite --port=3000 --host=0.0.0.0',
-    port: 3000,
+    command: 'npx vite --port=5000 --host=0.0.0.0',
+    port: 5000,
     reuseExistingServer: !process.env.CI,
     timeout: 30000,
   },

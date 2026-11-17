@@ -2,7 +2,7 @@
  * ==============================================================================
  * SUITE DE PRUEBAS DE INTEGRACIÓN END-TO-END (E2E)
  * ==============================================================================
- * Valida el ciclo de vida completo del jugador en Tactical Command: Wars of Legacy:
+ * Valida el ciclo de vida completo del jugador en DRONEPUNK 0.0.1:
  * 1. Registro de usuario & Perfil inicial.
  * 2. Selección de partida contra Bot & Configuración táctica de tablero.
  * 3. Movimiento de unidades & Algoritmo Pathfinding A*.
@@ -116,6 +116,9 @@ export async function runFullE2ESuite(): Promise<E2ERunSummary> {
         eloRating: 1200,
         totalMatchesPlayed: 0,
         totalVictories: 0,
+        trophiesCount: 0,
+        dailyOfflineMatchesCount: 0,
+        lastOfflineMatchDate: new Date().toISOString().split('T')[0],
         equippedLoadout: ['infantry', 'tank_light', 'artillery'],
         equippedCosmetics: { ...equippedCosmetics },
       };
@@ -386,7 +389,7 @@ export async function runFullE2ESuite(): Promise<E2ERunSummary> {
       isPlayerVictor = true;
       matchTurnsElapsed = 2;
 
-      // Fórmulas canónicas de docs/05_MONETIZATION_AND_PROGRESSION.md:
+      // Fórmulas canónicas de progresión (docs/02_MASTER_METAGAME_INDUSTRY_ECONOMY.md):
       // XP = (Base 120 + (Ciudades * 45) + (Kills * 35) + (Turns * 6)) * (isVictory ? 2.2 : 0.85)
       // Oro = (Base 60 + (Ciudades * 20) + (Kills * 15)) * (isVictory ? 2.0 : 0.8)
       const baseXp = 120;
@@ -987,15 +990,15 @@ export async function runFullE2ESuite(): Promise<E2ERunSummary> {
         throw new Error('El camarada no fue liberado del embargo.');
       }
 
-      // 2. Logística Fraternal: Solicitud y Donación de Cartas Comunes (8 cartas, 25G + 5 XP por carta)
+      // 2. Logística Fraternal: Solicitud y Donación de Chasis Comunes (8 chasis, 25G + 5 XP por unidad)
       const cardReq = ClanEngine.requestCardDonation('clan_legion_alpha', slacker, 8, 'c_artillery', 'Batería Vulcan', 'common', null);
       if (!cardReq.success || cardReq.newRequest?.amountRequested !== 8) {
-        throw new Error('Fallo en la creación de solicitud de cartas.');
+        throw new Error('Fallo en la creación de solicitud de chasis.');
       }
 
       const donationRes = ClanEngine.donateCards(cardReq.newRequest!, savior, 2);
       if (!donationRes.success || donationRes.goldReward !== 50 || donationRes.xpReward !== 10) {
-        throw new Error('Fallo en la liquidación de donación de cartas.');
+        throw new Error('Fallo en la liquidación de donación de chasis.');
       }
 
       // 3. Guerra Territorial: Victoria 2v2 en Pareja de Clan (Cross-Chess) otorga 200 DP (multiplicador 2.0x)
@@ -1013,7 +1016,7 @@ export async function runFullE2ESuite(): Promise<E2ERunSummary> {
 
       return {
         passed: true,
-        details: `Protocolo de Rescate de Camarada liquidó fianza y otorgó +150 XP al salvador. Donaciones de cartas retribuyeron 50G y 10 XP por 2 comunes. Guerra Territorial 2v2 inyectó 200 DP (multiplicador 2.0x) en Ciudadela Central. Proyecto del Alto Mando activó Sobrealimentación Industrial (+5% extracción).`,
+        details: `Protocolo de Rescate de Camarada liquidó fianza y otorgó +150 XP al salvador. Donaciones de chasis retribuyeron 50G y 10 XP por 2 comunes. Guerra Territorial 2v2 inyectó 200 DP (multiplicador 2.0x) en Ciudadela Central. Proyecto del Alto Mando activó Sobrealimentación Industrial (+5% extracción).`,
         payload: {
           saviorXpBonus: rescueRes.saviorXpEarned,
           comradeLiberated: !rescueRes.updatedEmbargoedMember?.isEmbargoed,
@@ -1041,7 +1044,7 @@ export async function runFullE2ESuite(): Promise<E2ERunSummary> {
   };
 }
 
-// Ejecución directa si se invoca mediante CLI: `npx tsx src/engine/e2eIntegration.test.ts`
+// Ejecución directa si se invoca mediante CLI: `npx tsx src/domains/tactics/__tests__/e2eIntegration.test.ts`
 if (typeof process !== 'undefined' && process.argv && process.argv[1]?.includes('e2eIntegration.test.ts')) {
   console.log('==============================================================================');
   console.log('EJECUTANDO SUITE DE INTEGRACIÓN END-TO-END (DEVOPS & QA CLI RUNNER)');

@@ -2,6 +2,8 @@ export type MovementType = 'foot' | 'mech' | 'wheels' | 'treads' | 'air' | 'sea'
 
 export type EconomicCurrency = 'funds' | 'battleCredits' | 'commandGems';
 
+export type WeatherCondition = 'clear' | 'rain' | 'snow';
+
 export type TerrainType =
   | 'plains'
   | 'forest'
@@ -19,8 +21,11 @@ export type TerrainType =
   | 'bridge'
   | 'commtower'
   | 'silo'
+  | 'usedSilo'
   | 'lab'
-  | 'pipe';
+  | 'pipe'
+  | 'pipeSeam'
+  | 'rubble';
 
 export interface GridPosition {
   x: number;

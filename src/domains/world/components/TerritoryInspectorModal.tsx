@@ -2,7 +2,7 @@
  * ==============================================================================
  * TERRITORY INSPECTOR MODAL: CONSOLA C4ISR DE PROVINCIA SOBERANA
  * ==============================================================================
- * Especificación Canónica: METAGAME_DESIGN/MASTER_METAGAME_SPEC_V1.md §3 y §10.3
+ * Especificación Canónica: docs/00_GEOTACTICS_ONLINE_MASTER_SPEC.md §3 & docs/01_MASTER_CARTOGRAPHY_WEBGL_ZERO_RASTER.md
  * ==============================================================================
  */
 
@@ -44,7 +44,9 @@ export const TerritoryInspectorModal: React.FC<TerritoryInspectorModalProps> = (
   if (!isOpen || !province) return null;
 
   const isOwner = province.ownerTag === userClanTag;
-  const tcpPercent = Math.round((province.tcp / province.tcpMax) * 100);
+  const tcpVal = province.tcp ?? province.currentTcp ?? 0;
+  const tcpMaxVal = province.tcpMax ?? province.maxTcp ?? 10000;
+  const tcpPercent = Math.round((tcpVal / Math.max(1, tcpMaxVal)) * 100);
 
   return (
     <AnimatePresence>
@@ -136,7 +138,7 @@ export const TerritoryInspectorModal: React.FC<TerritoryInspectorModalProps> = (
                       : 'text-emerald-400'
                   }`}
                 >
-                  {province.tcp} / {province.tcpMax}
+                  {tcpVal} / {tcpMaxVal}
                 </p>
               </div>
 

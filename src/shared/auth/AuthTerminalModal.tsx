@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Lock, User, Terminal, AlertTriangle, ArrowRight, X } from 'lucide-react';
+import { Shield, Lock, User, AlertTriangle, ArrowRight, X } from 'lucide-react';
 
 interface AuthTerminalModalProps {
   onSignIn: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
@@ -71,9 +71,9 @@ export const AuthTerminalModal: React.FC<AuthTerminalModalProps> = ({
         {/* Terminal Header */}
         <div className="flex items-center justify-between px-4 py-3 bg-slate-950 border-b border-emerald-500/30">
           <div className="flex items-center gap-2">
-            <Terminal className="w-5 h-5 text-emerald-400 animate-pulse" />
+            <img src="/icon.svg" alt="DRONEPUNK" className="w-5 h-5 object-contain" />
             <span className="text-xs uppercase tracking-wider text-emerald-400 font-bold">
-              C4ISR // ENLACE DE SEGURIDAD SOBERANA
+              DRONEPUNK // C4ISR — ENLACE DE SEGURIDAD SOBERANA
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -102,7 +102,11 @@ export const AuthTerminalModal: React.FC<AuthTerminalModalProps> = ({
             </div>
           )}
 
-          <div className="space-y-1 text-center">
+          <div className="space-y-1.5 text-center">
+            <img src="/icon.svg" alt="DRONEPUNK" className="w-9 h-9 mx-auto object-contain" />
+            <div className="text-[11px] font-bold text-[#C46A3A] tracking-widest uppercase">
+              DRONEPUNK // C4ISR
+            </div>
             <h2 className="text-lg font-bold text-white tracking-widest uppercase">
               {mode === 'signin' ? 'IDENTIFICACIÓN DE COMANDANTE' : 'REGISTRO DE NUEVA MATRÍCULA'}
             </h2>

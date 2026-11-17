@@ -1,6 +1,6 @@
 {
-  "name": "Tactical Command: Wars of Legacy - Architecture & GDD",
-  "description": "Comprehensive Game Design Document, Database Schema, Realtime Networking, and Game Engine Architecture for a modern turn-based tactical strategy game with RPG progression in the style of Advance Wars.",
+  "name": "DRONEPUNK 0.0.1 — Consola de Mando Táctico Militar",
+  "description": "DRONEPUNK 0.0.1 — Consola de mando táctico militar: estrategia bélica determinista por turnos (1-100 HP), Almacén Físico de 16 Chasis (Tiers T1-T5), cartografía WebGL Zero-Raster, economía industrial P2P y sala C4ISR.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

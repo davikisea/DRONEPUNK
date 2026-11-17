@@ -12,7 +12,7 @@ const files = fs.readdirSync(migrationsDir)
 console.log(`Consolidando ${files.length} migraciones en ${outputPath}...`);
 
 let consolidated = `-- ==============================================================================
--- GEOTACTICS ONLINE - CONSOLIDATED DATABASE DEPLOYMENT SCRIPT
+-- DRONEPUNK 0.0.1 - CONSOLIDATED DATABASE DEPLOYMENT SCRIPT
 -- Combina las ${files.length} migraciones canónicas + seed inicial en un solo bloque ejecutable.
 -- Generado automáticamente: ${new Date().toISOString()}
 -- ==============================================================================

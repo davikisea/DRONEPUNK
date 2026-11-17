@@ -5,6 +5,65 @@
 
 import { barkEngine, CANONICAL_BARK_TEMPLATES } from '@domains/game-feel';
 
+const pendingTests: Array<{ label: string; fn: () => void | Promise<void> }> = [];
+
+const describe = (_label: string, fn: () => void): void => {
+  fn();
+  void (async () => {
+    let currentLabel = '';
+    barkEngine.setSingleSubjectLock(false);
+    try {
+      for (const testCase of pendingTests) {
+        currentLabel = testCase.label;
+        await testCase.fn();
+        console.log(`✅ [PASSED] ${testCase.label}`);
+      }
+    } catch (err) {
+      console.error(`❌ [FAILED] ${currentLabel}:`, err);
+      process.exitCode = 1;
+    } finally {
+      barkEngine.setSingleSubjectLock(true);
+      barkEngine.clearActiveBark();
+    }
+  })();
+};
+
+const it = (label: string, fn: () => void | Promise<void>): void => {
+  pendingTests.push({ label, fn });
+};
+
+const createMatcher = <T>(actual: T, inverted: boolean) => ({
+  toBe(expected: T): void {
+    const pass = actual === expected;
+    if (inverted ? pass : !pass) {
+      throw new Error(`Expected ${String(actual)} ${inverted ? 'not ' : ''}to be ${String(expected)}`);
+    }
+  },
+  toBeGreaterThan(expected: number): void {
+    const pass = typeof actual === 'number' && actual > expected;
+    if (inverted ? pass : !pass) {
+      throw new Error(`Expected ${String(actual)} ${inverted ? 'not ' : ''}to be > ${expected}`);
+    }
+  },
+  toContain(expected: string): void {
+    const pass = typeof actual === 'string' && actual.includes(expected);
+    if (inverted ? pass : !pass) {
+      throw new Error(`Expected "${String(actual)}" ${inverted ? 'not ' : ''}to contain "${expected}"`);
+    }
+  },
+  toBeNull(): void {
+    const pass = actual === null;
+    if (inverted ? pass : !pass) {
+      throw new Error(`Expected ${String(actual)} ${inverted ? 'not ' : ''}to be null`);
+    }
+  },
+});
+
+const expect = <T>(actual: T) => ({
+  ...createMatcher(actual, false),
+  not: createMatcher(actual, true),
+});
+
 describe('Bark Engine Procedural Test Suite', () => {
   it('debe contener plantillas canónicas para los comandantes principales', () => {
     expect(CANONICAL_BARK_TEMPLATES.length).toBeGreaterThan(15);
@@ -33,17 +92,23 @@ describe('Bark Engine Procedural Test Suite', () => {
   });
 
   it('debe interpolar el nombre real del jugador si el vínculo es >= 3', async () => {
-    const result = await barkEngine.triggerBark({
-      commanderId: 'volkov',
-      triggerContext: 'match_start',
-      bondingLevel: 3,
-      playerName: 'VolkovCamarada',
-    });
+    const originalRandom = Math.random;
+    Math.random = () => 0.9;
+    try {
+      const result = await barkEngine.triggerBark({
+        commanderId: 'volkov',
+        triggerContext: 'match_start',
+        bondingLevel: 3,
+        playerName: 'VolkovCamarada',
+      });
 
-    expect(result).not.toBeNull();
-    if (result) {
-      expect(result.text).not.toContain('{player_name}');
-      expect(result.text).toContain('VolkovCamarada');
+      expect(result).not.toBeNull();
+      if (result) {
+        expect(result.text).not.toContain('{player_name}');
+        expect(result.text).toContain('VolkovCamarada');
+      }
+    } finally {
+      Math.random = originalRandom;
     }
   });
 

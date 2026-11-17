@@ -17,6 +17,7 @@ export {
   type BarkTriggerContext,
   type BarkSelfOptimizationMetrics,
   type BubbleShape,
+  type BubbleShape as BarkBubbleShape,
   type OnomatopoeiaStamp,
   type VignetteMood,
   type BarkTemplate,

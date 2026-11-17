@@ -1,5 +1,5 @@
 /**
- * Tactical Command - Catalog Offline Fallback Suite
+ * DRONEPUNK 0.0.1 - Catalog Offline Fallback Suite
  * 
  * Verifica que ante fallos de conectividad, respuestas de error de Supabase
  * o cortes de red en cliente, el `catalogRegistry` retenga el 100% de operatividad

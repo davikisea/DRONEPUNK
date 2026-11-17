@@ -8,7 +8,7 @@ export interface ExtendedTerrainTile extends TerrainTile {
 }
 
 /**
- * Canonical dictionary mapping 194 AWBW numeric tile IDs to TacticalCommand tiles.
+ * Canonical dictionary mapping 194 AWBW numeric tile IDs to DRONEPUNK 0.0.1 tiles.
  * Extracted and unified from WarsWorld map importer engine.
  */
 export const AWBW_EXTENDED_TILE_MAP: Record<string, { type: TerrainType; defenseStars: number; variant?: string; seamHp?: number; slot?: number }> = {

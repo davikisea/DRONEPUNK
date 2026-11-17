@@ -16,9 +16,14 @@ import {
   TerritoryNode,
   TerritoryControlState,
   MASTER_METAGAME_CONSTANTS,
+  type ExclusiveResourceNodeType,
 } from '@shared';
 import { TerritorialUpkeepEngine, UpkeepCalculationOutput } from '@domains/economy';
 import { audioManager } from '@domains/game-feel';
+import {
+  calculateSymbioticExtractionSettlement,
+  type SymbioticExtractionSettlement,
+} from '../core/strategicAndProductionEngine';
 
 export interface UseTerritoryEconomyTickerProps {
   clanId?: string | null;
@@ -39,6 +44,7 @@ export interface TerritoryEconomyTickerState {
   controlledNodesCount: number;
   hasCapitalControl: boolean;
   upkeepMetrics: UpkeepCalculationOutput;
+  symbioticTaxBreakdown: SymbioticExtractionSettlement;
   harvestResources: () => { ec: number; steel: number };
 }
 
@@ -137,9 +143,24 @@ export function useTerritoryEconomyTicker({
     return () => clearInterval(interval);
   }, [ecPerMinute, steelPerMinute]);
 
-  // 5. Cosecha activa de recursos acumulados
+  // 5. Desglose fiscal simbiótico de la cosecha acumulada
+  const symbioticTaxBreakdown = useMemo(() => {
+    const activeMunicipalityOwner = controlledProvinces[0]
+      ? controlMap[controlledProvinces[0].id]?.controllingClanId ?? clanId ?? 'clan-ferro'
+      : clanId ?? 'clan-ferro';
+    const exclusiveNode: ExclusiveResourceNodeType = hasCapitalControl ? 'silicon' : 'oil_energy';
+    return calculateSymbioticExtractionSettlement({
+      municipalityId: controlledProvinces[0]?.id ?? 'MUN_ZULIA_CABIMAS',
+      extractorOwnerClanId: clanId ?? 'clan-ferro',
+      municipalityControllingClanId: activeMunicipalityOwner,
+      grossYieldEc: accumulatedEc,
+      exclusiveResourceNode: exclusiveNode,
+    });
+  }, [accumulatedEc, clanId, controlMap, controlledProvinces, hasCapitalControl]);
+
+  // 6. Cosecha activa de recursos acumulados (neto post-impuesto territorial)
   const harvestResources = useCallback(() => {
-    const ec = accumulatedEc;
+    const ec = symbioticTaxBreakdown.netExtractorYieldEc;
     const steel = accumulatedSteel;
 
     if (ec > 0 || steel > 0) {
@@ -152,7 +173,7 @@ export function useTerritoryEconomyTicker({
     }
 
     return { ec, steel };
-  }, [accumulatedEc, accumulatedSteel, onHarvestResources]);
+  }, [symbioticTaxBreakdown.netExtractorYieldEc, accumulatedSteel, onHarvestResources]);
 
   return {
     ecPerMinute,
@@ -164,6 +185,7 @@ export function useTerritoryEconomyTicker({
     controlledNodesCount: controlledNodes.length,
     hasCapitalControl,
     upkeepMetrics,
+    symbioticTaxBreakdown,
     harvestResources,
   };
 }

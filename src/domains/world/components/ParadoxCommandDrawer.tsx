@@ -2,7 +2,7 @@
  * ==============================================================================
  * PARADOX COMMAND DRAWER (PANEL LATERAL RETRÁCTIL ESTILO STELLARIS / VICTORIA 3)
  * ==============================================================================
- * Conforme a @tactical-command-intel y PLAN_MAESTRO_IMPLEMENTACION_GEOTACTICS_ALICE
+ * Conforme a @tactical-command-intel y docs/07_MASTER_UI_UX_WAR_ROOM.md
  * - Lateral derecho deslizable con pestañas verticales compactas.
  * - Pestaña [TERRITORIO]: Macro-inspección de regiones, búnkeres y asedios en curso.
  * - Pestaña [PUNTOS ESTRATÉGICOS]: Nodos clave (Capital Caracas, Estrechos, Refinerías, Silos).
@@ -33,7 +33,7 @@ import {
   CheckCircle2,
   Lock,
 } from 'lucide-react';
-import { audioManager } from '@domains/game-feel';
+import { audioManager, barkEngine } from '@domains/game-feel';
 import {
   UnitProductionItem,
   calculateUnitProductionDuration,
@@ -271,6 +271,36 @@ export const ParadoxCommandDrawer: React.FC<ParadoxCommandDrawerProps> = ({
                   <p className="text-[10px] text-[#7B8A4A] leading-relaxed">
                     Soberanía regional bajo protocolo Alice. Pintado dinámico por puntos de control.
                   </p>
+                </div>
+
+                {/* Parte Matutino C4ISR (Bucle de Sesión de 10 Minutos) */}
+                <div className="p-2.5 bg-[#1E231A] border border-[#00FF66]/60 rounded-[8px_2px_8px_2px] space-y-1.5">
+                  <div className="flex items-center justify-between text-[10px] font-black text-[#00FF66]">
+                    <span>PARTE MATUTINO C4ISR (SESIÓN 10 MIN)</span>
+                    <span className="px-1.5 py-0.5 bg-[#00FF66]/20 rounded text-[9px]">06:00h</span>
+                  </div>
+                  <p className="text-[10px] text-[#F2E8D5] leading-snug">
+                    Incursión nocturna en frontera: Scouts rivales atacaron 15% de celdas. Tus fábricas privadas suman +240 EC brutos listos para cosecha.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      audioManager.playComboAction(5);
+                      barkEngine.generateMorningSessionBriefing({
+                        borderMunicipalityName: 'Cabimas Frontera',
+                        cellsLostPercent: 15,
+                        readyFactoriesCount: 2,
+                        netHarvestableEc: 220,
+                      });
+                      onTriggerBark?.(
+                        'Parte matutino recibido: +220 EC netos cosechados (post-impuesto 8%) y alerta enviada al Gestor Municipal.',
+                        'radio'
+                      );
+                    }}
+                    className="w-full py-1.5 bg-[#00FF66] hover:bg-[#33ff85] text-black font-black text-[10px] uppercase rounded-[4px_1px_4px_1px] cursor-pointer shadow-[2px_2px_0px_#000]"
+                  >
+                    COSECHA RÁPIDA + DESPLEGAR RESUMEN MATUTINO
+                  </button>
                 </div>
 
                 {/* Lista de Provincias Clave */}

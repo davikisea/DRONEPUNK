@@ -1,20 +1,23 @@
-# VOLUMEN 7: SISTEMA CANÓNICO DE DISEÑO UI/UX Y SALA DE GUERRA VIVA
+# VOLUMEN 7: SISTEMA CANÓNICO DE DISEÑO UI/UX Y TEATRO MAP-FIRST
 **Documento Canónico Unificado:** `07_MASTER_UI_UX_WAR_ROOM.md`
 
-**Proyecto:** *Tactical Command: Wars of Legacy (GEOTACTICS ONLINE)*  
-**Versión de Arquitectura:** 5.1.0 (*Kinetic Comic War-Room Engine — Advance Wars meets Persona 5 / Hades + C4ISR Modular*)  
+**Proyecto:** *DRONEPUNK 0.0.1*  
+**Versión de Arquitectura:** 0.0.1 (*Map-First C4ISR & 4-Scale Unified Inspector — Advance Wars meets Paradox / Persona 5*)  
 **Estado:** Producción Certificada (Arquitectura Modular de 4 Dominios + Shared Verificada)  
-**Invariante Crítica:** **CERO modificaciones destructivas a la lógica de combate (1–100 HP enteros, derrota a 0 tropas), motores matemáticos, contratos de Supabase ni firmas públicas de `WarLobbyHubProps`. Cumplimiento estricto de los 7 Pilares Canónicos (CERO Cartas TCG / Almacén Físico de 16 Tropas).**
+**Invariante Crítica:** **CERO modificaciones destructivas a la lógica de combate (1–100 HP enteros, derrota a 0 tropas), motores matemáticos, contratos de Supabase ni firmas públicas de `WarLobbyHubProps`. Cumplimiento estricto de los 7 Pilares Canónicos (Almacén Físico de 16 Chasis Militares como munición descartable forjada).**
 
 ---
 
-## 1. Visión Arquitectónica: La Sala de Guerra Viva (Kinetic Comic War-Room)
+## 1. Visión Arquitectónica: Menú Único 100% Mapa-Primero (Map-First C4ISR)
 
-La arquitectura transforma el Menú Principal (`src/domains/world/components/WarLobbyHub.tsx`) y su articulación con `src/App.tsx` y `src/domains/tactics/components/CombatTheaterView.tsx` pasando de una "terminal verde estática desconectada" a un **Centro de Mando C4ISR Vivo con Energía de Novela Gráfica Bélica**:
+La arquitectura transforma `src/domains/world/components/WarLobbyHub.tsx` y su articulación con `src/App.tsx` y `src/domains/tactics/components/CombatTheaterView.tsx` erradicando por completo la pantalla intermedia separada (`TacticalC4ISRBaseDiorama`): **al iniciar, el Mapa WebGL Zero-Raster (`src/domains/world/components/TacticalWorldMap.tsx`) ES el menú principal y lienzo único al 100% del viewport (`100vw × 100vh`)**:
 
-1. **Persistencia Espacial Total (Zero-Unmount HQ Shell):** El Cuartel General, el Mapa Geopolítico WebGL (`src/domains/world/components/TacticalWorldMap.tsx`) y el diorama isométrico (`src/domains/world/components/TacticalC4ISRBaseDiorama.tsx`) nunca se desmontan al visitar la Intendencia (`ShopCatalog.tsx`), Hangar Físico de Tropas (`UnitHangarModal.tsx`) / Armería (`LoadoutCustomizer.tsx`), Complejo Industrial de 10 Parcelas (`IndustrialComplexView.tsx`), Bolsa P2P (`P2PMarketplaceView.tsx`), Alianza (`ClanHeadquartersView.tsx`) o Archivos. En su lugar, la cámara hace un **enfoque cinético (Zoom & Pan con resorte)** hacia la estación correspondiente y despliega una **Terminal Táctica Diegética Superpuesta (`<WarRoomModal />` / Shell de Estación)** con desenfoque de cristal táctico (`backdrop-blur-md`), permitiendo cambiar de estación en 1 clic desde el Dock Inferior (`src/domains/world/components/TacticalDock.tsx`) sin perder timers ni estado.
-2. **Presencia del Comandante en Guardia + Bark Engine en el Lobby:** El Cuartel General incorpora al Comandante activo (ej. *Mayor Stella*, *Coronel Volkov*, *Andy*, *Gral. Vance*) a través de `src/domains/game-feel/components/CommanderLivingVignette.tsx` y `src/domains/game-feel/components/CommanderBarkWidget.tsx`, con su estandarte de facción y bocadillo cómic reactivo del `barkEngine` (`src/domains/game-feel/core/barkEngine.ts`, tramas Ben-Day, papel táctico `#F2E8D5` y sellos pop-art rotados `¡TACTICAL!`, `¡ALERT!`, `¡RATATAT!`), conectando emocionalmente el Lobby con el Teatro de Combate.
-3. **Geometría Híbrida & Tinta Sólida (`45° Armor` + `14px/4px Comic Asymmetry`):** Se resuelve el bug de recorte de sombras separando los chasis blindados achaflanados (con `drop-shadow(4px 4px 0px #0A0B08)`) de las tarjetas, medidores y bocadillos con curvatura asimétrica canónica (`rounded-[14px_4px_14px_4px]`, `border-2 border-[#0A0B08]`, `shadow-[4px_4px_0px_#0A0B08]`).
+1. **Persistencia Espacial Total (Zero-Unmount Map-First Shell):** `TacticalWorldMap.tsx` permanece montado al 100% sin transiciones a pantallas negras ni salas aisladas. Las 6 estaciones de metajuego (**TIENDA, INDUSTRIA, ARMERÍA, P2P, ALIANZA, DOCTRINA**) ubicadas en el dock inferior derecho (`src/domains/world/components/RightActionDock.tsx`) despliegan terminales diegéticas superpuestas (`backdrop-blur-md`) sobre el teatro cartográfico sin perder estado ni temporizadores (`Volver al Mapa [ESC]`).
+2. **Maquetación Perimetral Limpia y Jerárquica:**
+   - **Header Superior Persistente (`DualResourceHeader.tsx`):** Franja compacta dark-glass (`#0E100C/90`, `h-12`) con rango/nivel, Barra Ghost EXP, accesos de país, `EC`, Acero, Tierras Raras, `tech_scrap`, Fondos `$G`, temporizador de ciclo y conmutador del inspector derecho.
+   - **Rail Izquierdo Desplegable (`LeftCollapsibleRail.tsx`) + Blindaje de Bark (`CommanderBarkWidget.tsx`):** Rail superior/medio izquierdo (`CAPAS`, `FEED`, `RADIO`, `AJUSTES`) que deja la esquina inferior izquierda **100% despejada para Mayor Stella / Bark Engine** (`CommanderBarkWidget.tsx` conectado al `barkEngine` para canalizar tanto clics de selector como alertas de asedio).
+   - **Inspector Derecho Unificado de 4 Escalas Geográficas (`UnifiedRegionInspector.tsx` + `mapSelectionTypes.ts`):** Panel colapsable en el lateral derecho (`top-14 right-3 bottom-16`, `~356–376px`) anclado por encima de `RightActionDock` con breadcrumb navegable `País > Estado > Municipio > Celda [sx,sy]` y 4 pestañas (`RESUMEN`, `GOBIERNO`, `ECONOMÍA`, `OPERACIONES`).
+3. **Geometría Híbrida & Tinta Sólida (`45° Armor` + `14px/4px Comic Asymmetry`):** Se mantienen las sombras duras offset (`4px 4px 0px #0A0B08`), contornos de tinta `#0A0B08`, tipografía tabular `tabular-nums` y sellos pop-art rotados en el módulo narrativo.
 
 ---
 
@@ -23,7 +26,7 @@ La arquitectura transforma el Menú Principal (`src/domains/world/components/War
 ### 2.1. Tipografía Expresiva y Tabular (`index.html`)
 Se cargarán desde Google Fonts tres familias con personalidad militar y de novela gráfica:
 - **Display / Titulares de Impacto y Sellos (`--font-display`):** `'Chakra Petch'` (700, 800, Italics) — Geometría mecanizada con cortes angulares ideales para encabezados C4ISR y onomatopeyas.
-- **UI Táctica y Narrativa (`--font-sans`):** `'Space Grotesk'` (500, 700) — Lectura ultraclara para expedientes, fichas de unidades físicas del hangar (0 cartas TCG) y bocadillos del Bark Engine.
+- **UI Táctica y Narrativa (`--font-sans`):** `'Space Grotesk'` (500, 700) — Lectura ultraclara para expedientes, fichas de unidades físicas del hangar (Almacén Físico de 16 Chasis) y bocadillos del Bark Engine.
 - **Telemetría, Coordenadas y Odómetros (`--font-mono`):** `'JetBrains Mono'` (600, 800) con `font-variant-numeric: tabular-nums` obligatorio en todo contador o reloj.
 
 ### 2.2. Paleta Cromática Canónica (70-20-10 + Heráldica de Facciones)
@@ -137,70 +140,54 @@ Se cargarán desde Google Fonts tres familias con personalidad militar y de nove
 
 ---
 
-## 3. Wireframes Esquemáticos por Zona (`100vh × 100vw` Puro, >70% Lienzo Despejado)
+## 3. Wireframes Esquemáticos por Zona (`100vh × 100vw` 100% Map-First, Zero Overlap)
 
-### 3.1. Distribución Espacial General y Las 4 Capas de Diegesis
+### 3.1. Distribución Perimetral Unificada (`WarLobbyHub.tsx`)
 
 ```
 +======================================================================================================+
-| ZONA 1: TOP COMMAND HUD / DUAL RESOURCE HEADER (h-14 / 56px fijo, z-30) — CAPA 4 NO-DIEGÉTICA        |
-| [Retrato CO + Rango NVL.5 + Ghost EXP Bar]  [⚡ C4ISR • Arena • 🏆2450 • Cap N11]  [💰Oro|💎Gem|⚙️Acero|⚡En]|
+| ZONA 1: HEADER SUPERIOR PERSISTENTE (DualResourceHeader, h-12 / 48px fijo, z-30)                     |
+| [NVL + EXP] [País] | [⚡4,850 EC | 🔩Acero | 💎Tierras Raras | 🔧Scrap | 💰$G | ⏱️05:00] | [Toggle]|
 +======================================================================================================+
 |                                                                                                      |
-|  ZONA 3A: INTEL & BARK (Izq, w-64)        ZONA 2: LIENZO / DIORAMA CENTRAL   ZONA 3B: OPS (Der, w-48)|
-|  +-------------------------------+        (CAPA 1 DIEGÉTICA + CAPA 2)        +---------------------+ |
-|  | 🗣️ VIÑETA GUARDIA CO (Bark)   |                                           | 🎡 ROTOR SUMINISTRO | |
-|  | "Mayor Stella: ¡Silos al 90%!"|     [⚓ ASTILLERO NAVAL -> Industria]     | [¡GIRAR! - Ceremonia| |
-|  | [Sello Pop-Art: ¡TACTICAL!]   |                                           +---------------------+ |
-|  +-------------------------------+     [⚡ BÚNKER SILOS -> Cosecha +Acero]   | 📋 ÓRDENES DIARIAS  | |
-|  | 📁 DOSSIER MISIÓN (Papel Crema|                                           | [1/3] ★ Logros  [R] | |
-|  | "Sector Alpha: Baterías" [1/2]|     [🪖 HANGAR FÍSICO -> 16 Tropas/Arm.]  +---------------------+ |
-|  | [Ghost Progress] [Reclamar]   |                                                                   |
-|  +-------------------------------+     [📡 RADAR POLAR 360° -> Mapa Frentes]                         |
-|  | 🚨 DEFCON-1 + 🔥 RACHA 4x     |     (Conmutador Teatro MapLibre WebGL)                            |
-|  +-------------------------------+                                                                   |
-|                                                                                                      |
-|  (CAPA 3 META: Viñeta perimetral roja en DEFCON-1 / Scanlines CRT sutiles / Destello de Suministro)  |
-+======================================================================================================+
-| ZONA 4 & 5: TACTICAL DOCK + RADIO-NET + CTA TITÁN (h-20 / 80px fijo, z-30)                           |
-| [1:Tienda][2:Industria][3:Armería][4:Bolsa P2P][5:Alianza][6:Doctrina] | [📡 Radio-Net] | [⚔️¡COMBATE!]|
+| [≡ C4ISR • Zx.x] [ESCALA]        [OPENPLACE WEBGL • ZOOM]        +---------------------------------+ |
+|  LeftCollapsibleRail (top-left)                                  | UNIFIED REGION INSPECTOR (Der)  | |
+|  • CAPAS (4 escalas)                                             | [Escala País/Estado/Mun/Celda]  | |
+|  • FEED (Alice live)                                             | País > Estado > Mun > Celda     | |
+|  • RADIO (Aliados)            LIENZO ÚNICO WEBGL 2.0             | [RESUMEN|GOBIERNO|ECON|OPS]      | |
+|  • AJUSTES (Audio/CRT)         TacticalWorldMap.tsx              | • País: PIB, Capital, Edictos   | |
+|                                    100vw × 100vh                 | • Estado: De Jure/Facto, TCP    | |
+|                                                                  | • Mun: Cabecera, Feudos, Red    | |
+| +-----------------------------+                                  | • Celda 20x20: DESPLEGAR/CONST. | |
+| | ★ MAYOR STELLA // BARK      |                                  +---------------------------------+ |
+| | CommanderBarkWidget         |                                  |  RIGHT ACTION DOCK (bottom-3)   | |
+| | (Bottom-Left Reservado)     |                                  | [TIENDA][IND][ARM][P2P][ALZ][DOC]|
 +======================================================================================================+
 ```
 
-### 3.2. Detalle de las 5 Zonas Clave
+### 3.2. Detalle de las 5 Zonas Perimetrales
 
-1. **Zona 1: `CommandHUD` (`src/domains/world/components/CommandHUD.tsx`) y `DualResourceHeader` (`src/domains/world/components/DualResourceHeader.tsx`):**
-   - **Expediente del Comandante (`[P]`):** Sustituye el SVG genérico por el retrato real del Comandante activo (`/assets/CO/pixelated/stella-full.png` con fallback vectorial estilizado via `getCOFullBodyUrl`), borde heráldico de su facción (`Orange Star`), insignia de Nivel correcta (`resolvedLevel = userLevel ?? simLevel ?? 5`) y **Barra de EXP de Doble Capa (`TacticalGhostBar` en `src/shared/ui/TacticalGhostBar.tsx`)**.
-   - **Telemetría Central:** Tag del Clan (`[FERRO]` / `[IVS]`), nombre de Arena, Trofeos con icono, Escudos (`3/3`) y conmutador elástico `TORNEO (CAP N11)` vs `LADDER (N15)`.
-   - **Banco de Recursos con Odómetro `motion`:** Contadores de `Fondos ($G)`, `Gemas`, `Acero`, `Chatarra Tecnológica (tech_scrap)` y `Energía (EC + Barra Ghost)` que escalan (`scale(1.3) -> scale(1)`) con `tabular-nums` al cambiar de valor. Los botones `+` se amplían a **`24×24px` (`w-6 h-6`)** cumpliendo Ley de Fitts y WCAG AA.
+1. **Zona 1: `DualResourceHeader` (`src/domains/world/components/DualResourceHeader.tsx`):**
+   - Cabecera superior minimalista (`bg-[#0E100C]/90`, `h-12`, `border-b border-[#2E3323]`) con selector rápido de País (`[data-testid="header-country-btn"]`), Rango/Nivel, Barra Ghost EXP, odómetros `tabular-nums` de `EC`, `Acero`, `Tierras Raras`, `tech_scrap`, `$G`, reloj de ciclo y botón para desplegar/plegar el Inspector Derecho.
 
-2. **Zona 2: `TacticalC4ISRBaseDiorama` (`src/domains/world/components/TacticalC4ISRBaseDiorama.tsx`) y `TacticalWorldMap` (`src/domains/world/components/TacticalWorldMap.tsx`):**
-   - **Entintado Cómic y Trama Ben-Day:** Todos los edificios y vehículos reciben contornos de tinta negra (`stroke="#0A0B08" strokeWidth="3"`), sombras proyectadas sólidas (`fill="#0A0B08"`), espuma costera animada y patrón `<pattern id="benDayDots">` en las laderas y sombras.
-   - **Siluetas *Advance Wars* de Alta Fidelidad:** Rediseño vectorial del Tanque Pesado en el Hangar (orugas con remaches, chasis inclinado, torreta con estrella heráldica), Helicóptero Artillado en el Helipuerto (con luces estroboscópicas) y Destructor Torpedero en el Muelle Naval.
-   - **4 Estaciones Diegéticas con Etiquetas Espaciales Cómic (`rounded-[14px_4px_14px_4px]`):**
-     - `⚓ ASTILLERO // INDUSTRIA` (Muelle Naval — abre Complejo Industrial de 10 Parcelas `IndustrialComplexView.tsx`).
-     - `⚡ SILOS // +ACERO & ORO` (Búnker Generador — con barra de capacidad y partículas al cosechar).
-     - `🪖 HANGAR // ALMACÉN FÍSICO DE 16 TROPAS` (Bahía Blindada — abre Hangar Físico `UnitHangarModal.tsx` y Armería `LoadoutCustomizer.tsx`; **Pilar 1 Canónico: CERO Cartas TCG/CCG, 16 unidades físicas máximo = 4 en Battlegroup activo + 12 en reserva**).
-     - `📡 RADAR C4ISR // FRENTES` (Torre de Radar Polar — conmuta al Teatro Geopolítico WebGL `TacticalWorldMap.tsx` con `TacticalMapControls.tsx` y elimina la duplicación del HUD derecho).
-   - **Alarma de Búnker Conectada (`handleBunkerAlarm`):** Clicar el Helipuerto/Comando activa la alerta `DEFCON-1` proyectando la viñeta roja pulsante en la Capa Meta del viewport.
+2. **Zona 2: Lienzo Cartográfico Único (`src/domains/world/components/TacticalWorldMap.tsx`):**
+   - Ocupa el **100% del viewport** desde el arranque (eradicada la sala diorama separada como vista principal; `TacticalC4ISRBaseDiorama.tsx` permanece únicamente como módulo legado exportado para retrocompatibilidad).
+   - Clic en País (`world-land-mass`), Estado (`provinces-fill`), Municipio (`zulia-municipalities-fill` / `cities-*`) o Celda Táctica `20×20` (`z >= 15.0`) actualiza el `MapSelectionTarget` del Inspector Derecho Unificado.
+   - Los modales in-situ (`TacticalUnitDeployModal` y `TacticalConstructionDrawer`) se montan vía `ReactDOM.createPortal(..., document.body)` a `z-50` para garantizar visibilidad sobre cualquier panel periférico.
 
-3. **Zona 3: `FactionBanner` (`src/domains/world/components/FactionBanner.tsx`), `CommanderLivingVignette` (`src/domains/game-feel/components/CommanderLivingVignette.tsx`) y `CommanderBarkWidget` (`src/domains/game-feel/components/CommanderBarkWidget.tsx`):**
-   - **Columna Izquierda / Viñeta Viva (`w-64` en modo banner o Cuadrante Izquierdo 58% en modo Living Canvas):**
-     - **Viñeta Reactiva del Comandante (Bark Engine):** Muestra al CO activo a cuerpo completo (`CommanderLivingVignette.tsx`) o en placa de guardia (`CommanderBarkWidget.tsx` / `FactionBanner.tsx`) con bocadillo en papel táctico (`#F2E8D5`), 5 morfologías (`radio`, `panic`, `thought`, `shout`, `whisper`), trama Ben-Day y sello pop-art (`¡TACTICAL!`, `¡RATATAT!`, `¡¡AUTORIZADO!!`). Al hacer clic sobre el personaje o bocadillo, aplica física *Squash & Stretch* y cicla partes tácticos reales usando `barkEngine` (`src/domains/game-feel/core/barkEngine.ts`).
-     - **Dossier de Misión de Campaña (Estilo Carpeta Militar Crema `#F2E8D5`):** Contraste negro sobre crema, barra de progreso con *Ghost Trail* y botón de reclamo con explosión de recursos y odómetro.
-     - **Píldora Unificada DEFCON-1 + Racha de Victorias:** Fusiona la alerta de incursión y el multiplicador de racha (`🔥 Racha: 4 Victorias • 1.25x BOTÍN`) con botones rápidos de `Suministros` y `Mensajes`.
-   - **Columna Derecha (`w-48`, sin Radar duplicado):**
-     - Acceso directo a `🎡 Rotor de Suministros` (con sello `¡LISTO!`), `📋 Órdenes Diarias (1/3)` y `🏆 Condecoraciones / Torneo (#4)`.
+3. **Zona 3: `LeftCollapsibleRail` (`src/domains/world/components/LeftCollapsibleRail.tsx`) + `CommanderBarkWidget` (`src/domains/game-feel/components/CommanderBarkWidget.tsx`):**
+   - **Rail Superior Izquierdo (`top-14 left-3`):** Colapsable por defecto (`[≡ C4ISR]` + pill de escala actual), con altura acotada (`max-h-[calc(100vh-390px)]`) y 4 pestañas (`CAPAS`, `FEED`, `RADIO`, `AJUSTES`) + accesos al Hangar de 16 Tropas y Rotor de Suministros `[R]`.
+   - **Esquina Inferior Izquierda Blindada (`bottom-2.5 left-3`):** Reservada exclusivamente para Mayor Stella / Comandante activo (`CommanderBarkWidget`), suscrito directamente a `barkEngine` para proyectar en el mismo globo las selecciones del mapa y las alertas de asedio político sin superponer tarjetas sobre el dock derecho (`ComicVignetteOverlay` queda acotado a `CombatTheaterView`).
 
-4. **Zona 4: `TacticalDock` (`src/domains/world/components/TacticalDock.tsx`) y Botón Titán `¡ORDEN DE COMBATE!`:**
-   - **6 Estaciones con Hotkeys `[1]`–`[6]` y Estado Activo:** `[1] Tienda` (`ShopCatalog.tsx`), `[2] Industria` (`IndustrialComplexView.tsx`), `[3] Armería` (`LoadoutCustomizer.tsx` / `UnitHangarModal.tsx`), `[4] Bolsa P2P` (`P2PMarketplaceView.tsx`), `[5] Alianza` (`ClanHeadquartersView.tsx`), `[6] Doctrina` + botón `[E] Editor` (`TacticalStudioEditor.tsx`).
-   - **Corrección del Gate de Nivel:** `Industria` y `Bolsa P2P` quedan 100% accesibles para el Comandante desde el Dock sin bloquear la apertura de `IndustrialComplexView` ni `P2PMarketplaceView`.
-   - **Botón Titán Dual (`¡ORDEN DE COMBATE!` + `⚡ BLITZ 1-CLIC`):**
-     - El botón principal `¡ORDEN DE COMBATE! [SPACE]` usa `.tactical-btn-heavy` (hundimiento físico 3D de `5px` a `2px` + *Squash & Stretch*) y abre el selector táctico de los 3 teatros (`Duelo Espejo 15s`, `Escaramuza Blitz 30s`, `Gran Campaña 60s`) en `WarRoomModal.tsx` o el modal pre-batalla `PreBattleDeploymentModal.tsx`.
-     - Junto a él, un botón de acción rápida `⚡ BLITZ 1-CLIC [F]` lanza `blitz_skirmish` en **1 solo clic** cumpliendo la garantía de cero fricción.
+4. **Zona 4: `UnifiedRegionInspector` (`src/domains/world/components/UnifiedRegionInspector.tsx` & `src/domains/world/types/mapSelectionTypes.ts`):**
+   - Panel derecho desplegable (`top-14 right-3 bottom-16`, `w-[356px] sm:w-[376px]`) consolidando `StateInspectorDrawer`, `MetaCommandConsole`, `TerritoryInspectorModal` y `MicroTacticalDeckHUD` bajo el contrato discriminado `MapSelectionTarget`:
+     - **`country` (`COUNTRY_VEN`):** PIB de guerra total, estados controlados, Capital `+5%` regional / hegemonía nacional, píldoras de 3 capas, **Edictos Nacionales** y sliders de **Aduanas de Estrechos (`CHK-MARACAIBO`, `CHK-PARIA`)**.
+     - **`state` (`REG_VE_01`..`REG_VE_24` / `BUF_*`):** Soberanía De Jure / De Facto, barra TCP (`10,000` / `15,000`), búnker (`1–5`), bloqueo de Zonas Buffer en Fase 1, presión de asedio (`-TCP`), estratos POPs, **Sovereign Deck RBAC (`StateSovereignDeckModal`)** y balanceo de guarniciones.
+     - **`municipality` (`MUN_ZULIA_*` — 21 municipios Zulia):** Cabecera municipal, clan controlador, peajes locales, feudos activos y salto directo a cuadrícula `20×20` (`z=15.2`).
+     - **`cell` (`z >= 15.0`):** Coordenadas analíticas `SEC [sx, sy] • CEL [cx, cy]`, micro-terreno y estrellas de cobertura (`0★–4★`), unidad/edificio in-situ y disparadores directos de **DESPLEGAR** y **CONSTRUIR**.
 
-5. **Zona 5: Barra Social `RADIO-NET // ENLACE TÁCTICO`:**
-   - Integrada en el zócalo inferior de `TacticalDock.tsx` con tarjetas de aliados (`Carlos`, `Ana`, `Luis`), avatares de facción, textos legibles (`>= 10px`, contraste AA) y transferencia instantánea de suministros con feedback sonoro y visual.
+5. **Zona 5: `RightActionDock` (`src/domains/world/components/RightActionDock.tsx`):**
+   - Barra horizontal compacta anclada en `bottom-2.5 right-3` exactamente debajo del Inspector Derecho con los 6 accesos principales (**`TIENDA [1]`**, **`INDUSTRIA [2]`**, **`ARMERÍA [3]`**, **`P2P [4]`**, **`ALIANZA [5]`**, **`DOCTRINA [6]`**). Cada acceso abre su módulo como overlay modal Zero-Unmount (`top-14 left-3 right-3 bottom-16 z-40`) sobre el mapa en vivo.
 
 ---
 
@@ -272,12 +259,16 @@ flowchart LR
 | `src/shared/ui/TacticalGhostBar.tsx` | `shared` | Barra de progreso de doble capa reutilizable (*Ghost Drain / Surge Trail* con retardo de `220ms`) para EXP, Energía, COP/SCOP, TCP y Silos. |
 | `src/shared/ui/MatchSummaryModal.tsx` | `shared` | Modal post-partida con odómetro acústico (`playGoldTick`), progresión de XP/ELO y reemparejamiento instantáneo tras victoria o derrota a 0 tropas (Pilar 3). |
 | `src/shared/ui/TacticalErrorBoundary.tsx` | `shared` | Terminal de contención fail-safe `DEFCON-1` que captura excepciones en React sin pérdida de datos ni pantallas en blanco. |
-| `src/domains/world/components/WarLobbyHub.tsx` | `world` | Orquestador principal de la Sala de Guerra Viva (Zero-Unmount HQ), conmutador Base/Mapa Geopolítico, hotkeys (`1-6`, `Space`, `F`, `Escape`, `R`). |
+| `src/domains/world/components/WarLobbyHub.tsx` | `world` | Orquestador principal 100% Map-First (Zero-Unmount Map Shell), propietario del `MapSelectionTarget` (4 escalas) y atajos (`1-6`, `Escape`, `R`). |
+| `src/domains/world/components/UnifiedRegionInspector.tsx` | `world` | Inspector Derecho Unificado de 4 Escalas (**País / Estado / Municipio / Celda 20×20**) con breadcrumb navegable, 4 pestañas (`RESUMEN`, `GOBIERNO`, `ECONOMÍA`, `OPERACIONES`), Project Alice (edictos, aduanas, asedios) y disparadores in-situ `DESPLEGAR` / `CONSTRUIR`. |
+| `src/domains/world/components/LeftCollapsibleRail.tsx` | `world` | Rail desplegable superior izquierdo (`CAPAS`, `FEED`, `RADIO`, `AJUSTES`) diseñado con altura segura para mantener libre la esquina inferior izquierda de Mayor Stella. |
+| `src/domains/world/components/RightActionDock.tsx` | `world` | Barra de acciones inferiores anclada en esquina inferior derecha (`TIENDA [1]`, `INDUSTRIA [2]`, `ARMERÍA [3]`, `P2P [4]`, `ALIANZA [5]`, `DOCTRINA [6]`) bajo el área del Inspector Derecho. |
+| `src/domains/world/types/mapSelectionTypes.ts` | `world` | Contrato discriminado `MapSelectionTarget` para 4 escalas geográficas y catálogo completo de 21 municipios del Zulia (`ZULIA_MUNICIPALITIES_CATALOG`). |
 | `src/domains/world/components/WarRoomModal.tsx` | `world` | Contenedor diegético animado con `motion` para la Sala de Operaciones (3 Teatros de Combate), Rotor de Suministros de 3 tiempos y Dossier de Oficiales. |
 | `src/domains/world/components/CommandHUD.tsx` | `world` | Barra superior C4ISR con retrato heráldico del CO, `TacticalGhostBar` de EXP, Arena/Trofeos y odómetros `motion`. |
-| `src/domains/world/components/DualResourceHeader.tsx` | `world` | Cabecera dual C4ISR: Bloque izquierdo de recursos individuales (`$G`, `EC`, `tech_scrap`, Nivel) y bloque derecho de facción (Bóveda Clan, Stock, TCP). |
-| `src/domains/world/components/TacticalC4ISRBaseDiorama.tsx` | `world` | Diorama isométrico vectorial entintado (`#0A0B08`), tramas Ben-Day, 4 estaciones interactivas, alarma `DEFCON-1` y cámara con Zoom & Pan por estación. |
-| `src/domains/world/components/TacticalDock.tsx` | `world` | Dock inferior con hotkeys `[1]-[6]`, Editor `[E]`, CTA `.tactical-btn-heavy` `[SPACE]`, Despliegue Blitz 1-Clic `[F]` y barra social `RADIO-NET`. |
+| `src/domains/world/components/DualResourceHeader.tsx` | `world` | Barra superior persistente dark-glass (`#0E100C/90`): rango/nivel, acceso a escala País, `EC`, Acero, Tierras Raras, `tech_scrap`, `$G`, ciclo y toggle del Inspector. |
+| `src/domains/world/components/TacticalC4ISRBaseDiorama.tsx` | `world` | Módulo diorama legado retenido solo para compatibilidad de exportaciones de barril (`@domains/world`); ya no bloquea ni reemplaza la entrada Map-First. |
+| `src/domains/world/components/TacticalDock.tsx` | `world` | Dock legado retenido para compatibilidad de tipos (`LobbyStationView`); reemplazado visualmente en `WarLobbyHub` por `RightActionDock` + `LeftCollapsibleRail`. |
 | `src/domains/world/components/TacticalWorldMap.tsx` | `world` | Renderizador cartográfico WebGL 2.0 (MapLibre GL) con 3 niveles de LOD Semántico (Macro, Operacional, Táctico), barks espaciales y trazadores RTS. |
 | `src/domains/world/components/TacticalMapControls.tsx` | `world` | Selector de las 4 vistas especializadas C4ISR (`V1_SOVEREIGNTY`, `V2_LOGISTICS`, `V3_RESOURCES`, `V4_THREATS`) y estampado táctico en vivo. |
 | `src/domains/world/components/TerritoryInspectorModal.tsx` | `world` | Consola C4ISR de inspección provincial: soberanía, progreso TCP, estatus de Capital Regional (+5% recursos/logística, Pilar 5) e inicio de asalto/refuerzo. |
@@ -285,7 +276,7 @@ flowchart LR
 | `src/domains/world/components/StateSovereignDeckModal.tsx` | `world` | Consola soberana exclusiva para Líderes de Clan que permite proclamar decretos y renombrar Estados/Regiones conquistadas. |
 | `src/domains/world/components/ClanHeadquartersView.tsx` | `world` | Sede corporativa del Clan: registro y escalafón de miembros, bóveda escalonada (T1–T3), rescate de camaradas, sectores de guerra y salvaguarda. |
 | `src/domains/world/components/ParadoxCommandDrawer.tsx` | `world` | Gaveta retráctil derecha estilo *Stellaris / Victoria 3* con 5 pestañas: Territorio, Puntos Estratégicos, Forja & Cola, Arsenal de Facción y Mercado P2P. |
-| `src/domains/economy/components/UnitHangarModal.tsx` | `economy` | **Almacén Físico de 16 Tropas (Pilar 1: CERO Cartas TCG; 4 activas en Battlegroup + 12 en reserva)**, forja por Patentes T1–T5 (+2%/tier, máx +8% en T5, Pilar 4) y desguace con recuperación del **35% en `tech_scrap`** (Pilar 6). |
+| `src/domains/economy/components/UnitHangarModal.tsx` | `economy` | **Almacén Físico de 16 Chasis Militares (Pilar 1: munición descartable forjada; 4 activas en Battlegroup + 12 en reserva)**, forja por Patentes T1–T5 (+2%/tier, máx +8% en T5, Pilar 4) y desguace con recuperación del **35% en `tech_scrap`** (Pilar 6). |
 | `src/domains/economy/components/IndustrialComplexView.tsx` | `economy` | **Complejo Industrial de 10 Parcelas**, ciclo circadiano (12h + 4h gracia), bono de eficiencia (+10% y +500G), cargamento varado, demolición con guarda abatible y refinado multi-batch. |
 | `src/domains/economy/components/P2PMarketplaceView.tsx` | `economy` | **Mercado Libre P2P** conectado a `public.p2p_market_orders` con **impuesto canónico del 2% (1% quemado en Sink + 1% regalía al Clan dueño del Hub regional)** y bandas dinámicas **VWAP Collar ±25%**. |
 | `src/domains/economy/components/TacticalConstructionDrawer.tsx` | `economy` | Gaveta de construcción táctica in-situ (`z=15`) para edificar refinerías, radares FLIR, búnkeres de armería y centros de suministro en celdas del mapa. |
@@ -315,11 +306,10 @@ Para integrar la experiencia macro, territorial e industrial (*Advance Wars meet
   - Bocadillo estilo cómic con 5 morfologías (`radio`, `panic`, `thought`, `shout`, `whisper`) y sellos pop-art angulados conectados a `src/domains/game-feel/core/barkEngine.ts`.
   - Interactividad física: reacciona clic a clic con *Squash & Stretch*, SFX de radio (`audioManager`) y directivas sobre el Hangar Físico, el Handshake defensivo de 120s (Pilar 7) y la refundición del 35% de chatarra (Pilar 6).
 
-### 6.3. Gaveta Retráctil de Mando Paradox (`src/domains/world/components/ParadoxCommandDrawer.tsx`)
-- Panel lateral retráctil en el extremo derecho (`right drawer`) inspirado en la interfaz C4ISR de *Stellaris* y *Victoria 3* con 5 pestañas operacionales:
-  - **Pestaña `[TERRITORIO]`:** Estado de las regiones, fortificaciones de búnker (Niveles 1–5), asedios en curso (conectados a `TerritorySiegeModal.tsx` con **Human Handshake de 120s**, Pilar 7) y control de TCP.
-  - **Pestaña `[PUNTOS ESTRATÉGICOS]`:** Control soberano de los activos clave del teatro (Capitales con **Buff Regional +5%**, Pilar 5, además de refinerías, estrechos y centrales) y sus multiplicadores proyectados.
-  - **Pestaña `[FORJA & COLA]`:** Colas de producción física de unidades (T1 a T5 con progresión horizontal **+2% por tier, máximo +8% en T5**, Pilar 4) con cuentas regresivas en vivo y reclamo directo al Hangar Físico de 16 Tropas (`UnitHangarModal.tsx`, Pilar 1).
-  - **Pestaña `[ARSENAL DE FACCIÓN]`:** Tropas físicas del stock comunitario del clan disponibles para requisición autorizada según rango militar (`authorizeFactionUnitBorrow`).
-  - **Pestaña `[MERCADO P2P]`:** Acceso rápido y resumen de la Bolsa P2P (`P2PMarketplaceView.tsx`) regida por el **impuesto total del 2% (1% quemado en Sink + 1% regalía al Clan dueño del Hub regional)** y **VWAP Collar ±25%**.
+### 6.3. Inspector Derecho Unificado de 4 Escalas (`src/domains/world/components/UnifiedRegionInspector.tsx`) y Mando Legacy (`ParadoxCommandDrawer.tsx`)
+- Reemplaza en el Lobby Map-First la combinación fragmentada de `StateInspectorDrawer`, `MetaCommandConsole`, `TerritoryInspectorModal` y `MicroTacticalDeckHUD` por una consola única con breadcrumb de 4 escalas (**País > Estado > Municipio > Celda 20×20**) y 4 pestañas:
+  - **`RESUMEN`:** Telemetría viva adaptada a la escala (`country`: PIB Nacional y píldoras de 3 capas; `state`: De Jure/Facto, barra TCP, búnker y asedio `-TCP`; `municipality`: cabecera y feudo; `cell`: coordenadas `SEC/CEL`, cobertura `0★–4★` y botones `DESPLEGAR` / `CONSTRUIR`).
+  - **`GOBIERNO`:** Edictos Nacionales, Aduanas de Estrechos (`CHK-MARACAIBO` / `CHK-PARIA`), estratos POPs/secesión y Sovereign Deck RBAC (`StateSovereignDeckModal.tsx`).
+  - **`ECONOMÍA`:** Rendimientos RGO, acceso al Complejo de 10 Parcelas (`IndustrialComplexView.tsx`), Hangar Físico de 16 Tropas (`UnitHangarModal.tsx`) y Mercado P2P 2% + VWAP ±25% (`P2PMarketplaceView.tsx`).
+  - **`OPERACIONES`:** Ventana de vulnerabilidad, presión de asedio TCP (`TerritorySiegeModal.tsx` con Handshake 120s), refuerzos, rebalanceo de guarnición IA (Nv.1–5) y acciones espaciales sobre celda `20×20`.
 

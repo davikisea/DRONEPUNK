@@ -1,7 +1,7 @@
 # VOLUMEN 3: COMANDANTES, BARK ENGINE CÓMIC Y CAPA SOCIAL CORPORATIVA
 **Documento Canónico Unificado:** `03_MASTER_COMMANDERS_BARK_AND_SOCIAL.md`  
-**Proyecto:** *GEOTACTICS ONLINE (Tactical Command: Wars of Legacy)*  
-**Versión:** 5.0.0-MODULAR-CANON-SSOT  
+**Proyecto:** *DRONEPUNK 0.0.1*  
+**Versión:** 0.0.1  
 **Estado:** Documento de Verdad Absoluta (SSOT - Single Source of Truth)  
 **Arquitectura de Dominios Sincronizada:**  
 - `@domains/tactics` (`src/domains/tactics/core/coSystem.ts`, `src/domains/tactics/components/COCommandBar.tsx`, `src/domains/tactics/components/ComicVignetteOverlay.tsx`)  
@@ -22,7 +22,7 @@
 
 Toda la ingeniería de Comandantes, Bark Engine y Clanes opera bajo las invariantes matemáticas de `MASTER_METAGAME_CONSTANTS` (`src/shared/types/metagame.ts`):
 
-1. **Pilar 1 — Cero Cartas (NO TCG/CCG):** Almacén físico estricto de **16 tropas máximo por jugador** (**4 slots de despliegue activo** en vanguardia + **12 en reserva** en el hangar físico). Cualquier referencia histórica a "cartas" en estructuras de soporte (`ClanCardRequest`) representa suministros de planos industriales y dotación logística sin mecánicas de mazo aleatorio.
+1. **Pilar 1 — Almacén Físico de 16 Chasis Militares:** Almacén físico estricto de **16 tropas máximo por jugador** (**4 slots de despliegue activo** en vanguardia + **12 en reserva** en el hangar físico como munición descartable forjada). Las estructuras de soporte de bóveda (`ClanCardRequest`) operan exclusivamente sobre lotes de planos industriales y dotación logística.
 2. **Pilar 2 — Escala Balística Continua (1 a 100 HP Enteros):** Integridad estructural continua de `1` a `100` HP enteros (`CANONICAL_MAX_HP = 100`).
 3. **Pilar 3 — Aniquilación Táctica Inapelable:** Derrota inmediata e inapelable al llegar a **0 tropas supervivientes** en el tablero táctico.
 4. **Pilar 4 — Progresión Horizontal de Tiers (T1 a T5):** Bonificación de **+2% por Tier** (`TIER_EFFECTIVENESS_BONUS_PER_LEVEL = 0.02`), con techo competitivo de **+8% máximo en T5** sobre T1.
@@ -50,8 +50,8 @@ Los Comandantes representan la cúspide doctrinal del ejército del jugador. A d
 
 ### 1.1 Catálogo Canónico de los 29 Comandantes (28 Clásicos de Facción + 1 Comandante Especial IA Stella)
 *Implementación de Referencia:*
-- Motor Core: [`src/domains/tactics/core/coSystem.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/tactics/core/coSystem.ts) (`CANONICAL_CO_REGISTRY`, `ALL_CANONICAL_CO_IDS`, `COEngine`, `CO_FACTION_META`, `resolveCanonicalCOId`, `getCOFullBodyUrl`)
-- Componentes UI: [`src/domains/tactics/components/COCommandBar.tsx`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/tactics/components/COCommandBar.tsx), [`src/domains/game-feel/components/CommanderLivingVignette.tsx`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/game-feel/components/CommanderLivingVignette.tsx), [`src/domains/game-feel/components/CommanderBarkWidget.tsx`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/game-feel/components/CommanderBarkWidget.tsx)
+- Motor Core: [`src/domains/tactics/core/coSystem.ts`](../src/domains/tactics/core/coSystem.ts) (`CANONICAL_CO_REGISTRY`, `ALL_CANONICAL_CO_IDS`, `COEngine`, `CO_FACTION_META`, `resolveCanonicalCOId`, `getCOFullBodyUrl`)
+- Componentes UI: [`src/domains/tactics/components/COCommandBar.tsx`](../src/domains/tactics/components/COCommandBar.tsx), [`src/domains/game-feel/components/CommanderLivingVignette.tsx`](../src/domains/game-feel/components/CommanderLivingVignette.tsx), [`src/domains/game-feel/components/CommanderBarkWidget.tsx`](../src/domains/game-feel/components/CommanderBarkWidget.tsx)
 
 El registro ejecutable (`ALL_CANONICAL_CO_IDS` en `src/domains/tactics/core/coSystem.ts`) implementa exactamente **29 Comandantes (`COId`)**: **28 Comandantes Clásicos distribuidos en 5 facciones** más **1 Comandante Especial de IA y C4ISR (`stella`) con aprendizaje adaptativo auto-optimizable**:
 
@@ -121,12 +121,15 @@ El registro ejecutable (`ALL_CANONICAL_CO_IDS` en `src/domains/tactics/core/coSy
 # 2. EL BARK ENGINE PROCEDURAL DE NOVELA GRÁFICA (SIN VOCES)
 **[ESTADO: 100% IMPLEMENTADO Y CERTIFICADO EN MOTOR, FRONTEND Y TESTS]**  
 *Implementación de Referencia:*
-- Motor Core y Aprendizaje Adaptativo: [`src/domains/game-feel/core/barkEngine.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/game-feel/core/barkEngine.ts) (`barkEngine`, `CANONICAL_BARK_TEMPLATES`, `BarkTriggerContext`, `LobbyBarkIntent`, `BarkSelfOptimizationMetrics`)
-- Widget Diegético de Esquina (Mapa/Combate): [`src/domains/game-feel/components/CommanderBarkWidget.tsx`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/game-feel/components/CommanderBarkWidget.tsx) (`CommanderBarkWidget`, `BarkBalloonType`, `BarkMessage`)
-- Gran Viñeta Viva de Lobby ("The Living Comic Canvas"): [`src/domains/game-feel/components/CommanderLivingVignette.tsx`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/game-feel/components/CommanderLivingVignette.tsx) (`CommanderLivingVignette`)
-- Overlay Cinético de Combate: [`src/domains/tactics/components/ComicVignetteOverlay.tsx`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/tactics/components/ComicVignetteOverlay.tsx) (`ComicVignetteOverlay`)
+- Motor Core y Aprendizaje Adaptativo: [`src/domains/game-feel/core/barkEngine.ts`](../src/domains/game-feel/core/barkEngine.ts) (`barkEngine`, `CANONICAL_BARK_TEMPLATES`, `BarkTriggerContext`, `LobbyBarkIntent`, `BarkSelfOptimizationMetrics`)
+- Widget Diegético de Esquina (Canal Único de Diálogos en Mapa): [`src/domains/game-feel/components/CommanderBarkWidget.tsx`](../src/domains/game-feel/components/CommanderBarkWidget.tsx) (`CommanderBarkWidget`, `BarkBalloonType`, `BarkMessage`)
+  - Anclado de forma fija y permanente en la esquina inferior izquierda (`fixed bottom-2.5 left-3 z-30`), actuando como **única fuente de nubes de diálogo (bocadillos)** en pantalla tras erradicar los `worldBarks` sobre el mapa.
+  - Recorte estricto a **medio cuerpo (40% superior de la silueta)**: contenedor vertical `overflow-hidden h-[114px] sm:h-[134px]` con imagen `h-[285px] sm:h-[335px] object-cover object-top` apoyada limpiamente sobre la placa base militar (`MAYOR STELLA • VANGUARDIA // ONLINE`), sin piernas ni mitad inferior visible.
+  - Rotación reactiva en cada clic sobre la silueta de medio cuerpo o sobre el bocadillo (`handleCommanderClick`), con animación *Squash & Stretch* y feedback Web Audio API.
+- Gran Viñeta Viva de Lobby ("The Living Comic Canvas"): [`src/domains/game-feel/components/CommanderLivingVignette.tsx`](../src/domains/game-feel/components/CommanderLivingVignette.tsx) (`CommanderLivingVignette`)
+- Overlay Cinético de Combate: [`src/domains/tactics/components/ComicVignetteOverlay.tsx`](../src/domains/tactics/components/ComicVignetteOverlay.tsx) (`ComicVignetteOverlay`)
 
-El Bark Engine proyecta sobre el Canvas y la interfaz web una narrativa visual reactiva inspirada en la novela gráfica bélica, el Pop-Art clásico con tramas de puntos Ben-Day y la directriz canónica [`.agents/skills/tactical-command-intel/SKILL.md`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/.agents/skills/tactical-command-intel/SKILL.md), **prescindiendo por completo de archivos de audio de voz** para garantizar tiempos de carga instantáneos ($< 1.0\text{s}$) y cero consumo innecesario de ancho de banda.
+El Bark Engine proyecta sobre el Canvas y la interfaz web una narrativa visual reactiva inspirada en la novela gráfica bélica, el Pop-Art clásico con tramas de puntos Ben-Day y la directriz canónica [`.agents/skills/tactical-command-intel/SKILL.md`](../.agents/skills/tactical-command-intel/SKILL.md), **prescindiendo por completo de archivos de audio de voz** para garantizar tiempos de carga instantáneos ($< 1.0\text{s}$) y cero consumo innecesario de ancho de banda.
 
 ### 2.0 Arquitectura de Ejecución en Tiempo Real y Aprendizaje Adaptativo (Stella IA)
 1. **Buffer de Memoria Anti-Repetición (`recentBarkIds`):** Almacena los últimos **6 IDs** de diálogo disparados (`if (this.recentBarkIds.length > 6) this.recentBarkIds.shift()`), descartándolos en el muestreo O(1) para erradicar frases repetitivas durante una sesión.
@@ -201,16 +204,16 @@ En `CommanderBarkWidget.tsx` (`BarkBalloonType`) y `barkEngine.ts` (`BubbleShape
 
 # 3. DIAGNÓSTICO BALÍSTICO POST-COMBATE Y LIQUIDACIÓN TERRITORIAL (35% TECH SCRAP)
 **[ESTADO: SINCRONIZADO CON LOS PILARES CANÓNICOS 2, 3 Y 6]**  
-*Implementación de Referencia:* [`src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts) (`settleCombatLossesAndScrap`) y [`src/shared/types/metagame.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/shared/types/metagame.ts) (`calculateLossScrapRecovery`, `RECYCLE_SCRAP_RATE = 0.35`).
+*Implementación de Referencia:* [`src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts`](../src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts) (`settleCombatLossesAndScrap`) y [`src/shared/types/metagame.ts`](../src/shared/types/metagame.ts) (`calculateLossScrapRecovery`, `RECYCLE_SCRAP_RATE = 0.35`).
 
-*Nota Arquitectónica:* El antiguo modelo de ofertas flash Tilt ($0.99) y niveles de carta 1-15 ha sido **erradicado**. En batallas territoriales, la derrota ocurre de forma inapelable al quedar con **0 tropas supervivientes en el tablero (Pilar 3)** sobre la escala balística continua de **1 a 100 HP enteros (Pilar 2)**. El reporte post-combate ejecuta el RPC transaccional `settle_territorial_combat_losses`, eliminando físicamente del hangar las unidades destruidas y acreditando exactamente el **35% de su valor en chatarra tecnológica (`tech_scrap`) (Pilar 6)** mediante `calculateLossScrapRecovery(tier, quantity)`.
+*Nota Arquitectónica:* La economía balística y de pérdidas opera estrictamente bajo los Pilares Canónicos 1, 2, 3, 4 y 6 (Almacén Físico de 16 Chasis, escala continua 1-100 HP enteros y Tiers industriales T1-T5). En batallas territoriales, la derrota ocurre de forma inapelable al quedar con **0 tropas supervivientes en el tablero (Pilar 3)**. El reporte post-combate ejecuta el RPC transaccional `settle_territorial_combat_losses`, eliminando físicamente del hangar las unidades destruidas y acreditando exactamente el **35% de su valor en chatarra tecnológica (`tech_scrap`) (Pilar 6)** mediante `calculateLossScrapRecovery(tier, quantity)`.
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
 │  🔍 INFORME DE DAÑOS Y PÉRDIDAS DEL ALTO MANDO MILITAR         │
 │                                                                │
 │  BATALLA TERRITORIAL: REG_VE_01 (Distrito Capital Caracas)     │
-│  ESCALA BALÍSTICA:    1 - 100 HP Enteros (0 Cartas / Hangar)   │
+│  ESCALA BALÍSTICA:    1 - 100 HP Enteros (Almacén 16 Chasis)   │
 │  ESTADO DE OPERACIÓN: DERROTA POR ANIQUILACIÓN (0 Tropas Vivas)│
 │                                                                │
 │  BAJAS FÍSICAS REALES EN HANGAR (CAPACIDAD MÁX: 4 ACT + 12 RES)│
@@ -232,9 +235,9 @@ En `CommanderBarkWidget.tsx` (`BarkBalloonType`) y `barkEngine.ts` (`BubbleShape
 # 4. CORPORACIONES MILITARES (CLANES), REGALÍAS P2P Y GUERRA TERRITORIAL
 **[ESTADO: 100% IMPLEMENTADO Y CERTIFICADO EN MOTOR, FRONTEND Y TESTS]**  
 *Implementación de Referencia:*
-- Motor de Clanes: [`src/domains/world/core/clanSystem.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/core/clanSystem.ts) (`ClanEngine`, `CLAN_VAULT_TIERS`, `CANONICAL_TERRITORY_SECTORS`, `CLAN_PROJECTS`)
-- Interfaz de Cuartel General: [`src/domains/world/components/ClanHeadquartersView.tsx`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/components/ClanHeadquartersView.tsx)
-- Reglas Financieras y Soberanía: [`src/shared/types/metagame.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/shared/types/metagame.ts) (`MASTER_METAGAME_CONSTANTS`, `calculateP2PTransactionSplit`) y [`src/domains/economy/components/P2PMarketplaceView.tsx`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/economy/components/P2PMarketplaceView.tsx)
+- Motor de Clanes: [`src/domains/world/core/clanSystem.ts`](../src/domains/world/core/clanSystem.ts) (`ClanEngine`, `CLAN_VAULT_TIERS`, `CANONICAL_TERRITORY_SECTORS`, `CLAN_PROJECTS`)
+- Interfaz de Cuartel General: [`src/domains/world/components/ClanHeadquartersView.tsx`](../src/domains/world/components/ClanHeadquartersView.tsx)
+- Reglas Financieras y Soberanía: [`src/shared/types/metagame.ts`](../src/shared/types/metagame.ts) (`MASTER_METAGAME_CONSTANTS`, `calculateP2PTransactionSplit`) y [`src/domains/economy/components/P2PMarketplaceView.tsx`](../src/domains/economy/components/P2PMarketplaceView.tsx)
 
 Las Corporaciones Militares son alianzas de hasta **30 comandantes** (`maxMembers: 30`, y hasta `MAX_CLANS_PER_ALLIANCE = 10` clanes por coalición) estructuradas bajo 4 rangos jerárquicos (`ClanRole`):
 - `'commander_in_chief'`: Coronel / Comandante en Jefe (Fundador/Líder, exento de embargo diario).
@@ -288,7 +291,7 @@ De acuerdo con la **Regla Financiera Canónica** y los **Pilares 5 y 7**:
 ```
 
 ### 4.1 Bóveda de Guerra Escalonada (`CLAN_VAULT_TIERS`)
-Calculada mediante `ClanEngine.calculateVaultTier(activeMembersCount)` según los miembros con batallas activas en el ciclo diario de 24h (nota: los campos `commonCards`, `rareCards`, `epicCards` representan lotes de planos industriales/suministros bajo el Pilar 1 de Cero Cartas):
+Calculada mediante `ClanEngine.calculateVaultTier(activeMembersCount)` según los miembros con batallas activas en el ciclo diario de 24h (nota: los campos técnicos `commonCards`, `rareCards`, `epicCards` representan lotes de planos industriales/suministros bajo el Pilar 1 del Almacén Físico de 16 Chasis):
 - **Tier 1 (`tier_1` — 1 a 3 activos, *Cofre Menor de Campaña*):** `150` Créditos (`creditsGold`), `15` lotes de suministros comunes (`commonCards: 15`).
 - **Tier 2 (`tier_2` — 4 a 7 activos, *Bóveda Militar Estándar*):** `600` Créditos, `40` suministros comunes, `5` raros, `5` Vigas de Acero (`refinedSteel: 5`) y `5` Gemas (`gems: 5`).
 - **Tier 3 (`tier_3` — 8+ activos, *¡GRAN ARSENAL ESTRATÉGICO!*):** **`2,500` Créditos, `100` suministros comunes, `15` raros, `3` épicos, `25` Vigas de Acero (`refinedSteel: 25`), `10` Microchips (`refinedMicrochips: 10`) y `20` Gemas (`gems: 20`)**.
@@ -364,7 +367,7 @@ Calculada mediante `ClanEngine.calculateVaultTier(activeMembersCount)` según lo
 ---
 
 # 6. REGISTRO MAESTRO DE SONIDO TÁCTICO Y SÍNTESIS PROCEDURAL WEB AUDIO
-*Implementación de Referencia:* [`src/domains/game-feel/core/audioManager.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/game-feel/core/audioManager.ts) (`audioManager`, `AUDIO_SYNTHESIS_CATALOG`, `SfxType`, `SoundCueConfig`).
+*Implementación de Referencia:* [`src/domains/game-feel/core/audioManager.ts`](../src/domains/game-feel/core/audioManager.ts) (`audioManager`, `AUDIO_SYNTHESIS_CATALOG`, `SfxType`, `SoundCueConfig`).
 
 Todas las pistas y efectos militares operan mediante **síntesis procedural nativa en Web Audio API**, requiriendo **0 descargas de assets de audio externos**. El sintetizador incluye un secuenciador BGM en tiempo real (`'march' | 'tension'`), escalado semitonal de combos (`playComboAction`) y el catálogo `AUDIO_SYNTHESIS_CATALOG`:
 

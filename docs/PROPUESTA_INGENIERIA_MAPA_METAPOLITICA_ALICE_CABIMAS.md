@@ -1,11 +1,11 @@
-# 🗺️ ESPECIFICACIÓN MAESTRA DE INGENIERÍA: MAPA VECTORIAL, LOGÍSTICA VIAL Y METAPOLÍTICA PROJECT ALICE
+# 🗺️ ESPECIFICACIÓN MAESTRA DE INGENIERÍA: MAPA VECTORIAL, LOGÍSTICA VIAL Y METAPOLÍTICA PROJECT ALICE — DRONEPUNK 0.0.1
 ## *Mapeo Continental, Expansión desde Cabimas y Simulación de Guerra Moderna 2026*
 
 > **Código Canónico:** `docs/PROPUESTA_INGENIERIA_MAPA_METAPOLITICA_ALICE_CABIMAS.md`  
 > **Clasificación:** Arquitectura de Sistemas, Geopolítica C4ISR, Cartografía WebGL y Diseño de Metajuego  
-> **Versión:** `v0.2.0-metamap-world-domain`  
-> **Repositorio Base de Análisis:** `C:\Users\Morín\Project-Alice-1.3.0` (C++20 Open V2 Engine)  
-> **Repositorio de Aplicación:** `c:\Users\Morín\GEOTACTICS-ONLINE` (React 19, TypeScript, MapLibre GL, Supabase, Tailwind CSS)  
+> **Versión:** `DRONEPUNK 0.0.1`  
+> **Referencia Conceptual Base:** Arquitectura Open V2 (*Project Alice*)  
+> **Repositorio de Aplicación:** `DRONEPUNK 0.0.1` (React 19, TypeScript, MapLibre GL v6, Supabase, Tailwind CSS)  
 > **Dominio Arquitectónico Principal:** `src/domains/world/` (`@domains/world/*`) conectado con `src/domains/tactics/`, `src/domains/economy/`, `src/domains/game-feel/` y `src/shared/`  
 > **Epicentro de Despliegue Fase 1:** Región de Cabimas (`REG_VE_02` — Costa Oriental del Lago de Maracaibo, Zulia, Venezuela)
 
@@ -60,21 +60,21 @@ flowchart TD
 ```
 
 ### 1.1 Los 7 Pilares Canónicos Inmutables y Regla Financiera SSOT
-1. **Pilar 1 — Cero Cartas (NO TCG/CCG):** Almacén físico estricto de **16 tropas máximo por jugador** (`4` slots de despliegue activo + `12` en reserva en [`src/domains/economy/hooks/useUserHangar.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/economy/hooks/useUserHangar.ts)).
-2. **Pilar 2 — Escala Balística Continua (1 a 100 HP):** Integridad estructural entera de `1` a `100 HP` (`MASTER_METAGAME_CONSTANTS.CANONICAL_MAX_HP = 100` en [`src/shared/types/metagame.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/shared/types/metagame.ts)).
+1. **Pilar 1 — Almacén Físico de 16 Chasis Militares:** Almacén físico estricto de **16 chasis militares máximo por jugador** (`4` slots de despliegue activo en vanguardia + `12` en reserva táctica, munición descartable forjada en [`src/domains/economy/hooks/useUserHangar.ts`](../src/domains/economy/hooks/useUserHangar.ts) y `public.user_unit_hangar`).
+2. **Pilar 2 — Escala Balística Continua (1 a 100 HP):** Integridad estructural entera de `1` a `100 HP` (`MASTER_METAGAME_CONSTANTS.CANONICAL_MAX_HP = 100` en [`src/shared/types/metagame.ts`](../src/shared/types/metagame.ts)).
 3. **Pilar 3 — Derrota Inapelable por Aniquilación:** Derrota inmediata al llegar a `0` tropas supervivientes en el tablero táctico.
 4. **Pilar 4 — Progresión Horizontal de Tiers (T1 a T5):** Bonificación de `+2%` por tier (`TIER_EFFECTIVENESS_BONUS_PER_LEVEL = 0.02`, máximo `+8%` en T5 sobre T1).
-5. **Pilar 5 — Conquista de Capitales con Buff Regional (+5%):** Las capitales son capturables (`CAPITAL_IMMUNITY = false`, `CAPITAL_TCP_THRESHOLD = 15000`) y otorgan un **Buff Regional de +5% en recursos y logística en la región**, complementado por el bono hegemónico de capital nacional (`+15%` extracción energética y `+10%` velocidad de forja en [`src/domains/world/core/territorialExpansionEngine.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/core/territorialExpansionEngine.ts) y [`src/domains/economy/core/upkeepEngine.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/economy/core/upkeepEngine.ts)).
-6. **Pilar 6 — Pérdida Física Real y 35% de Chatarra Tecnológica (`tech_scrap`):** Toda unidad no-F2P destruida se pierde físicamente del hangar, recuperando el **35%** en chatarra tecnológica (`RECYCLE_SCRAP_RATE = 0.35`, `calculateLossScrapRecovery` en [`src/shared/types/metagame.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/shared/types/metagame.ts) y `settleCombatLossesAndScrap` en [`src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts)).
-7. **Pilar 7 — Human Handshake de 120 Segundos (2 Minutos) e IA de Guarnición (Niveles 1-5):** Todo asedio territorial abre una ventana defensiva de **120 segundos** (`HANDSHAKE_TIMEOUT_SECONDS = 120` / `HUMAN_HANDSHAKE_WINDOW_MS = 120_000`) en [`src/domains/world/core/territorialSiegeOrchestrator.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/core/territorialSiegeOrchestrator.ts) y [`src/domains/world/hooks/useSiegeRealtime.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/hooks/useSiegeRealtime.ts) antes de que asuma la **IA de Guarnición (Niveles 1 a 5)** ([`src/domains/tactics/core/garrisonAIEngine.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/tactics/core/garrisonAIEngine.ts)).
-8. **Regla Financiera Canónica — Mercado P2P (2% Impuesto Total + VWAP Collar ±25%):** Impuesto total del **2%** (`TOTAL_P2P_TAX_RATE = 0.02`: **1% quemado en Sink** `PLATFORM_BURN_RATE = 0.01` + **1% regalía al Clan dueño del Hub regional** `PROVINCE_ROYALTY_RATE = 0.01`) y bandas de precios dinámicas **VWAP Collar ±25%** (`VWAP_COLLAR_PERCENT = 0.25`, `calculateP2PTransactionSplit` en [`src/shared/types/metagame.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/shared/types/metagame.ts)).
+5. **Pilar 5 — Conquista de Capitales con Buff Regional (+5%):** Las capitales son capturables (`CAPITAL_IMMUNITY = false`, `CAPITAL_TCP_THRESHOLD = 15000`) y otorgan un **Buff Regional de +5% en recursos y logística en la región**, complementado por el bono hegemónico de capital nacional (`+15%` extracción energética y `+10%` velocidad de forja en [`src/domains/world/core/territorialExpansionEngine.ts`](../src/domains/world/core/territorialExpansionEngine.ts) y [`src/domains/economy/core/upkeepEngine.ts`](../src/domains/economy/core/upkeepEngine.ts)).
+6. **Pilar 6 — Pérdida Física Real y 35% de Chatarra Tecnológica (`tech_scrap`):** Toda unidad no-F2P destruida se pierde físicamente del hangar, recuperando el **35%** en chatarra tecnológica (`RECYCLE_SCRAP_RATE = 0.35`, `calculateLossScrapRecovery` en [`src/shared/types/metagame.ts`](../src/shared/types/metagame.ts) y `settleCombatLossesAndScrap` en [`src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts`](../src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts)).
+7. **Pilar 7 — Human Handshake de 120 Segundos (2 Minutos) e IA de Guarnición (Niveles 1-5):** Todo asedio territorial abre una ventana defensiva de **120 segundos** (`HANDSHAKE_TIMEOUT_SECONDS = 120` / `HUMAN_HANDSHAKE_WINDOW_MS = 120_000`) en [`src/domains/world/core/territorialSiegeOrchestrator.ts`](../src/domains/world/core/territorialSiegeOrchestrator.ts) y [`src/domains/world/hooks/useSiegeRealtime.ts`](../src/domains/world/hooks/useSiegeRealtime.ts) antes de que asuma la **IA de Guarnición (Niveles 1 a 5)** ([`src/domains/tactics/core/garrisonAIEngine.ts`](../src/domains/tactics/core/garrisonAIEngine.ts)).
+8. **Regla Financiera Canónica — Mercado P2P (2% Impuesto Total + VWAP Collar ±25%):** Impuesto total del **2%** (`TOTAL_P2P_TAX_RATE = 0.02`: **1% quemado en Sink** `PLATFORM_BURN_RATE = 0.01` + **1% regalía al Clan dueño del Hub regional** `PROVINCE_ROYALTY_RATE = 0.01`) y bandas de precios dinámicas **VWAP Collar ±25%** (`VWAP_COLLAR_PERCENT = 0.25`, `calculateP2PTransactionSplit` en [`src/shared/types/metagame.ts`](../src/shared/types/metagame.ts)).
 
 ### 1.2 Premisas Inviolables del Sistema:
 1. **El Mapa como Vector de Expansión por Carreteras:**  
-   El desplazamiento de tropas, la proyección de soberanía y la expansión territorial no ocurren en vacío ni por teletransporte. Se transmiten exclusivamente **a lo largo de las carreteras, avenidas y conexiones viarias** ([`src/domains/world/core/roadNetworkEngine.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/core/roadNetworkEngine.ts)). Las carreteras son las arterias de la economía, el soporte vital de las guarniciones y los ejes de avance.
+   El desplazamiento de tropas, la proyección de soberanía y la expansión territorial no ocurren en vacío ni por teletransporte. Se transmiten exclusivamente **a lo largo de las carreteras, avenidas y conexiones viarias** ([`src/domains/world/core/roadNetworkEngine.ts`](../src/domains/world/core/roadNetworkEngine.ts)). Las carreteras son las arterias de la economía, el soporte vital de las guarniciones y los ejes de avance.
 2. **Arquitectura Dual de Capas con Semantic Zoom:**  
-   * **Capa de Alta Política (Macro-Geopolítica — LOD 1):** Al alejar el zoom (`zoom < 6.0`), el mapa sintetiza las entidades federales, los países, las fronteras consolidadas, los balances parlamentarios y las estadísticas macroeconómicas ([`src/domains/world/core/politicalAliceEngine.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/core/politicalAliceEngine.ts) y [`src/domains/world/services/stateSovereigntyService.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/services/stateSovereigntyService.ts)).
-   * **Capa Operativa / Táctica (Micro-WPlace — LOD 2 y LOD 3):** Al acercar el zoom (`zoom >= 6.0` y `zoom >= 13.0` / `ZOOM_TACTICO = 15`), el mapa renderiza la cuadrícula de calles, los comandantes desplegados, las marcas tácticas del clan, los convoyes en tránsito y las refriegas activas en intersecciones clave ([`src/domains/world/services/spatialDeploymentService.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/services/spatialDeploymentService.ts)).
+   * **Capa de Alta Política (Macro-Geopolítica — LOD 1):** Al alejar el zoom (`zoom < 6.0`), el mapa sintetiza las entidades federales, los países, las fronteras consolidadas, los balances parlamentarios y las estadísticas macroeconómicas ([`src/domains/world/core/politicalAliceEngine.ts`](../src/domains/world/core/politicalAliceEngine.ts) y [`src/domains/world/services/stateSovereigntyService.ts`](../src/domains/world/services/stateSovereigntyService.ts)).
+   * **Capa Operativa / Táctica (Micro-WPlace — LOD 2 y LOD 3):** Al acercar el zoom (`zoom >= 6.0` y `zoom >= 13.0` / `ZOOM_TACTICO = 15`), el mapa renderiza la cuadrícula de calles, los comandantes desplegados, las marcas tácticas del clan, los convoyes en tránsito y las refriegas activas en intersecciones clave ([`src/domains/world/services/spatialDeploymentService.ts`](../src/domains/world/services/spatialDeploymentService.ts)).
 3. **Punto de Partida Canónico: Cabimas (Zulia — `REG_VE_02`):**  
    El despliegue de prueba y expansión inicial toma como epicentro la ciudad de Cabimas y la Costa Oriental del Lago de Maracaibo (Zulia), corazón de la infraestructura petrolera venezolana, conectada por la Avenida Intercomunal, la Carretera Lara-Zulia y el Puente General Rafael Urdaneta hacia Maracaibo.
 4. **Desacoplamiento Estricto de Subsistemas:**  
@@ -103,7 +103,7 @@ graph LR
 ```
 
 * **🛰️ Agente 1 (Cartografía C4ISR & Topología de Redes):** Diseña el sistema de coordenadas Web Mercator, la proyección $O(1)$ entre lat/long y cuadrícula de combate (`spatialDeploymentService.ts`), el índice espacial 2D bitwise (`spatialRoadIndex.ts`) y la estructura de datos del grafo de carreteras (`roadNetworkEngine.ts`).
-* **⚙️ Agente 2 (Ingeniería Inversa Project Alice):** Extrae y adapta las fórmulas de suministro de `military.cpp`, los modos de mapa de `map_modes.hpp`, las restricciones de infraestructura de `infrastructure.hpp` y los estratos sociales POPs de `politics.cpp` / `rebels.cpp` (`politicalAliceEngine.ts`).
+* **⚙️ Agente 2 (Ingeniería de Sistemas Project Alice):** Extrae y adapta las fórmulas de suministro militar, los modos de mapa geopolítico, las restricciones de infraestructura logística y los estratos sociales POPs e insurgencia regional (`politicalAliceEngine.ts`).
 * **🪖 Agente 3 (Doctrina Militar 2026 & Game Design):** Modela el comportamiento de las guarniciones de IA (`roadGarrisonEngine.ts` y `garrisonAIEngine.ts`), los frentes de combate en carreteras, las zonas de muerte (*kill zones*) por drones, el protocolo de asedio con *Human Handshake* de 120s (`territorialSiegeOrchestrator.ts`) y el avance celular de fronteras (`territorialExpansionEngine.ts`).
 * **🗄️ Agente 4 (Infraestructura Realtime & Supabase):** Define las tablas PostGIS, los canales de WebSocket optimizados para sincronización masiva (`useSiegeRealtime.ts`, `useTerritoryMap.ts`, `stateSovereigntyService.ts`) y los shaders de renderizado en MapLibre GL (`TacticalWorldMap.tsx`).
 * **🛡️ Agente 5 (Garantía de Calidad & Desacoplamiento):** Asegura que el combate táctico por turnos (`src/domains/tactics/`) y el motor de diálogos (`src/domains/game-feel/`) se mantengan como capas downstream aisladas, garantizando una arquitectura libre de deuda técnica.
@@ -112,13 +112,13 @@ graph LR
 
 ## 3. DECONSTRUCCIÓN FORENSE DE PROJECT ALICE 1.3.0: SISTEMAS RESCATABLES
 
-El análisis profundo del árbol de fuentes de `C:\Users\Morín\Project-Alice-1.3.0` revela subsistemas de alto valor algorítmico directamente implementados en `src/domains/world/`.
+El análisis profundo de la arquitectura de referencia Open V2 (*Project Alice*) revela subsistemas de alto valor algorítmico directamente implementados en `src/domains/world/`.
 
-### 3.1 El Grafo de Transporte y Renderizado Vial (`src/map/map.hpp` & `map_borders.cpp`)
+### 3.1 El Grafo de Transporte y Renderizado Vial (Módulo Cartográfico Vectorial)
 En Project Alice, las carreteras y ferrocarriles no son simples polilíneas decorativas:
-* Estructuras de datos dedicadas:
+* Estructuras de datos dedicadas para vértices de líneas texturizadas:
   ```cpp
-  // Project Alice: src/map/map.hpp
+  // Referencia conceptual Open V2: vértice de trazado vectorial
   struct textured_line_vertex {
       glm::vec2 position_;
       glm::vec2 normal_direction_;
@@ -129,23 +129,23 @@ En Project Alice, las carreteras y ferrocarriles no son simples polilíneas deco
   std::vector<GLint> railroad_starts;
   std::vector<GLsizei> railroad_counts;
   ```
-* **Mapeo a GEOTACTICS ([`src/domains/world/core/roadNetworkEngine.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/core/roadNetworkEngine.ts)):**  
-  En MapLibre GL, esta lógica se traslada a `roadNetworkEngine.toGeoJSON()`, exportando una `FeatureCollection` de `LineString` renderizada como `line` layers con gradientes de color según el ancho de banda logístico (`currentThroughput` / `throughputCapacity`), la calidad de superficie (`surfaceQuality`) y el clan controlador (`controllerClanId`).
+* **Mapeo a DRONEPUNK 0.0.1 ([`src/domains/world/core/roadNetworkEngine.ts`](../src/domains/world/core/roadNetworkEngine.ts)):**  
+  En MapLibre GL v6, esta lógica se traslada a `roadNetworkEngine.toGeoJSON()`, exportando una `FeatureCollection` de `LineString` renderizada como `line` layers con gradientes de color según el ancho de banda logístico (`currentThroughput` / `throughputCapacity`), la calidad de superficie (`surfaceQuality`) y el clan controlador (`controllerClanId`).
 
-### 3.2 Modos de Mapa Especializados (`src/map/modes/`)
-Alice cuenta con 22 modos de mapa nativos. Para el sistema de GEOTACTICS rescatamos e hibridamos cuatro módulos críticos (`C4ISRMapViewMode` en [`src/domains/world/types/tacticalRoadTypes.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/types/tacticalRoadTypes.ts)):
-1. **`infrastructure.hpp` (`V2_LOGISTICS`):**  
+### 3.2 Modos de Mapa Especializados
+Alice cuenta con 22 modos de mapa nativos. Para **DRONEPUNK 0.0.1** rescatamos e hibridamos cuatro módulos críticos (`C4ISRMapViewMode` en [`src/domains/world/types/tacticalRoadTypes.ts`](../src/domains/world/types/tacticalRoadTypes.ts)):
+1. **Modo de Infraestructura (`V2_LOGISTICS`):**  
    Determina si una conexión vial permite el tránsito militar rápido en función del nivel de desarrollo y las reglas de la doctrina en el poder.
-2. **`supply.hpp` (`supply_limit_in_province`):**  
+2. **Límite de Suministro Provincial (`supply_limit_in_province`):**  
    Calcula la capacidad de carga militar antes de que las unidades sufran atrición (*attrition*):
    $$\text{CapacidadSuministro} = \text{Base} \times (1 + \text{NivelVial}) \times \text{ModificadorClimático}$$
-3. **`political.hpp` (`V1_SOVEREIGNTY`):**  
+3. **Modo Político y Soberanía (`V1_SOVEREIGNTY`):**  
    Renderiza las fronteras de control soberano con paleta heráldica por nación/clan y permite a los líderes de clan y gestores de facción renombrar estados y proclamar lemas soberanos mediante control RBAC (`stateSovereigntyService.canUnlockStateControl` / `updateStateSovereignty`).
-4. **`rgo_output.hpp` (`V3_RESOURCES`):**  
+4. **Rendimiento de Recursos RGO (`V3_RESOURCES`):**  
    Visualiza la producción de materias primas por provincia (Crudo liviano, crudo pesado, hierro/bauxita, tierras raras, energía eléctrica).
 
-### 3.3 Tiempos de Movimiento e Intercepción (`src/military/military.cpp`)
-En Alice (`military.cpp:L4832-L4870`), el tiempo de viaje entre dos nodos conectados se define por:
+### 3.3 Tiempos de Movimiento e Intercepción (Módulo de Tránsito Militar)
+En la fórmula clásica de tránsito entre dos nodos conectados de Project Alice:
 ```cpp
 float movement_time_from_to(sys::state& state, dcon::army_id a, dcon::province_id from, dcon::province_id to) {
     float prov_from_mod = province::get_province_modifier(state, controller, from, sys::provincial_mod_offsets::movement_cost);
@@ -154,13 +154,13 @@ float movement_time_from_to(sys::state& state, dcon::army_id a, dcon::province_i
     return (base_distance / army_speed) * average_modifier;
 }
 ```
-Si una tropa enemiga entra en el nodo intermedio, `stop_army_movement` congela la marcha y dispara la fase de combate. En [`src/domains/world/core/roadNetworkEngine.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/core/roadNetworkEngine.ts#L387-L503), `calculateSegmentTraversalTimeHours` y `findOptimalRoadRoute` implementan este principio exacto: ningún jugador o convoy puede saltar un nodo vial ocupado por `hostileGarrisonNodeIds` sin antes neutralizar el puesto de control hostil.
+Si una tropa enemiga entra en el nodo intermedio, `stop_army_movement` congela la marcha y dispara la fase de combate. En [`src/domains/world/core/roadNetworkEngine.ts`](../src/domains/world/core/roadNetworkEngine.ts#L387-L503), `calculateSegmentTraversalTimeHours` y `findOptimalRoadRoute` implementan este principio exacto: ningún jugador o convoy puede saltar un nodo vial ocupado por `hostileGarrisonNodeIds` sin antes neutralizar el puesto de control hostil.
 
 ---
 
 ## 4. LA REALIDAD OPERATIVA DE LA GUERRA MODERNA 2026: DOCTRINA DE CARRETERAS, DRONES Y DESGASTE
 
-El diseño del juego modela la doctrina contemporánea de alta intensidad (2022–2026) en [`src/domains/world/core/roadGarrisonEngine.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/core/roadGarrisonEngine.ts):
+El diseño del juego modela la doctrina contemporánea de alta intensidad (2022–2026) en [`src/domains/world/core/roadGarrisonEngine.ts`](../src/domains/world/core/roadGarrisonEngine.ts):
 
 ```mermaid
 graph TD
@@ -197,7 +197,7 @@ graph TD
 
 ## 5. ARQUITECTURA CARTOGRÁFICA DUAL, SEMANTIC LOD Y MECÁNICA WPLACE / OPENPLACE
 
-En [`src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts) y [`src/domains/world/services/spatialDeploymentService.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/services/spatialDeploymentService.ts), la cámara WebGL coordina tres niveles de detalle semántico (`SemanticLODLevel`):
+En [`src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts`](../src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts) y [`src/domains/world/services/spatialDeploymentService.ts`](../src/domains/world/services/spatialDeploymentService.ts), la cámara WebGL coordina tres niveles de detalle semántico (`SemanticLODLevel`):
 
 ### 5.1 Los Niveles de Representación Espacial (`resolveSemanticLOD`)
 
@@ -236,7 +236,7 @@ stateDiagram-v2
 * Permite desplegar unidades (`deployUnitAt` / `deployTacticalUnit` con integridad canónica `100 HP`) y erigir edificios de feudo (`constructBuildingAt` / `constructTacticalBuilding`), sincronizando cambios en tiempo real con Supabase CDC sobre el canal `theatre:{regionId}` (`tactical_spatial_deployments` y `tactical_fief_constructions`).
 
 ### 5.3 Gobernanza Estatal RBAC (`stateSovereigntyService.ts`)
-* En [`src/domains/world/services/stateSovereigntyService.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/services/stateSovereigntyService.ts), `canUnlockStateControl(userContext, stateId)` verifica que el usuario pertenezca a la facción/clan controlador y ostente rango de `leader`, `officer` o `isFactionManager === true`.
+* En [`src/domains/world/services/stateSovereigntyService.ts`](../src/domains/world/services/stateSovereigntyService.ts), `canUnlockStateControl(userContext, stateId)` verifica que el usuario pertenezca a la facción/clan controlador y ostente rango de `leader`, `officer` o `isFactionManager === true`.
 * Los líderes autorizados pueden actualizar en vivo el nombre soberano del país (`customCountryName`), el nombre del estado (`customStateName`), el lema (`customMotto`) y la proclamación oficial (`sovereignProclamation`), propagándose por el canal Realtime `state_sovereignty_changes`.
 
 ---
@@ -270,7 +270,7 @@ graph TD
 
 ## 7. VECTORIZACIÓN, TOPOLOGÍA OPERATIVA A* (`roadNetworkEngine.ts`) E ÍNDICE ESPACIAL $O(1)$ (`spatialRoadIndex.ts`): EL TEATRO CABIMAS
 
-En [`src/domains/world/core/roadNetworkEngine.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/core/roadNetworkEngine.ts) y [`src/domains/world/core/spatialRoadIndex.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/core/spatialRoadIndex.ts), la red vial de Cabimas y la Costa Oriental del Lago de Maracaibo (`REG_VE_02`) comprende **15 nodos viales** y **15 segmentos bidireccionales**:
+En [`src/domains/world/core/roadNetworkEngine.ts`](../src/domains/world/core/roadNetworkEngine.ts) y [`src/domains/world/core/spatialRoadIndex.ts`](../src/domains/world/core/spatialRoadIndex.ts), la red vial de Cabimas y la Costa Oriental del Lago de Maracaibo (`REG_VE_02`) comprende **15 nodos viales** y **15 segmentos bidireccionales**:
 
 ```mermaid
 graph LR
@@ -324,7 +324,7 @@ graph LR
 ## 8. MOTOR DE GUARNICIONES IA (VIALES NV. 1-4 Y TERRITORIALES NV. 1-5), PROTOCOLO DE ASEDIO Y HUMAN HANDSHAKE (120S)
 
 ### 8.1 Protocolo de Asedio Territorial, Barras TCP, Escudos y Ventanas de Vulnerabilidad (`territorialSiegeOrchestrator.ts`)
-Implementado en [`src/domains/world/core/territorialSiegeOrchestrator.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/core/territorialSiegeOrchestrator.ts) y sincronizado en vivo por [`src/domains/world/hooks/useSiegeRealtime.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/hooks/useSiegeRealtime.ts):
+Implementado en [`src/domains/world/core/territorialSiegeOrchestrator.ts`](../src/domains/world/core/territorialSiegeOrchestrator.ts) y sincronizado en vivo por [`src/domains/world/hooks/useSiegeRealtime.ts`](../src/domains/world/hooks/useSiegeRealtime.ts):
 
 ```mermaid
 sequenceDiagram
@@ -350,7 +350,7 @@ sequenceDiagram
 ```
 
 1. **Temporizador del Human Handshake de 120 Segundos (`HANDSHAKE_TIMEOUT_SECONDS = 120` / `HUMAN_HANDSHAKE_WINDOW_MS = 120_000`):**  
-   Cuando se declara un asedio, el clan defensor dispone de exactamente **120 segundos** para que un oficial humano tome el mando (`claimDefensiveHandshake`). Si el temporizador llega a cero, `resolveHandshakeTimeout` transfiere el mando a la **IA de Guarnición (Niveles 1 a 5)** configurada en [`src/domains/tactics/core/garrisonAIEngine.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/tactics/core/garrisonAIEngine.ts):
+   Cuando se declara un asedio, el clan defensor dispone de exactamente **120 segundos** para que un oficial humano tome el mando (`claimDefensiveHandshake`). Si el temporizador llega a cero, `resolveHandshakeTimeout` transfiere el mando a la **IA de Guarnición (Niveles 1 a 5)** configurada en [`src/domains/tactics/core/garrisonAIEngine.ts`](../src/domains/tactics/core/garrisonAIEngine.ts):
    * **Nivel 1 (`Milicia Local` — `'easy'`):** `1-ply Greedy Heuristic`, máx Tier 2, `12` chasis, `0 EC/h`.
    * **Nivel 2 (`División Regular` — `'normal'`):** `2-ply Positional Minimax`, máx Tier 3, `24` chasis, activación `4,500 EC`, upkeep `180 EC/h`.
    * **Nivel 3 (`Guardia Acorazada Veterana` — `'hard'`):** `3-ply Task-Force Tree` (COP activo), máx Tier 4, `40` chasis, activación `18,000 EC`, upkeep `750 EC/h`.
@@ -371,12 +371,12 @@ sequenceDiagram
 
 ## 9. DESACOPLAMIENTO ESTRICTO, EXPANSIÓN TERRITORIAL, MERCADO P2P (2% SPLIT) Y BARK ENGINE
 
-1. **Motor de Expansión Celular y Buff de Capitales ([`src/domains/world/core/territorialExpansionEngine.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/world/core/territorialExpansionEngine.ts)):**  
+1. **Motor de Expansión Celular y Buff de Capitales ([`src/domains/world/core/territorialExpansionEngine.ts`](../src/domains/world/core/territorialExpansionEngine.ts)):**  
    * `initializeRegionGrid` genera la malla de micro-celdas territoriales ($10 \times 10$) con estrellas de defensa de terreno (`1★` a `4★`).
    * `executeTerritorialExpansion` avanza la frontera celular en 4 direcciones ortogonales según el presupuesto invertido y captura nodos estratégicos (`StrategicNode`).
    * **Conquista de Capitales (Pilar 5 Canónico):** Controlar la capital regional otorga el **Buff Regional de +5% en recursos y logística**, mientras que el nodo `capital_hq` (`calculateIndustrialYieldWithNodes` en `territorialExpansionEngine.ts` y `evaluateStrategicNodes` en `src/domains/economy/core/strategicAndProductionEngine.ts`) otorga `+15%` de extracción energética nacional y `+10%` de velocidad de ensamblaje en talleres.
 2. **Mercado P2P Canónico (2% Impuesto Total + VWAP Collar ±25%):**  
-   * En [`src/shared/types/metagame.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/shared/types/metagame.ts#L283-L291) y [`src/domains/economy/index.ts`](file:///c:/Users/Mor%C3%ADn/GEOTACTICS-ONLINE/src/domains/economy/index.ts), el mercado P2P liquida cada transacción con una tasa total del **2%** (`TOTAL_P2P_TAX_RATE = 0.02`):
+   * En [`src/shared/types/metagame.ts`](../src/shared/types/metagame.ts#L283-L291) y [`src/domains/economy/index.ts`](../src/domains/economy/index.ts), el mercado P2P liquida cada transacción con una tasa total del **2%** (`TOTAL_P2P_TAX_RATE = 0.02`):
      * **1% Sink Deflacionario** (`PLATFORM_BURN_RATE = 0.01`): Quemado permanentemente de la economía.
      * **1% Regalía de Hub Regional** (`PROVINCE_ROYALTY_RATE = 0.01`): Transferido a la tesorería del Clan que controla la provincia/terminal comercial.
      * **Bandas Dinámicas VWAP Collar ±25%** (`VWAP_COLLAR_PERCENT = 0.25`): Impide la manipulación de precios y el *real-money trading* (RMT).

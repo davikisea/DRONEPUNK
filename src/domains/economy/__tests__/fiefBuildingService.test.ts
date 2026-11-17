@@ -4,7 +4,7 @@ import {
   ClanTreasuryState,
   applyTacticalMarkEffects,
   calculateGeodesicDistanceKm,
-} from './fiefBuildingService';
+} from '../services/fiefBuildingService';
 import {
   IndustrialEngine,
   IndustrialInventory,
@@ -289,10 +289,10 @@ const staleMarketOrders: P2PMarketListing[] = [
   },
 ];
 
-// Comprobar que el NPC bot NO absorbe órdenes artificialmente
+// Comprobar que el mercado P2P 100% Player-Driven NO absorbe órdenes artificialmente
 const botCheck = IndustrialEngine.fulfillStaleP2POrders(staleMarketOrders, now);
-console.log('[TEST 14] Resultado purga bot NPC:', botCheck);
-assert(botCheck.fulfilledCount === 0, 'El bot NPC NUNCA debe comprar órdenes ni inyectar liquidez artificial');
+console.log('[TEST 14] Resultado mercado 100% Player-Driven (cero liquidez sintética):', botCheck);
+assert(botCheck.fulfilledCount === 0, 'El mercado P2P NUNCA debe absorber órdenes ni inyectar liquidez artificial');
 assert(botCheck.totalCreditsDisbursed === 0, 'No debe disbursar créditos artificiales');
 assert(botCheck.strandedCount === 1, 'La orden de 10 horas debe pasar a estado varado (stranded)');
 assert(botCheck.updatedListings[0].status === 'stranded', 'El estado de la orden debe ser stranded');
@@ -345,7 +345,7 @@ const recovered = IndustrialEngine.recoverStrandedCargo(
 );
 assert((recovered.recoveredSteel || 0) === 4, 'Debe recuperar el cargamento varado en combate');
 assert(recovered.updatedInventory.refinedSteel === 108, 'Inventario final con botín de combate: 108');
-console.log('✅ [PASSED] Test 14: Purga de bot NPC, Cargamento Varado y decay comercial P2P validados.');
+console.log('✅ [PASSED] Test 14: Mercado 100% Player-Driven, Cargamento Varado y decay comercial P2P validados.');
 
 console.log('==============================================================================');
 console.log('TODAS LAS PRUEBAS DE FEUDOS, MARCAS WPLACE Y ECONOMÍA COMPLETADAS (14/14)');

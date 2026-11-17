@@ -2,7 +2,7 @@
  * IMPORTADOR CANÓNICO DE MAPAS AWBW (ADVANCE WARS BY WEB / WARSWORLD)
  * 
  * Permite importar matrices de tiles de la comunidad (AWBW IDs 1-194)
- * convirtiéndolas automáticamente a la estructura canónica de TacticalCommand:
+ * convirtiéndolas automáticamente a la estructura canónica de DRONEPUNK 0.0.1:
  * - Detección de dimensiones (ancho x alto).
  * - Mapeo de terrenos, propiedades, estrellas de defensa y pertenencia de jugador.
  * - Generación automática de unidades iniciales desplegadas sobre cuarteles y fábricas.
@@ -276,7 +276,7 @@ export function getCanonicalDefenseStars(type: TerrainType): number {
 }
 
 /**
- * Transforma una cadena de losetas AWBW en un objeto de mapa estructurado para TacticalCommand.
+ * Transforma una cadena de losetas AWBW en un objeto de mapa estructurado para DRONEPUNK 0.0.1.
  */
 export function parseAWBWMap(
   tileDataString: string,
@@ -362,7 +362,7 @@ export function parseAWBWMap(
         ownerId,
         captureHp: 20,
       };
-      if (code === 113 || code === 114 || String(code) === '113' || String(code) === '114') {
+      if (String(code) === '113' || String(code) === '114') {
         tileEntry.variant = 'pipeSeam-rl';
         tileEntry.seamHp = 100;
       }

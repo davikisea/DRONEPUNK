@@ -2,7 +2,7 @@
  * ==============================================================================
  * PRUEBAS UNITARIAS: MOTOR INDUSTRIAL MILITAR Y MERCADO P2P
  * ==============================================================================
- * Proyecto: Tactical Command: Wars of Legacy
+ * Proyecto: DRONEPUNK 0.0.1
  * Especificación Canónica: docs/02_MASTER_METAGAME_INDUSTRY_ECONOMY.md §2 & §3
  * Base de Datos: docs/04_MASTER_DATABASE_AND_SECURITY_SPEC.md §3.2 (harvest & execute_p2p)
  */
@@ -17,6 +17,38 @@ import {
   CARD_UPGRADE_TABLE,
   PLOT_UNLOCK_TABLE
 } from '@domains/economy';
+
+const describe = (_label: string, fn: () => void): void => {
+  fn();
+};
+
+const it = (label: string, fn: () => void): void => {
+  try {
+    fn();
+    console.log(`✅ [PASSED] ${label}`);
+  } catch (err) {
+    console.error(`❌ [FAILED] ${label}:`, err);
+    process.exit(1);
+  }
+};
+
+const expect = <T>(actual: T) => ({
+  toBe(expected: T): void {
+    if (actual !== expected) {
+      throw new Error(`Expected ${String(actual)} to be ${String(expected)}`);
+    }
+  },
+  toContain(expected: string): void {
+    if (typeof actual !== 'string' || !actual.includes(expected)) {
+      throw new Error(`Expected "${String(actual)}" to contain "${expected}"`);
+    }
+  },
+  toBeDefined(): void {
+    if (actual === undefined || actual === null) {
+      throw new Error(`Expected value to be defined, received ${String(actual)}`);
+    }
+  },
+});
 
 describe('Motor del Complejo Industrial Militar & Mercado P2P', () => {
   const createMockInventory = (overrides?: Partial<IndustrialInventory>): IndustrialInventory => ({
@@ -391,28 +423,31 @@ describe('Motor del Complejo Industrial Militar & Mercado P2P', () => {
     });
   });
 
-  describe('8. Curva Calibrada de Cartas y Desbloqueo Territorial', () => {
-    it('debe exigir exactamente los requerimientos del Cap de Torneo en Nivel 11 (20 microchips)', () => {
-      const reqN11 = IndustrialEngine.getCardUpgradeRequirements(10); // Para subir a N11
+  describe('8. Curva Calibrada de Patentes de Chasis y Desbloqueo Territorial', () => {
+    it('debe exigir exactamente los requerimientos de patente de torneo (26 microchips)', () => {
+      const reqN11 = IndustrialEngine.getCardUpgradeRequirements(10); // Umbral de patente de torneo
 
       expect(reqN11).toBeDefined();
       expect(reqN11?.targetLevel).toBe(11);
       expect(reqN11?.isTournamentCap).toBe(true);
-      expect(reqN11?.blueprints).toBe(1100);
-      expect(reqN11?.credits).toBe(20000);
-      expect(reqN11?.refinedSteel).toBe(120);
-      expect(reqN11?.refinedConcrete).toBe(65);
-      expect(reqN11?.refinedMicrochip).toBe(20); // Calibrado para eliminar el déficit
+      expect(reqN11?.blueprints).toBe(600);
+      expect(reqN11?.credits).toBe(14000);
+      expect(reqN11?.refinedSteel).toBe(100);
+      expect(reqN11?.refinedConcrete).toBe(20);
+      expect(reqN11?.refinedMicrochip).toBe(26);
     });
 
-    it('debe exigir materiales estratégicos en el Endgame Nivel 12', () => {
-      const reqN12 = IndustrialEngine.getCardUpgradeRequirements(11); // Para subir a N12
+    it('debe exigir los requerimientos calibrados de patente avanzada (Nivel 12)', () => {
+      const reqN12 = IndustrialEngine.getCardUpgradeRequirements(11); // Umbral de patente avanzada
 
       expect(reqN12).toBeDefined();
       expect(reqN12?.targetLevel).toBe(12);
       expect(reqN12?.isTournamentCap).toBe(false);
-      expect(reqN12?.strategicMaterial?.name).toBe('Nano-Aleaciones');
-      expect(reqN12?.strategicMaterial?.amount).toBe(10);
+      expect(reqN12?.blueprints).toBe(1000);
+      expect(reqN12?.credits).toBe(22000);
+      expect(reqN12?.refinedSteel).toBe(140);
+      expect(reqN12?.refinedConcrete).toBe(25);
+      expect(reqN12?.refinedMicrochip).toBe(32);
     });
 
     it('debe otorgar Parcela 3 gratuita en el tutorial de Nivel 2 y tarifar Parcela 4 en Nivel 4', () => {
@@ -435,7 +470,7 @@ describe('Motor del Complejo Industrial Militar & Mercado P2P', () => {
   });
 
   describe('9. Estabilizador de Liquidez: Banco Central de Intendencia Militar (NPC)', () => {
-    it('debe absorber órdenes activas tras 6 horas de inactividad garantizando liquidez', () => {
+    it('debe transicionar órdenes > 6h a estado stranded bajo economía Player-Driven (cero liquidez artificial)', () => {
       const now = Date.now();
       const staleOrders = [
         {
@@ -468,9 +503,10 @@ describe('Motor del Complejo Industrial Militar & Mercado P2P', () => {
 
       const result = IndustrialEngine.fulfillStaleP2POrders(staleOrders, now);
 
-      expect(result.fulfilledCount).toBe(1);
-      expect(result.totalCreditsDisbursed).toBe(1056);
-      expect(result.updatedListings[0].status).toBe('sold');
+      expect(result.fulfilledCount).toBe(0);
+      expect(result.totalCreditsDisbursed).toBe(0);
+      expect(result.strandedCount).toBe(1);
+      expect(result.updatedListings[0].status).toBe('stranded');
       expect(result.updatedListings[1].status).toBe('active');
     });
   });

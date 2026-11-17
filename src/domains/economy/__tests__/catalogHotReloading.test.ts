@@ -1,5 +1,5 @@
 /**
- * Tactical Command - Catalog Hot-Reloading Suite
+ * DRONEPUNK 0.0.1 - Catalog Hot-Reloading Suite
  * 
  * Verifica que el `catalogRegistry` soporte parches reactivos en caliente (Hot-Reloading)
  * en tiempo de ejecución sin reiniciar la aplicación ni afectar los contratos de memoria O(1).

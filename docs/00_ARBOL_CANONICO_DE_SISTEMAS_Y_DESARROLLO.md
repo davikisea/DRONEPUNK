@@ -1,7 +1,7 @@
 # 🌳 ÁRBOL CANÓNICO DE SISTEMAS Y DESARROLLO (SSOT DEFINITIVO)
-## *Tactical Command: Wars of Legacy — Global Sovereignty Edition*
+## *DRONEPUNK 0.0.1 — Consola de Mando Táctico Militar*
 **Documento Canónico Rector:** `docs/00_ARBOL_CANONICO_DE_SISTEMAS_Y_DESARROLLO.md`  
-**Versión de Arquitectura:** `5.0.0-UNIFIED-CANON`  
+**Versión de Arquitectura:** `0.0.1`  
 **Única Fuente de Verdad (SSOT):** Este documento rige todas las especificaciones de diseño, bases de datos, lógica de motor e interfaces del proyecto. Toda documentación subordinada se calibra exclusivamente contra este árbol.
 
 ---
@@ -17,7 +17,7 @@ Cada rama, nodo y subsistema del juego se clasifica de forma estricta e invariab
 | **`DESARROLLADO`** | 🟡 | **Lógica de Código Implementada.** Algoritmos, modelos de TypeScript o controladores de estado escritos y funcionales en local, pero aún no cableados a la interfaz principal o al backend persistente. | Archivo `.ts` o `.tsx` funcional en `src/domains/{world,tactics,economy,game-feel}/` o `src/shared/`. |
 | **`EN DESARROLLO`** | 🟠 | **En Especificación o Refactor Activo.** Módulo en proceso de alineación con el canon, diseño de contratos o refactorización arquitectónica para erradicar discrepancias legacy. | PR abierto, RFC aprobado o tarea activa en roadmap. |
 
-> [!NOTE] CALIBRACIÓN OPERATIVA DE CAPAS EN v0.0.2-alfa (MVP POLÍTICO)
+> [!NOTE] CALIBRACIÓN OPERATIVA DE CAPAS EN DRONEPUNK 0.0.1 (MVP POLÍTICO)
 > - **Capa 1 (Metajuego Político ALICE):** 🟢 `[LISTO / ACTIVO]` en Teatro Venezuela (24 Estados + 7 Zonas Buffer).
 > - **Capa 2 (Combate Táctico en Cuadrícula 1-100 HP):** 🟡 `[DESARROLLADO / EN ESPERA DE FASE 2]` en runtime del cliente. El motor balístico y las reglas deterministas están programados y certificados con tests, pero el punto de entrada UI redirige al asedio geopolítico en el mapa macro.
 > - **Capa 3 (Bark Engine & Mando):** 🟢 `[LISTO / CALIBRACIÓN DE SUJETO ÚNICO STELLA]` con aprendizaje adaptativo.
@@ -28,14 +28,14 @@ Cada rama, nodo y subsistema del juego se clasifica de forma estricta e invariab
 
 Antes de desplegar el árbol, se declaran los 7 axiomas rectores del juego ratificados por la dirección:
 
-1. **CERO CARTAS $\rightarrow$ ALMACÉN FÍSICO DE UNIDADES (FLEET HANGAR DE 16 TROPAS):**  
-   No existen barajas (NO TCG/CCG), no existen sobres de cartas ni manos de naipes. El jugador gestiona un **Almacén Físico de Unidades (`user_unit_hangar` / `faction_unit_hangar`) de 16 tropas máximo por jugador en orden de batalla (4 slots de despliegue activo de vanguardia + 12 unidades en reserva táctica)**, con acceso al catálogo de los **16 arquetipos militares del juego**. Las tropas se fabrican previamente en industrias territoriales acumulando **stock físico real**. En combate, las fábricas aliadas despliegan chasis existentes en dicho stock mediante **Doble Llave**, pagando además los Fondos Tácticos ($G) generados in-match por ciudades capturadas.
+1. **ALMACÉN FÍSICO DE 16 CHASIS MILITARES (FLEET HANGAR DE 16 TROPAS):**  
+   El jugador gestiona un **Almacén Físico de 16 Chasis Militares (munición descartable forjada en `user_unit_hangar` / `faction_unit_hangar`): 4 slots de despliegue activo de vanguardia + 12 unidades en reserva táctica**, con acceso al catálogo de los **16 arquetipos militares del juego**. Las tropas se fabrican previamente en industrias territoriales acumulando **stock físico real**. En combate, las fábricas aliadas despliegan chasis existentes en dicho stock mediante **Doble Llave**, pagando además los Fondos Tácticos ($G) generados in-match por ciudades capturadas.
 2. **ESCALA BALÍSTICA ESTRICTA: 1 A 100 HP ENTEROS:**  
    Toda unidad nace con **100 HP enteros continuos** (`CANONICAL_MAX_HP = 100`). El daño balístico, las estrellas de terreno (0★ a 4★) y los sprites de vida operan sobre la escala continua de 1 a 100 HP sin redondeos toscos (`@domains/tactics/core/canonicalCombat.ts`).
 3. **CONDICIÓN DE DERROTA POR 0 TROPAS:**  
-   Si un comandante pierde su última unidad activa sobre el grid (`units.length === 0`), sufre una **Derrota Inmediata Inapelable** (canon estricto *Advance Wars*), sin importar sus fábricas o fondos en reserva.
+   Si un comandante pierde su última unidad activa sobre el grid (`units.length === 0`) o sufre captura de su Cuartel General, sufre una **Derrota Inmediata Inapelable** (`@domains/tactics/core/hqCaptureVictory.ts`), sin importar sus fábricas o fondos en reserva.
 4. **PROGRESIÓN HORIZONTAL EXCLUSIVA: TIERS T1 A T5 (+2% POR TIER, MÁXIMO +8% EN T5):**  
-   Queda erradicado el nivel de carta (1-15). La única bonificación balística en combate clasificado es la pureza de manufactura del chasis: **Tiers T1 a T5 (+2% efectividad por nivel; T1 $+0\%$, T2 $+2\%$, T3 $+4\%$, T4 $+6\%$, T5 $+8\%$)**. En torneos esports y Duelo Espejo se compite forzosamente a **Tier 1 (+0%)**.
+   La única bonificación balística en combate clasificado es la pureza de manufactura industrial del chasis: **Tiers T1 a T5 (+2% efectividad por nivel; T1 $+0\%$, T2 $+2\%$, T3 $+4\%$, T4 $+6\%$, T5 $+8\%$)**. En torneos esports y Duelo Espejo se compite forzosamente a **Tier 1 (+0% de paridad competitiva)**.
 5. **CAPITALES NACIONALES: CONQUISTABLES CON BUFF REGIONAL (+5%) Y HEGEMONÍA NACIONAL:**  
    Las 195 Capitales son disputables y conquistables en el mapa mundial como cualquier provincia (0% inexpugnabilidad, `CAPITAL_IMMUNITY = false`). La conquista de una Capital otorga un **Buff Regional de +5% en extracción de recursos y logística en la región**, y proyecta además un **Buff Hegemónico Nacional** a todos los territorios de la facción en esa nación: **+15% Créditos Energéticos (EC)**, **+10% velocidad de forja** y **-20% aranceles P2P** (`@domains/economy/core/strategicAndProductionEngine.ts` y `@domains/world/core/territorialExpansionEngine.ts`).
 6. **PÉRDIDA FÍSICA DE UNIDADES + 35% CHATARRA (`tech_scrap`) + KIT BÁSICO F2P:**  
@@ -54,9 +54,9 @@ Toda la base de código ejecutable se organiza en **4 Dominios Funcionales Desac
 
 | Dominio / Capa | Ruta Física y Alias TS | Punto de Entrada | Responsabilidad Arquitectónica |
 | :--- | :--- | :--- | :--- |
-| **Dominio 1: World** | `src/domains/world/` (`@domains/world/*`) | `src/domains/world/index.ts` | Cartografía WebGL/MapLibre (`TacticalWorldMap`), coordenadas analíticas $O(1)$ (`coordinates.ts`), bitmaps (`tacticalBitmap.ts`), red vial y guarniciones (`roadNetworkEngine.ts`, `roadGarrisonEngine.ts`), asedios 120s (`territorialSiegeOrchestrator.ts`), expansión celular (`territorialExpansionEngine.ts`), motor político ALICE (`politicalAliceEngine.ts`) y clanes (`clanSystem.ts`). |
-| **Dominio 2: Tactics** | `src/domains/tactics/` (`@domains/tactics/*`) | `src/domains/tactics/index.ts` | Motor balístico determinista 1-100 HP (`canonicalCombat.ts`, `combat.ts`, `canonicalDamageChart.ts`), 28 Comandantes (`coSystem.ts`), IA de Guarnición Nv.1-5 (`garrisonAIEngine.ts`, `aiBot.ts`), niebla y `¡TRAP!` (`fogOfWar.ts`, `pathfinding.ts`), refuerzos (`reinforcementsEngine.ts`, `reinforcementEngine.ts`) e integración Doble Llave (`tacticalCombatSeamlessIntegration.ts`). |
-| **Dominio 3: Economy** | `src/domains/economy/` (`@domains/economy/*`) | `src/domains/economy/index.ts` | Almacén Físico de 16 tropas Cero Cartas (`useUserHangar.ts`, `UnitHangarModal.tsx`, `LoadoutCustomizer.tsx`), complejo industrial de 10 parcelas y Mercado P2P 2% (`industrialEngine.ts`, `IndustrialComplexView.tsx`, `P2PMarketplaceView.tsx`), colas de forja y nodos estratégicos (`strategicAndProductionEngine.ts`, `turnEconomy.ts`, `upkeepEngine.ts`). |
+| **Dominio 1: World** | `src/domains/world/` (`@domains/world/*`) | `src/domains/world/index.ts` | Cartografía WebGL/MapLibre (`TacticalWorldMap`), UI 100% Map-First (`WarLobbyHub`, `DualResourceHeader`, `LeftCollapsibleRail`, `UnifiedRegionInspector`, `RightActionDock`, `mapSelectionTypes`), coordenadas analíticas $O(1)$ (`coordinates.ts`), bitmaps (`tacticalBitmap.ts`), red vial y guarniciones (`roadNetworkEngine.ts`, `roadGarrisonEngine.ts`), asedios 120s (`territorialSiegeOrchestrator.ts`), expansión celular (`territorialExpansionEngine.ts`), motor político ALICE (`politicalAliceEngine.ts`) y clanes (`clanSystem.ts`). |
+| **Dominio 2: Tactics** | `src/domains/tactics/` (`@domains/tactics/*`) | `src/domains/tactics/index.ts` | Motor balístico determinista 1-100 HP (`canonicalCombat.ts`, `combat.ts`, `canonicalDamageChart.ts`), 29 Comandantes (`coSystem.ts`), IA de Guarnición Nv.1-5 (`garrisonAIEngine.ts`, `aiBot.ts`), niebla y `¡TRAP!` (`fogOfWar.ts`, `pathfinding.ts`), refuerzos (`reinforcementsEngine.ts`, `reinforcementEngine.ts`) e integración Doble Llave (`tacticalCombatSeamlessIntegration.ts`). |
+| **Dominio 3: Economy** | `src/domains/economy/` (`@domains/economy/*`) | `src/domains/economy/index.ts` | Almacén Físico de 16 Chasis Militares (`useUserHangar.ts`, `UnitHangarModal.tsx`, `LoadoutCustomizer.tsx`), complejo industrial de 10 parcelas y Mercado P2P 2% (`industrialEngine.ts`, `IndustrialComplexView.tsx`, `P2PMarketplaceView.tsx`), colas de forja y nodos estratégicos (`strategicAndProductionEngine.ts`, `turnEconomy.ts`, `upkeepEngine.ts`). |
 | **Dominio 4: Game-Feel** | `src/domains/game-feel/` (`@domains/game-feel/*`) | `src/domains/game-feel/index.ts` | Bark Engine Cómic sin voces (`barkEngine.ts`, `CommanderBarkWidget.tsx`, `CommanderLivingVignette.tsx`), síntesis procedural Web Audio API (`audioManager.ts`) y matriz háptica (`hapticFeedback.ts`). |
 | **Capa Shared** | `src/shared/` (`@shared/*`) | `src/shared/index.ts` | Contratos globales y constantes SSOT (`src/shared/types/metagame.ts`, `src/shared/types/index.ts`, `src/shared/types/database.types.ts`), cliente Supabase (`src/shared/lib/supabase/client.ts`), servicios de base de datos (`playerDatabaseService.ts`, `matchDatabaseService.ts`), autenticación (`useAuth.ts`, `AuthTerminalModal.tsx`) y primitivas UI (`TacticalGhostBar.tsx`, `TacticalErrorBoundary.tsx`, `MatchSummaryModal.tsx`, `QADevOpsRunner.tsx`). |
 
@@ -65,13 +65,13 @@ Toda la base de código ejecutable se organiza en **4 Dominios Funcionales Desac
 # 3. EL GRAN ÁRBOL DE SISTEMAS DEL JUEGO
 
 ```
-                                  TACTICAL COMMAND: GLOBAL SOVEREIGNTY
+                                         DRONEPUNK 0.0.1
                                                    │
          ┌───────────────────┬─────────────────────┼─────────────────────┬───────────────────┐
          ▼                   ▼                     ▼                     ▼                   ▼
    [ RAMA 1: TABLERO ] [ RAMA 2: INDUSTRIA ] [ RAMA 3: GEOPOLÍTICA ] [ RAMA 4: ATOMPUNK ] [ RAMA 5: BACKEND ]
    • @domains/tactics  • @domains/economy    • @domains/world        • @domains/game-feel • @shared + Supabase
-   • Motor Balístico   • Almacén 16 Tropas   • Mapa Mundial 195 P.   • UI Retro-Futurista • 31 Migraciones
+   • Motor Balístico   • Almacén 16 Chasis   • Teatro Venezuela      • UI Retro-Futurista • 32 Migraciones
    • Escala 1-100 HP   • Stock Real T1-T5    • Soberanía Capital +5% • Bark Engine Cómic  • RLS Multi-Tenant
    • Turno Fischer     • Refinado 10 Parcelas• Asedios TCP & Escudo  • Ergonomía In-Situ  • Orquestador
    • Niebla & TRAP!    • Mercado P2P 2% Split• Guarnición IA 120s    • Matriz Háptica     • Arnés E2E QA
@@ -123,7 +123,7 @@ RAMA 1: TABLERO TÁCTICO
 │   └── 1.5.5 Clima Dinámico (Despejado, Lluvia, Nieve, Tormenta de Arena) ...... 🟢 [LISTO]
 │
 └── 1.6 Sistema de Comandantes (CO System)
-    ├── 1.6.1 Catálogo de 28 Comandantes con arquetipos doctrinales ............. 🟢 [LISTO]
+    ├── 1.6.1 Catálogo de 29 Comandantes con arquetipos doctrinales ............. 🟢 [LISTO]
     ├── 1.6.2 Carga de Barra de CO Power mediante daño infligido y recibido ...... 🟢 [LISTO]
     ├── 1.6.3 Activación de Poder de Comandante (COP) ........................... 🟢 [LISTO]
     └── 1.6.4 Activación de Super CO Power (SCOP) con congelación cinemática .... 🟢 [LISTO]
@@ -138,7 +138,7 @@ RAMA 1: TABLERO TÁCTICO
 ```
 RAMA 2: INDUSTRIA Y ALMACÉN
 ├── 2.1 Almacén Físico de Unidades (Fleet Hangar: 4 Vanguardia + 12 Reserva)
-│   ├── 2.1.1 Eliminación completa de cartas y mazos de la lógica ............... 🟢 [LISTO]
+│   ├── 2.1.1 Almacén físico estricto de 16 chasis como munición descartable .. 🟢 [LISTO]
 │   ├── 2.1.2 Registro de stock físico real por arquetipo en base de datos ...... 🟢 [LISTO]
 │   ├── 2.1.3 Línea de Pertrechos Básica F2P (Infantería y Recon T1 ilimitados) . 🟢 [LISTO]
 │   ├── 2.1.4 Modal de Producción por Doble Llave (Fondos $G + Stock de Chasis) . 🟢 [LISTO]
@@ -146,7 +146,7 @@ RAMA 2: INDUSTRIA Y ALMACÉN
 │   └── 2.1.6 Hangar Compartido de Facción (Despliegue de Arsenal Común) ........ 🟢 [LISTO]
 │
 ├── 2.2 Jerarquía de Calidad: Tiers T1 a T5 (+2% por Tier, máx. +8% en T5)
-│   ├── 2.2.1 Erradicación de Niveles de Carta 1-15 del motor de combate ....... 🟢 [LISTO]
+│   ├── 2.2.1 Progresión horizontal exclusiva mediante Tiers industriales T1-T5  🟢 [LISTO]
 │   ├── 2.2.2 Bonificación industrial T1 a T5 (+2% balística por Tier) .......... 🟢 [LISTO]
 │   ├── 2.2.3 Normalización obligatoria a Tier 1 (+0%) en Torneos y Espejo ..... 🟢 [LISTO]
 │   └── 2.2.4 Patentes Tecnológicas Permanentes en centro de investigación ...... 🔵 [DESPLEGADO]
@@ -167,7 +167,7 @@ RAMA 2: INDUSTRIA Y ALMACÉN
 │   ├── 2.5.1 Split del 2% (1% Burn deflacionario / 1% Regalía Provincial) ...... 🟢 [LISTO]
 │   ├── 2.5.2 Bandas de fluctuación VWAP collar +/- 25% anti-especulación ....... 🟢 [LISTO]
 │   ├── 2.5.3 Prohibición estricta de venta de tropas terminadas (0% P2W) ....... 🟢 [LISTO]
-│   └── 2.5.4 Banco Central NPC (absorción de órdenes estancadas tras 6h) ........ 🟢 [LISTO]
+│   └── 2.5.4 Mercado 100% Player-Driven con Cargamento Varado tras 6h .......... 🟢 [LISTO]
 │
 └── 2.6 Protocolo de Salvaguarda Táctica
     ├── 2.6.1 Crafteo F2P de Salvaguarda (Taller Nv.4, 24 horas) ................. 🟢 [LISTO]
@@ -222,10 +222,11 @@ RAMA 3: GEOPOLÍTICA Y SOBERANÍA
 
 ```
 RAMA 4: PRESENTACIÓN Y GAME FEEL
-├── 4.1 Identidad Visual Retro-Futurista Atompunk
-│   ├── 4.1.1 ADN Cromático: Base #2B2C24, Oliva #46521F, Naranja #C46A3A, Crema #F2E8D5 🟢 [LISTO]
+├── 4.1 Identidad Visual Retro-Futurista Atompunk & Branding DRONEPUNK
+│   ├── 4.1.1 ADN Cromático: Base #2B2C24, Oliva #46521F, Naranja #C46A3A / #FF5B00, Crema #F2E8D5 🟢 [LISTO]
 │   ├── 4.1.2 Geometría aerodinámica Googie y esquinas asimétricas .............. 🟢 [LISTO]
-│   └── 4.1.3 Sombras duras Ben-Day con offset de 2px-15px y biseles metálicos .. 🟢 [LISTO]
+│   ├── 4.1.3 Sombras duras Ben-Day con offset de 2px-15px y biseles metálicos .. 🟢 [LISTO]
+│   └── 4.1.4 Identidad Oficial DRONEPUNK: Logotipo calavera pixel/QR #FF5B00 (/icon.svg y /icon.png en @public/), Boot Screen y HUD C4ISR 🟢 [LISTO]
 │
 ├── 4.2 Bark Engine Cómic y Audio Táctico
 │   ├── 4.2.1 CERO actores de voz: 100% narrativa contextual gráfico/texto ..... 🟢 [LISTO]
@@ -233,13 +234,13 @@ RAMA 4: PRESENTACIÓN Y GAME FEEL
 │   ├── 4.2.3 Sellos Pop-Art tipográficos (¡TRAP!, ¡AIRDROP!, ¡FIRST BLOOD!) .... 🟢 [LISTO]
 │   └── 4.2.4 Splash cinemático de Super CO Power con congelación de 1,500ms .... 🟢 [LISTO]
 │
-├── 4.3 Pantalla de Inicio War-Room Viva y Tríada C4ISR
-│   ├── 4.3.1 Mapa Mundial continuo como fondo permanente del lobby ............. 🟢 [LISTO]
-│   ├── 4.3.2 Superposición del HUD C4ISR militar sin pantallas negras .......... 🟢 [LISTO]
-│   ├── 4.3.3 Visualización en vivo de nodos en combate y modo espectador ........ 🟢 [LISTO]
-│   ├── 4.3.4 DualResourceHeader: Telemetría personal y arcas de facción ........ 🟢 [LISTO]
-│   ├── 4.3.5 CommanderBarkWidget: Viñeta reactiva estilo cómic (Bottom-Left) ... 🟢 [LISTO]
-│   └── 4.3.6 ParadoxCommandDrawer: Gaveta retráctil macro (Right Side Panel) ... 🟢 [LISTO]
+├── 4.3 Pantalla de Inicio 100% Map-First y HUD Perimetral Unificado
+│   ├── 4.3.1 Mapa Mundial WebGL Zero-Raster como lienzo y menú único (100vw×100vh) 🟢 [LISTO]
+│   ├── 4.3.2 DualResourceHeader: Franja superior persistente (EC, Acero, Rare, Scrap, $G) 🟢 [LISTO]
+│   ├── 4.3.3 LeftCollapsibleRail: Capas C4ISR, Feed Alice, Radio-Net y Ajustes .. 🟢 [LISTO]
+│   ├── 4.3.4 CommanderBarkWidget: Viñeta Bottom-Left blindada + feed barkEngine 🟢 [LISTO]
+│   ├── 4.3.5 UnifiedRegionInspector: Consola derecha 4 escalas (País/Estado/Mun/Celda) 🟢 [LISTO]
+│   └── 4.3.6 RightActionDock: Barra inferior derecha (Tienda/Ind/Arm/P2P/Alz/Doc) 🟢 [LISTO]
 │
 └── 4.4 Ergonomía de Entrada y Háptica
     ├── 4.4.1 Menú contextual in-situ sobre baldosa (órdenes en 1-2 clics) ....... 🟢 [LISTO]
@@ -257,13 +258,13 @@ RAMA 4: PRESENTACIÓN Y GAME FEEL
 ```
 RAMA 5: INFRAESTRUCTURA Y QA
 ├── 5.1 Base de Datos PostgreSQL / Supabase
-│   ├── 5.1.1 Consolidación de 31 Migraciones DDL (27 base + 4 extensiones) ..... 🟢 [LISTO]
+│   ├── 5.1.1 Consolidación de 32 Migraciones DDL (27 base + 5 extensiones) ..... 🟢 [LISTO]
 │   ├── 5.1.2 Esquema relacional de parcelas industriales y órdenes P2P ......... 🟢 [LISTO]
 │   ├── 5.1.3 Esquema cartográfico de continentes, países, provincias y nodos ... 🟢 [LISTO]
 │   ├── 5.1.4 Esquema de hangares físicos de flota (user_unit_hangar) ............ 🟢 [LISTO]
 │   ├── 5.1.5 Esquema de Asedios y Semillero de Venezuela (Migración 26) ........ 🟢 [LISTO]
 │   ├── 5.1.6 Esquema de Nodos Estratégicos, Hangar Facción y Colas (Migración 27) 🟢 [LISTO]
-│   └── 5.1.7 Soberanía RBAC, Cabimas Realtime, Catálogo y Ventanas (Migr. 28-31) 🟢 [LISTO]
+│   └── 5.1.7 Soberanía RBAC, Cabimas, Catálogo, Ventanas y Auditoría (Migr. 28-32) 🟢 [LISTO]
 │
 ├── 5.2 Seguridad y Lógica Transaccional
 │   ├── 5.2.1 Políticas RLS estrictas multi-tenant para aislamiento de perfiles . 🟢 [LISTO]
@@ -281,7 +282,7 @@ RAMA 5: INFRAESTRUCTURA Y QA
     ├── 5.4.2 Tests de ciclo circadiano e industria (@domains/economy/__tests__/industrialEngine.test.ts) 🟢 [LISTO]
     ├── 5.4.3 Suite de telemetría y playtesting multimodal con Playwright ....... 🟢 [LISTO]
     ├── 5.4.4 Consola de desarrollo y depuración aislada (@domains/tactics/components/DebugDevConsoleModal.tsx) 🟢 [LISTO]
-    └── 5.4.5 Batería Geotactics Unificada (npm run test:geotactics: 93/93 tests) 🟢 [LISTO]
+    └── 5.4.5 Batería Unificada DRONEPUNK (npm run test:geotactics: 93/93 tests) . 🟢 [LISTO]
 ```
 
 ---
@@ -293,18 +294,18 @@ Para que la base de código y la documentación subordinada alcancen el estado 1
 | Nodo del Árbol | Estado Anterior | Acción de Limpieza / Refactor Ejecutada | Estado Actual |
 | :--- | :---: | :--- | :---: |
 | **1.1.2 Escala 1-100 HP** | 🟠 | Fijada escala continua 1-100 HP enteros (`CANONICAL_MAX_HP = 100`) sin redondeos en `src/domains/tactics/core/canonicalCombat.ts` y `src/domains/tactics/core/canonicalDamageChart.ts`. | 🟢 `[LISTO]` |
-| **2.1.1 Eliminación de Cartas** | 🟠 | Erradicación de mazos TCG/CCG. Almacén físico de 16 tropas máximo por jugador (4 activas + 12 reserva) en `user_unit_hangar` y `faction_unit_hangar` (`src/domains/economy/hooks/useUserHangar.ts` y `src/domains/economy/components/UnitHangarModal.tsx`). | 🟢 `[LISTO]` |
-| **2.1.4 Modal de Producción** | 🟠 | Desacoplado de mazos. Opera mediante Doble Llave ($G + Chasis físico) en `src/domains/tactics/components/ProductionModal.tsx` y `src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts`. | 🟢 `[LISTO]` |
-| **2.2.1 Retiro de Nivel de Carta** | 🟠 | Purgado nivel 1-15 y `getLevelAttackBonus`. Todo el motor en `src/domains/tactics/core/canonicalCombat.ts` opera bajo Tiers industriales T1-T5 (+2%/tier, máximo +8% en T5). | 🟢 `[LISTO]` |
+| **2.1.1 Almacén Físico 16 Chasis** | 🟠 | Almacén físico estricto de 16 chasis militares (munición descartable forjada; 4 vanguardia + 12 reserva) en `user_unit_hangar` y `faction_unit_hangar` (`src/domains/economy/hooks/useUserHangar.ts` y `src/domains/economy/components/UnitHangarModal.tsx`). | 🟢 `[LISTO]` |
+| **2.1.4 Modal de Producción** | 🟠 | Desacoplado hacia existencias físicas reales. Opera mediante Doble Llave ($G + Chasis físico del Hangar) en `src/domains/tactics/components/ProductionModal.tsx` y `src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts`. | 🟢 `[LISTO]` |
+| **2.2.1 Tiers Industriales T1-T5** | 🟠 | Consolidada la progresión horizontal de manufactura. Todo el motor en `src/domains/tactics/core/canonicalCombat.ts` opera bajo Tiers industriales T1-T5 (+2%/tier, máximo +8% en T5; paridad 0% en Tier 1 competitivo). | 🟢 `[LISTO]` |
 | **2.5.1 & 2.5.2 Mercado P2P 2%** | 🟠 | Certificado split transaccional del 2% (`1%` Burn Sink + `1%` Regalía al Clan del Hub regional) y bandas `VWAP_COLLAR_PERCENT = 0.25` (±25%) en `src/shared/types/metagame.ts` y `src/domains/economy/core/industrialEngine.ts`. | 🟢 `[LISTO]` |
 | **3.1.2 WebGL Zero-Raster** | 🟠 | Erradicación de CartoDB. Componente unificado en `src/domains/world/components/TacticalWorldMap.tsx` (re-exportado como `WorldMapCanvas` en `src/domains/world/index.ts`) con carga local de `world_land.json`, `theatre_regions.json` y `theatre_roads.json`. | 🟢 `[LISTO]` |
 | **3.1.5 Expansión Territorial** | 🟠 | Implementado motor de ondas celulares tipo Territorial.io y buffs de nodos estratégicos en `src/domains/world/core/territorialExpansionEngine.ts`. | 🟢 `[LISTO]` |
 | **3.2.2 Buff Regional Capital** | 🟠 | Consolidado Buff Regional de Capital (+5% recursos/logística regional) junto con hegemonía nacional (+15% EC, +10% forja, -20% aranceles P2P) en `src/domains/economy/core/strategicAndProductionEngine.ts` y `src/domains/world/core/territorialExpansionEngine.ts`. | 🟢 `[LISTO]` |
 | **3.4.2 Handshake 120s** | 🟠 | Fijado `HANDSHAKE_TIMEOUT_SECONDS: 120` en `src/shared/types/metagame.ts`, orquestado en `src/domains/world/core/territorialSiegeOrchestrator.ts` y certificado en `src/domains/world/__tests__/territorialSiege.test.ts` y `src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts`. | 🟢 `[LISTO]` |
 | **1.0.0 Capa 2 MVP Standby** | 🟢 | El motor determinista TBS (`src/domains/tactics/`) queda en espera en la UI según `THREE_LAYER_ARCHITECTURE` en `src/domains/world/core/politicalAliceEngine.ts` para priorizar la estabilidad geopolítica de Capa 1. | 🟡 `[DESARROLLADO]` |
-| **5.1.1 a 5.1.7 Migraciones SQL** | 🟠 | Consolidadas las 31 migraciones DDL en `supabase/migrations/` (incluyendo asedios, 24 regiones VE, nodos estratégicos, soberanía RBAC, Cabimas realtime, manifiesto de catálogos y ventanas de vulnerabilidad). | 🟢 `[LISTO]` |
+| **5.1.1 a 5.1.7 Migraciones SQL** | 🟠 | Consolidadas las 32 migraciones DDL en `supabase/migrations/` (incluyendo asedios, 24 regiones VE, nodos estratégicos, soberanía RBAC, Cabimas realtime, manifiesto de catálogos, ventanas de vulnerabilidad y saneamiento de auditoría). | 🟢 `[LISTO]` |
 
 ---
 
 > **FIN DEL ÁRBOL CANÓNICO DE SISTEMAS Y DESARROLLO**  
-> *Este documento es el nuevo SSOT maestro universal de Tactical Command.*
+> *Este documento es el nuevo SSOT maestro universal de DRONEPUNK 0.0.1.*

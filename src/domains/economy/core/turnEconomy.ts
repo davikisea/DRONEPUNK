@@ -22,6 +22,7 @@ export interface ProductionCatalogEntry {
   baseAttack: number;
   ammo: number;
   fuel: number;
+  visionRange?: number;
   description: string;
 }
 

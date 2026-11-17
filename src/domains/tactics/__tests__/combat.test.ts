@@ -227,7 +227,7 @@ export function runCombatTests(): { total: number; passed: number; failed: numbe
       commtowersCount: 2, // +20% ataque
     });
 
-    assert(commtowerResult.attackerDamagePercent > normalResult.attackerDamagePercent, 'Test 10: 2 Torres de Comunicación aumentan el daño porcentual');
+    assert((commtowerResult.attackerDamagePercent ?? 0) > (normalResult.attackerDamagePercent ?? 0), 'Test 10: 2 Torres de Comunicación aumentan el daño porcentual');
   } catch (err: any) {
     results.push({ name: 'Test 10: Torres de Comunicación', passed: false, error: err.message });
   }

@@ -2,8 +2,8 @@
  * ==============================================================================
  * MOTOR DEL COMPLEJO INDUSTRIAL MILITAR, PARCELAS IDLE Y MERCADO P2P
  * ==============================================================================
- * Proyecto: Tactical Command: Wars of Legacy
- * Especificación Canónica Calibrada: docs/08_PROPOSAL_ECONOMY_IDLE_REWORK.md (v2.0.0-CALIBRATED)
+ * Proyecto: DRONEPUNK 0.0.1
+ * Especificación Canónica Calibrada: docs/02_MASTER_METAGAME_INDUSTRY_ECONOMY.md (DRONEPUNK 0.0.1)
  * Base de Datos: docs/04_MASTER_DATABASE_AND_SECURITY_SPEC.md &
  *                supabase/migrations/20261031000013_economy_idle_rework_territorial_plots.sql
  *
@@ -14,10 +14,9 @@
  *    70% de recursos mermados transferidos a "Cargamento Varado" recuperable en combate.
  * 4. Bono de Eficiencia Logística (+10% recursos de alta pureza y +500G) por cosecha puntual.
  * 5. Cola de Refinado Multi-Batch (hasta 3 ciclos consecutivos de producción autónoma).
- * 6. Escalado de Mejora de Cartas calibrado (N1-N11 Cap de Torneo con 20 chips por carta;
- *    N12-N15 curva exponencial suavizada O(n^1.6)).
- * 7. Mercado P2P con Tasa Municipal del 12%, bandas dinámicas ±35% del PMM,
- *    economía Player-Driven estricta (purga del bot NPC): cargamento varado (strandedCargo)
+ * 6. Escalado histórico de mejora de patentes de chasis (Tiers T1-T5 en combate clasificatorio).
+ * 7. Mercado P2P con Split del 2% (1% Sink + 1% Clan), bandas dinámicas ±25% VWAP,
+ *    economía Player-Driven estricta (cero liquidez artificial): cargamento varado (strandedCargo)
  *    y decay comercial real si no hay compradores locales.
  */
 
@@ -77,6 +76,7 @@ export interface IndustrialInventory {
   refinedConcrete: number;
   refinedMicrochip: number;
   campaignFuel: number;
+  techScrap?: number;
   specialization: CorporateSpecialization;
   lastHarvestAt: number; // timestamp en ms
 }
@@ -266,10 +266,7 @@ export const PLOT_UNLOCK_TABLE: Record<number, PlotUnlockRequirement> = {
 };
 
 /**
- * Tabla canónica calibrada de costes de cartas del Nivel 1 al 15 (§3.2 y §5.1)
- */
-/**
- * Tabla canónica calibrada de costes de cartas del Nivel 1 al 15 (Calibración V2.1 - Hito Día 100)
+ * Tabla histórica de costes de patentes y mejora de chasis (§2 & §3)
  */
 export const CARD_UPGRADE_TABLE: Record<number, CardUpgradeRequirement> = {
   2: { targetLevel: 2, blueprints: 5, credits: 50, refinedSteel: 0, refinedConcrete: 0, refinedMicrochip: 0, statBonusPercent: 2.0, isTournamentCap: false },
@@ -529,7 +526,7 @@ export class IndustrialEngine {
   }
 
   /**
-   * Obtiene los requisitos de subida de carta para cualquier nivel del 1 al 15.
+   * Obtiene los requisitos de mejora de patente/chasis para la tabla de progreso industrial.
    */
   public static getCardUpgradeRequirements(currentLevel: number): CardUpgradeRequirement | undefined {
     return CARD_UPGRADE_TABLE[currentLevel + 1];

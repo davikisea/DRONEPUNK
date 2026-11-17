@@ -1,69 +1,59 @@
 ---
 name: geotactics-domain-boundary-guardian
-description: Guardiana de la arquitectura modular de los 4 dominios (@domains/world, @domains/tactics, @domains/economy, @domains/game-feel) y la capa compartida (@shared) en GEOTACTICS ONLINE. Usa esta skill siempre que se creen, muevan o refactoricen archivos, cuando se depuren imports legacy (src/engine/*, src/components/*, src/services/*), cuando se actualicen barriles públicos (index.ts) o cuando se optimice el code-splitting de Vite.
+description: Guardiana de fronteras @domains/* y @shared en DRONEPUNK: barriles index.ts, auditoría con scripts/auditBoundaries.cjs, deduplicación entre dominios, modularización de App.tsx y chunking Vite.
 ---
 
-# GEOTACTICS DOMAIN BOUNDARY GUARDIAN & LEGACY PURGE ARCHITECT
+# Domain Boundary Guardian & Modularity Architect (DRONEPUNK)
 
-Garantiza el aislamiento estricto de los **4 Dominios Funcionales + Capa Compartida (`@shared`)** en **GEOTACTICS: ONLINE**, previniendo la contaminación cruzada de imports, las dependencias circulares y el uso accidental de carpetas monolíticas legacy (`src/engine/`, `src/components/`, `src/services/`, `src/hooks/`, `src/types/`).
-
----
-
-## 1. CUÁNDO ACTIVAR ESTA SKILL
-
-- Al crear un nuevo motor, servicio, hook o componente de React y decidir en qué carpeta ubicarlo.
-- Al refactorizar imports internos o eliminar código duplicado entre `src/domains/*` y las carpetas legacy de la raíz de `src/`.
-- Cuando `npm run build` emita advertencias `[INEFFECTIVE_DYNAMIC_IMPORT]` o errores de resolución de tipos en `tsconfig.json`.
-- Al auditar que todos los barriles públicos (`index.ts`) expongan las constantes, funciones y componentes de su dominio.
+Garantiza el aislamiento estricto de `@domains/world`, `@domains/tactics`, `@domains/economy`, `@domains/game-feel` y `@shared`, previniendo fugas de frontera, homónimos duplicados y crecimiento monolítico de `src/App.tsx`.
 
 ---
 
-## 2. MAPA DE SOBERANÍA DE LOS 4 DOMINIOS + SHARED (`tsconfig.json`)
+## 1. Mapa de Soberanía (`tsconfig.json`)
 
-| Alias de Dominio | Ruta Física | Barril Público Obligatorio | Responsabilidad Exclusiva |
-| :--- | :--- | :--- | :--- |
-| **`@domains/world`** | `src/domains/world/` | `src/domains/world/index.ts` | Cartografía MapLibre WebGL Zero-Raster (`TacticalWorldMap.tsx`), proyección WGS84 $O(1)$ (`coordinates.ts`), bitmap binario (`tacticalBitmap.ts`), red vial $A^*$ (`roadNetworkEngine.ts`, `spatialRoadIndex.ts`, `roadGarrisonEngine.ts`), política Project Alice (`politicalAliceEngine.ts`), asedios de 120s (`territorialSiegeOrchestrator.ts`) y Clanes (`clanSystem.ts`). |
-| **`@domains/tactics`** | `src/domains/tactics/` | `src/domains/tactics/index.ts` | Motor balístico continuo 1–100 HP (`canonicalCombat.ts`, `canonicalDamageChart.ts`), cuadrícula $20\times 20$, los 29 Comandantes (`coSystem.ts`), IA de Guarnición Nv. 1–5 (`garrisonAIEngine.ts`), motor RTS (`tacticalRtsEngine.ts`), niebla de guerra (`fogOfWar.ts`), capturas y teatro de combate (`CombatTheaterView.tsx`, `GameCanvas.tsx`). |
-| **`@domains/economy`** | `src/domains/economy/` | `src/domains/economy/index.ts` | Complejo industrial de 10 parcelas (`industrialEngine.ts`, `IndustrialComplexView.tsx`), Almacén Físico de 16 tropas (`UnitHangarModal.tsx`, `useUserHangar.ts`), forja T1–T5 al +2%/tier (`strategicAndProductionEngine.ts`), upkeep imperial (`upkeepEngine.ts`), flujo por turno (`turnEconomy.ts`), ticker Wplace (`useTerritoryEconomyTicker.ts`) y Mercado P2P al 2% (`P2PMarketplaceView.tsx`). |
-| **`@domains/game-feel`** | `src/domains/game-feel/` | `src/domains/game-feel/index.ts` | Síntesis acústica Web Audio API sin dependencias (`audioManager.ts`), Bark Engine cómic con aprendizaje adaptativo (`barkEngine.ts`), bocadillos y viñetas vivas (`CommanderBarkWidget.tsx`, `CommanderLivingVignette.tsx`) y vibración háptica (`hapticFeedback.ts`). |
-| **`@shared`** | `src/shared/` | `src/shared/index.ts` | Cliente Supabase (`lib/supabase/client.ts`), contratos SSOT (`types/metagame.ts`, `types/database.types.ts`), servicios transversales (`playerDatabaseService.ts`, `matchDatabaseService.ts`, `catalogRegistryService.ts`), UI atómica (`TacticalGhostBar.tsx`, `MatchSummaryModal.tsx`, `TacticalErrorBoundary.tsx`) y puente QA (`utils/qaHarness.ts`). |
-
----
-
-## 3. REGLAS ESTRICTAS DE FRONTERA E IMPORTACIÓN (LAW OF DEMETER)
-
-1. **Prohibido el Deep-Import entre Dominios Distintos**:
-   - ❌ **Incorrecto** (desde `world` importando entrañas de `economy`):
-     ```ts
-     import { IndustrialEngine } from '../../economy/core/industrialEngine';
-     ```
-   - ✅ **Correcto** (consumiendo siempre el barril público del otro dominio):
-     ```ts
-     import { IndustrialEngine } from '@domains/economy';
-     ```
-2. **Prohibido Importar de Carpetas Legacy Monolíticas**:
-   - Ningún archivo nuevo o editado puede contener `from '@/src/engine/...'`, `from '@/src/components/...'`, `from '@/src/services/...'`, `from '@/src/hooks/...'` ni `from '@/src/types/...'`.
-   - Toda referencia debe apuntar a `@domains/world`, `@domains/tactics`, `@domains/economy`, `@domains/game-feel` o `@shared`.
-3. **Jerarquía Unidireccional de Dependencias**:
-   - `@shared` es la base: **no debe importar jamás** de `@domains/*` (salvo tipos puros si fuera estrictamente necesario; los tipos transversales deben vivir en `src/shared/types/`).
-   - `@domains/game-feel` consume datos de `@shared` y catálogo de COs de `@domains/tactics`.
-   - `@domains/economy`, `@domains/tactics` y `@domains/world` se comunican a través de sus barriles públicos y los contratos en `src/shared/types/metagame.ts`.
+| Alias | Ruta | Responsabilidad |
+| :--- | :--- | :--- |
+| **`@domains/world`** | `src/domains/world/` | Cartografía WebGL (`TacticalWorldMap`), coordenadas $O(1)$, `TacticalBitMap`, red vial $A^*$, `politicalAliceEngine`, asedios 120s, clanes. |
+| **`@domains/tactics`** | `src/domains/tactics/` | Motor balístico `1–100 HP`, `CANONICAL_DAMAGE_CHART`, 29 COs, IA Guarnición Nv.1–5, niebla, refuerzos, `CombatTheaterView`. |
+| **`@domains/economy`** | `src/domains/economy/` | Hangar 16 chasis, 10 parcelas (`industrialEngine`), forja `T1–T5`, upkeep, ticker, Mercado P2P 2%. |
+| **`@domains/game-feel`** | `src/domains/game-feel/` | `audioManager`, `barkEngine` (29 COs + Stella), `CommanderBarkWidget`, `CommanderLivingVignette`, `hapticFeedback`. |
+| **`@shared`** | `src/shared/` | Cliente Supabase, contratos SSOT (`metagame.ts`, `database.types.ts`), auth, servicios DB transversales, `TacticalGhostBar`, `qaHarness`. |
 
 ---
 
-## 4. PROTOCOLO DE PURGA SEGURA DE ARCHIVOS DUPLICADOS (LEGACY MIRROR PURGE)
+## 2. Árbol de Decisión / Heurística
 
-Cuando el usuario solicite limpiar o purgar archivos legacy en `src/engine/`, `src/components/`, `src/services/`, `src/hooks/` o `src/types/`, sigue este algoritmo de 5 pasos sin saltarte ninguno:
+1. **Violación `@shared -> @domains/*`** (alias o relativo `../domains/`):
+   - *Si* el símbolo es `type`/`interface` → mover a `src/shared/types/` y re-exportar desde `@shared` y `@domains/<x>`.
+   - *Si* es efecto UI/audio (`audioManager`) → inyectar callback opcional (`onPlaySfx?: ...`) desde el contenedor padre; si se usa en `>3` sitios sin prop, registrar adaptador mínimo en `src/shared/contracts/`.
+   - *Si* es fábrica pura (`createInitialReserveStock`) → si no depende de estado de dominio, mover a `src/shared/types/`; si depende, invertir dependencia por parámetro.
+   - *Si* está en `src/shared/qa/QADevOpsRunner.tsx` → inyectar registro de suites desde `App.tsx` o mover fuera de `@shared`.
+2. **Deep-Import (`@domains/<x>/subruta`)**:
+   - *Si* está en `src/domains/<x>/index.ts` → reescribir a `@domains/<x>`.
+   - *Si no* → añadir `export { ... }` en `index.ts` y reescribir. *Fallback si crea ciclo*: extraer sub-contrato a `src/shared/types/`.
+3. **Homónimos Duplicados** (ver tabla de dueños en `references/boundary-matrix.md`):
+   - *Si* idénticos → eliminar copia no canónica y apuntar imports al barril dueño.
+   - *Si* difieren → hacer superset de props en el dueño canónico, migrar consumidores y eliminar copia.
+4. **Descompresión de `src/App.tsx`** (`3,092` líneas, `73` `useState`):
+   - *Si* bloque tiene `>= 3` `useState` cohesivos + `useEffect` → extraer a `use<Feature>Controller.ts` en su dominio.
+   - *Si* modal inline `> 80` líneas JSX → extraer a `@domains/<dueño>` con `React.lazy`.
+   - *Fallback si `vite build` emite `[INEFFECTIVE_DYNAMIC_IMPORT]`*: verificar que no haya import estático concurrente en `App.tsx`.
 
-1. **Escaneo de Referencias Activas**:
-   ```powershell
-   Get-ChildItem -Path src\domains, src\shared, src\App.tsx, package.json -Recurse -File | Select-String -Pattern "src/engine|src/components|src/services|src/hooks|src/types"
-   ```
-2. **Comparación Diff Antes de Borrar**:
-   - Antes de eliminar cualquier archivo en `src/engine/<archivo>.ts`, compáralo con su homólogo en `src/domains/<dominio>/core/<archivo>.ts` para verificar que el dominio tenga la versión más reciente.
-3. **Reescritura de Imports a Alias de Dominio**:
-   - Reemplaza los imports en `src/domains/*`, `src/shared/*` y `src/App.tsx` por `@domains/*` y `@shared`.
-4. **Migración de Scripts en `package.json`**:
-   - Actualiza los scripts `test:all`, `test:geotactics` y `test:e2e` en `package.json` para que apunten a `src/domains/{world,tactics,economy,game-feel}/__tests__/*.test.ts`.
-5. **Verificación Triple antes de Confirmar**:
-   - Ejecuta `npm run lint`, `npm run build`, `npm run test:all` y `npm run test:geotactics`. Todos deben terminar con código de salida `0`.
+---
+
+## 3. Oráculo y Bucle de Auto-Reparación
+
+```powershell
+node .agents/skills/geotactics-domain-boundary-guardian/scripts/auditBoundaries.cjs
+node scripts/checkLegacyImports.cjs
+npx tsc --noEmit
+npm run build
+```
+- **Oráculo**: `auditBoundaries.cjs` = `exit 0` (`0` deep-imports, `0` regresiones en `@shared` o `App.tsx`), `checkLegacyImports.cjs` = `0` legacy, `tsc` = `exit 0`, `build` = `0` `[INEFFECTIVE_DYNAMIC_IMPORT]`. (Usar `--strict` cuando se busque `0` deuda absoluta).
+- **Auto-reparación**: Si falla `tsc` tras mover tipos → añadir re-export en `index.ts`; si falla `build` por chunking → aislar import dinámico.
+
+---
+
+## 4. Handoff Inter-Skill
+- **Recibe de**: `game-dev-quality-gate` y skills de dominio ante creación/movimiento de archivos.
+- **Entrega a**: `tactical-command-intel`, `webgl-cartography-and-spatial-architect`, `tactical-combat-and-ai-architect`, `metagame-economy-and-siege-simulator`, `supabase-realtime-and-rpc-synchronizer` (contratos limpios) y `game-dev-quality-gate` (frontera verde para habilitar E2E).
