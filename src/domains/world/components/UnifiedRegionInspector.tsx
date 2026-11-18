@@ -46,6 +46,11 @@ import {
   CANONICAL_VENEZUELA_REGIONS,
 } from '../core/politicalAliceEngine';
 import { spatialDeploymentService } from '../services/spatialDeploymentService';
+import {
+  fetchMyCorporation,
+  hasCorpPermission,
+  type MyCorporationContext,
+} from '../services/corporationService';
 import { StateSovereignDeckModal } from './StateSovereignDeckModal';
 import type {
   StateSovereigntyRecord,
@@ -80,6 +85,7 @@ export interface UnifiedRegionInspectorProps {
   userClanTag?: string;
   userEc: number;
   userSteel: number;
+  corpContext?: MyCorporationContext | null;
   currentZoom: number;
   onDeclareAttack?: (targetProvinceId: string) => Promise<{ success: boolean; message?: string; error?: string } | void> | void;
   onOpenDeployModal?: () => void;
@@ -113,8 +119,9 @@ export const UnifiedRegionInspector: React.FC<UnifiedRegionInspectorProps> = ({
   userContext,
   provinces,
   controlMap,
-  userClanId = 'clan-ferro',
-  userClanTag = '[IVS]',
+  userClanId = '',
+  userClanTag = '[---]',
+  corpContext,
   currentZoom,
   onDeclareAttack,
   onOpenDeployModal,
@@ -146,6 +153,28 @@ export const UnifiedRegionInspector: React.FC<UnifiedRegionInspectorProps> = ({
   const [jammerEnabled, setJammerEnabled] = useState(true);
   const [customsEnabled, setCustomsEnabled] = useState(true);
   const [selectedStatePerks, setSelectedStatePerks] = useState<string[]>(['VANGUARD_LOGISTICS']);
+  const [fetchedCorpContext, setFetchedCorpContext] = useState<MyCorporationContext | null>(null);
+
+  useEffect(() => {
+    if (corpContext !== undefined || !userContext.userId) return;
+    let cancelled = false;
+    fetchMyCorporation(userContext.userId)
+      .then((ctx) => {
+        if (!cancelled) setFetchedCorpContext(ctx);
+      })
+      .catch(() => {
+        // Sin contexto corporativo activo
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [corpContext, userContext.userId]);
+
+  const resolvedCorpContext = corpContext !== undefined ? corpContext : fetchedCorpContext;
+  const canControlUnits = !resolvedCorpContext || hasCorpPermission(resolvedCorpContext.membership, 'can_control_units');
+  const canConstruct = !resolvedCorpContext || hasCorpPermission(resolvedCorpContext.membership, 'can_construct');
+  const canUseTreasury = !resolvedCorpContext || hasCorpPermission(resolvedCorpContext.membership, 'can_use_treasury');
+  const canPurchaseUnits = !resolvedCorpContext || hasCorpPermission(resolvedCorpContext.membership, 'can_purchase_units');
 
   useEffect(() => {
     const unsubAlice = politicalAliceEngine.subscribe((next) => {
@@ -267,6 +296,13 @@ export const UnifiedRegionInspector: React.FC<UnifiedRegionInspectorProps> = ({
 
   // Handlers de Operaciones
   const handleExecutePoliticalSiege = async () => {
+    if (!canControlUnits) {
+      setStatusFeedback({
+        text: 'ACCESO DENEGADO: Tu rol corporativo requiere permiso can_control_units para declarar ofensivas.',
+        isError: true,
+      });
+      return;
+    }
     audioManager.playDeployHorn();
     if (onDeclareAttack) {
       const attackRes = await onDeclareAttack(activeStateId);
@@ -283,6 +319,13 @@ export const UnifiedRegionInspector: React.FC<UnifiedRegionInspectorProps> = ({
   };
 
   const handleReinforceRegion = () => {
+    if (!canUseTreasury) {
+      setStatusFeedback({
+        text: 'ACCESO DENEGADO: Se requiere permiso can_use_treasury para fortificar guarniciones.',
+        isError: true,
+      });
+      return;
+    }
     audioManager.playComboAction(5);
     const res = politicalAliceEngine.reinforceAndConsolidateRegion(activeStateId);
     setStatusFeedback({ text: res.message, isError: !res.success });
@@ -402,7 +445,7 @@ export const UnifiedRegionInspector: React.FC<UnifiedRegionInspectorProps> = ({
           aria-label="Inspector Derecho Unificado de 4 Escalas"
           data-testid="unified-region-inspector"
           data-scale={selection.scale}
-          className="fixed top-14 right-3 bottom-16 z-30 w-[356px] sm:w-[376px] bg-[#0E100C]/94 backdrop-blur-md border border-[#46521F] rounded-[12px_4px_12px_4px] shadow-[6px_6px_0px_#0A0B08] flex flex-col overflow-hidden text-[#F2E8D5] select-none"
+          className="fixed top-14 right-3 bottom-16 z-30 w-[356px] sm:w-[376px] bg-[#0E100C]/94 backdrop-blur-md border-2 border-[#0A0B08] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] flex flex-col overflow-hidden text-[#F2E8D5] select-none"
         >
           {/* 1. CABECERA CONTEXTUAL + HERÁLDICA */}
           <div
@@ -413,6 +456,7 @@ export const UnifiedRegionInspector: React.FC<UnifiedRegionInspectorProps> = ({
           >
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 mb-0.5">
+                <img src="/favicon.svg" alt="DRONEPUNK" className="w-3.5 h-3.5 shrink-0" />
                 <span className="px-1.5 py-0.5 rounded bg-[#0A0B08]/80 border border-amber-400/50 text-[9px] font-mono font-black text-amber-300 uppercase">
                   {SCALE_LABELS[selection.scale]}
                 </span>
@@ -963,12 +1007,12 @@ export const UnifiedRegionInspector: React.FC<UnifiedRegionInspectorProps> = ({
                       <button
                         type="button"
                         onClick={handleExecutePoliticalSiege}
-                        className={`w-full py-2 px-3 font-display font-black text-xs uppercase rounded border border-[#0A0B08] shadow-[3px_3px_0px_#0A0B08] cursor-pointer flex items-center justify-center gap-2 ${
+                        className={`w-full py-2 px-3 text-xs flex items-center justify-center gap-2 ${
                           isBufferZone
-                            ? 'bg-slate-800 text-red-300 border-red-500/50'
+                            ? 'rounded-[14px_4px_14px_4px] border-2 border-red-500/50 shadow-[4px_4px_0px_#0A0B08] font-display font-black uppercase cursor-pointer bg-slate-800 text-red-300'
                             : adjacencyCheck.valid
-                            ? 'bg-[#E65100] hover:bg-amber-400 text-black'
-                            : 'bg-[#2B2C24] text-amber-300'
+                            ? 'tactical-btn-heavy'
+                            : 'rounded-[14px_4px_14px_4px] border-2 border-[#0A0B08] shadow-[4px_4px_0px_#0A0B08] font-display font-black uppercase cursor-pointer bg-[#2B2C24] text-amber-300'
                         }`}
                       >
                         <Swords className="w-4 h-4" />
@@ -997,7 +1041,7 @@ export const UnifiedRegionInspector: React.FC<UnifiedRegionInspectorProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        audioManager.playCue(authCheck.allowed ? 'tactical_confirm_click' : 'defeat_sting');
+                        audioManager.playCue(authCheck.allowed ? 'ui_tile_confirm' : 'ui_cancel_rollback');
                         setIsSovereignDeckOpen(true);
                       }}
                       className={`w-full py-2 px-3 rounded border border-[#0A0B08] flex items-center justify-center gap-2 font-display font-black text-[11px] uppercase cursor-pointer ${
@@ -1221,14 +1265,20 @@ export const UnifiedRegionInspector: React.FC<UnifiedRegionInspectorProps> = ({
                             </div>
                             <button
                               type="button"
+                              disabled={!canUseTreasury}
                               onClick={() => {
+                                if (!canUseTreasury) return;
                                 audioManager.playAirdropImpact();
                                 onRebalanceGarrison?.(selectedGarrisonLevel);
                                 handleReinforceRegion();
                               }}
-                              className="w-full py-1.5 bg-[#46521F] hover:bg-[#586827] text-amber-300 font-bold uppercase rounded cursor-pointer"
+                              className={`w-full py-1.5 font-bold uppercase rounded ${
+                                canUseTreasury
+                                  ? 'bg-[#46521F] hover:bg-[#586827] text-amber-300 cursor-pointer'
+                                  : 'bg-[#181914] text-stone-500 cursor-not-allowed opacity-60'
+                              }`}
                             >
-                              FORTIFICAR GUARNICIÓN
+                              {canUseTreasury ? 'FORTIFICAR GUARNICIÓN' : 'SIN PERMISO TESORERÍA'}
                             </button>
                           </div>
                         );
@@ -1238,11 +1288,25 @@ export const UnifiedRegionInspector: React.FC<UnifiedRegionInspectorProps> = ({
                     {onOpenFullHangar && (
                       <button
                         type="button"
-                        onClick={onOpenFullHangar}
-                        className="w-full py-2 bg-[#181914] hover:bg-[#25271F] border border-[#46521F] text-[#F2E8D5] font-bold text-[10px] uppercase rounded flex items-center justify-center gap-1.5 cursor-pointer"
+                        disabled={!canPurchaseUnits}
+                        onClick={() => {
+                          if (!canPurchaseUnits) {
+                            setStatusFeedback({
+                              text: 'ACCESO DENEGADO: Se requiere permiso can_purchase_units para operar el Hangar.',
+                              isError: true,
+                            });
+                            return;
+                          }
+                          onOpenFullHangar();
+                        }}
+                        className={`w-full py-2 bg-[#181914] border border-[#46521F] font-bold text-[10px] uppercase rounded flex items-center justify-center gap-1.5 ${
+                          canPurchaseUnits
+                            ? 'hover:bg-[#25271F] text-[#F2E8D5] cursor-pointer'
+                            : 'text-stone-500 cursor-not-allowed opacity-60'
+                        }`}
                       >
                         <Layers className="w-3.5 h-3.5 text-sky-400" />
-                        <span>ABRIR HANGAR INDUSTRIAL T1-T5</span>
+                        <span>{canPurchaseUnits ? 'ABRIR HANGAR INDUSTRIAL T1-T5' : 'HANGAR RESTRINGIDO (PERMISO)'}</span>
                       </button>
                     )}
                   </div>
@@ -1662,11 +1726,21 @@ export const UnifiedRegionInspector: React.FC<UnifiedRegionInspectorProps> = ({
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
+                        disabled={!canControlUnits}
                         onClick={() => {
-                          audioManager.playCue('tactical_confirm_click');
+                          if (!canControlUnits) {
+                            setStatusFeedback({
+                              text: 'ACCESO DENEGADO: Se requiere permiso can_control_units para desplegar tropas.',
+                              isError: true,
+                            });
+                            return;
+                          }
+                          audioManager.playCue('ui_tile_confirm');
                           onOpenDeployModal?.();
                         }}
-                        className="tactical-btn-heavy py-2 px-3 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                        className={`tactical-btn-heavy py-2 px-3 text-xs flex items-center justify-center gap-1.5 ${
+                          canControlUnits ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
+                        }`}
                       >
                         <Swords className="w-3.5 h-3.5" />
                         <span>DESPLEGAR</span>
@@ -1674,11 +1748,21 @@ export const UnifiedRegionInspector: React.FC<UnifiedRegionInspectorProps> = ({
 
                       <button
                         type="button"
+                        disabled={!canConstruct}
                         onClick={() => {
-                          audioManager.playCue('tactical_confirm_click');
+                          if (!canConstruct) {
+                            setStatusFeedback({
+                              text: 'ACCESO DENEGADO: Se requiere permiso can_construct para construir edificios.',
+                              isError: true,
+                            });
+                            return;
+                          }
+                          audioManager.playCue('ui_tile_confirm');
                           onOpenBuildDrawer?.();
                         }}
-                        className="py-2 px-3 bg-[#46521F] hover:bg-[#586827] text-amber-200 border border-[#0A0B08] font-display font-black text-xs uppercase rounded cursor-pointer flex items-center justify-center gap-1.5"
+                        className={`py-2 px-3 bg-[#46521F] text-amber-200 border border-[#0A0B08] font-display font-black text-xs uppercase rounded flex items-center justify-center gap-1.5 ${
+                          canConstruct ? 'hover:bg-[#586827] cursor-pointer' : 'opacity-50 cursor-not-allowed'
+                        }`}
                       >
                         <Hammer className="w-3.5 h-3.5" />
                         <span>CONSTRUIR</span>
@@ -1723,16 +1807,28 @@ export const UnifiedRegionInspector: React.FC<UnifiedRegionInspectorProps> = ({
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => onOpenDeployModal?.()}
-                      className="tactical-btn-heavy py-2 px-3 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      disabled={!canControlUnits}
+                      onClick={() => {
+                        if (!canControlUnits) return;
+                        onOpenDeployModal?.();
+                      }}
+                      className={`tactical-btn-heavy py-2 px-3 text-xs flex items-center justify-center gap-1.5 ${
+                        canControlUnits ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
+                      }`}
                     >
                       <Swords className="w-3.5 h-3.5" />
                       <span>DESPLEGAR</span>
                     </button>
                     <button
                       type="button"
-                      onClick={() => onOpenBuildDrawer?.()}
-                      className="py-2 px-3 bg-[#46521F] hover:bg-[#586827] text-amber-200 border border-[#0A0B08] font-display font-black text-xs uppercase rounded cursor-pointer flex items-center justify-center gap-1.5"
+                      disabled={!canConstruct}
+                      onClick={() => {
+                        if (!canConstruct) return;
+                        onOpenBuildDrawer?.();
+                      }}
+                      className={`py-2 px-3 bg-[#46521F] text-amber-200 border border-[#0A0B08] font-display font-black text-xs uppercase rounded flex items-center justify-center gap-1.5 ${
+                        canConstruct ? 'hover:bg-[#586827] cursor-pointer' : 'opacity-50 cursor-not-allowed'
+                      }`}
                     >
                       <Hammer className="w-3.5 h-3.5" />
                       <span>CONSTRUIR</span>

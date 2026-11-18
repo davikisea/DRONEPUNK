@@ -25,6 +25,18 @@ import {
 import type { FiefBuildingType } from '@domains/world';
 import { spatialDeploymentService } from '@domains/world';
 import { audioManager } from '@domains/game-feel';
+import { constructBuildingDb, resolveActiveUserCorpId } from '../services/buildingDbService';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const DB_BUILDING_TYPE_MAP: Record<FiefBuildingType, string> = {
+  refinery: 'refinery',
+  radar_station: 'radar',
+  weapons_factory: 'war_factory',
+  logistics_silo: 'factory',
+  microchip_foundry: 'foundry',
+  seaport_terminal: 'port',
+};
 
 export interface TacticalConstructionDrawerProps {
   isOpen: boolean;
@@ -33,6 +45,9 @@ export interface TacticalConstructionDrawerProps {
   cell: [number, number];
   lngLat: [number, number];
   userClanId?: string;
+  corpId?: string;
+  h3Index?: number;
+  municipalityId?: string;
   userCredits?: number;
   onConstructionSuccess?: (buildingType: FiefBuildingType) => void;
 }
@@ -120,10 +135,17 @@ export const TacticalConstructionDrawer: React.FC<TacticalConstructionDrawerProp
   cell,
   lngLat,
   userClanId = 'clan-ferro',
+  corpId,
+  h3Index,
+  municipalityId,
   userCredits = 10000,
   onConstructionSuccess,
 }) => {
   const [selectedBuildingType, setSelectedBuildingType] = useState<FiefBuildingType>('refinery');
+  const [mmoInfraType, setMmoInfraType] = useState<
+    'none' | 'housing' | 'extractor' | 'depot' | 'road' | 'bridge' | 'pipeline' | 'fortification'
+  >('none');
+  const [usePersonalTopup, setUsePersonalTopup] = useState(false);
   const [isBuilding, setIsBuilding] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -131,34 +153,67 @@ export const TacticalConstructionDrawer: React.FC<TacticalConstructionDrawerProp
   if (!isOpen) return null;
 
   const selectedBuilding = BUILDINGS_CATALOG.find((b) => b.type === selectedBuildingType)!;
+  const activeDbBuildingType =
+    mmoInfraType !== 'none' ? mmoInfraType : (DB_BUILDING_TYPE_MAP[selectedBuildingType] ?? 'refinery');
+  const terrainValidation = spatialDeploymentService.canConstructBuilding(lngLat, activeDbBuildingType);
 
-  const handleExecuteConstruction = () => {
+  const handleExecuteConstruction = async () => {
+    if (!terrainValidation.allowed) {
+      audioManager.playCue('ui_cancel_rollback');
+      setErrorMsg(terrainValidation.reason || 'TERRENO NO APTO PARA CONSTRUCCIÓN.');
+      return;
+    }
     setErrorMsg(null);
     setSuccessMsg(null);
     setIsBuilding(true);
 
     try {
-      const res = spatialDeploymentService.constructBuildingAt({
-        sector,
-        cell,
-        lngLat,
-        buildingType: selectedBuildingType,
-        clanId: userClanId,
+      const activeCorpId =
+        (corpId && UUID_REGEX.test(corpId) ? corpId : null) ??
+        (userClanId && UUID_REGEX.test(userClanId) ? userClanId : null) ??
+        (await resolveActiveUserCorpId());
+
+      if (!activeCorpId) {
+        audioManager.playCue('ui_cancel_rollback');
+        setErrorMsg('CORP_REQUIRED: Debes pertenecer a una Corporación para autorizar obras en DB.');
+        return;
+      }
+
+      const resolvedH3Index =
+        typeof h3Index === 'number' && Number.isFinite(h3Index)
+          ? h3Index
+          : Math.max(1, Math.abs(sector[0] * 100000 + sector[1] * 100 + cell[0] * 10 + cell[1]));
+      const resolvedMunicipalityId = municipalityId ?? `SEC_${sector[0]}_${sector[1]}`;
+
+      await constructBuildingDb({
+        h3Index: resolvedH3Index,
+        municipalityId: resolvedMunicipalityId,
+        corpId: activeCorpId,
+        buildingType: activeDbBuildingType,
+        usePersonalTopup,
       });
 
-      if (!res.success || !res.building) {
-        audioManager.playCue('defeat_sting');
-        setErrorMsg(res.reason || 'Fallo al autorizar la construcción en esta coordenada.');
-      } else {
-        audioManager.playCue('victory_fanfare');
-        setSuccessMsg(`¡${selectedBuilding.name.toUpperCase()} CONSTRUIDA EXITOSAMENTE!`);
-        if (onConstructionSuccess) onConstructionSuccess(selectedBuildingType);
-        window.setTimeout(() => {
-          onClose();
-        }, 1500);
+      // Sincronía local del mapa táctico tras confirmación atómica en DB
+      if (mmoInfraType === 'none') {
+        spatialDeploymentService.constructBuildingAt({
+          sector,
+          cell,
+          lngLat,
+          buildingType: selectedBuildingType,
+          clanId: userClanId,
+        });
       }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Error inesperado al emitir la orden de ingeniería.');
+
+      audioManager.playCue('co_power_charge');
+      setSuccessMsg(`¡${activeDbBuildingType.toUpperCase()} CONSTRUIDA EN DB EXITOSAMENTE!`);
+      if (onConstructionSuccess) onConstructionSuccess(selectedBuildingType);
+      window.setTimeout(() => {
+        onClose();
+      }, 1500);
+    } catch (err: unknown) {
+      audioManager.playCue('ui_cancel_rollback');
+      const message = err instanceof Error ? err.message : 'Error inesperado al emitir la orden de ingeniería.';
+      setErrorMsg(message);
     } finally {
       setIsBuilding(false);
     }
@@ -167,7 +222,7 @@ export const TacticalConstructionDrawer: React.FC<TacticalConstructionDrawerProp
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-end p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div
-        className="w-full max-w-md h-full max-h-[92vh] bg-[#161712] border-3 border-[#0A0B08] shadow-[10px_10px_0px_#0A0B08] rounded-[14px_4px_14px_4px] flex flex-col overflow-hidden text-[#F2E8D5]"
+        className="w-full max-w-md h-full max-h-[92vh] bg-[#161712] border-3 border-[#0A0B08] shadow-[4px_4px_0px_#0A0B08] rounded-[14px_4px_14px_4px] flex flex-col overflow-hidden text-[#F2E8D5]"
         style={{
           backgroundImage: 'radial-gradient(#46521F 15%, transparent 16%)',
           backgroundSize: '10px 10px',
@@ -176,6 +231,7 @@ export const TacticalConstructionDrawer: React.FC<TacticalConstructionDrawerProp
         {/* Cabecera C4ISR */}
         <div className="px-4 py-3 bg-[#2B2C24] border-b-3 border-[#0A0B08] flex items-center justify-between">
           <div className="flex items-center gap-2">
+            <img src="/favicon.svg" alt="DRONEPUNK" className="w-5 h-5 object-contain shrink-0" />
             <div className="p-1.5 bg-[#E65100] text-black rounded-[4px_1px_4px_1px] border border-[#0A0B08] shadow-[2px_2px_0px_#0A0B08]">
               <Hammer className="w-4 h-4" />
             </div>
@@ -196,7 +252,7 @@ export const TacticalConstructionDrawer: React.FC<TacticalConstructionDrawerProp
               audioManager.playCue('ui_cancel_rollback');
               onClose();
             }}
-            className="p-1 bg-[#161712] hover:bg-[#873612] text-[#F2E8D5] border border-[#0A0B08] rounded cursor-pointer transition-transform active:translate-y-0.5"
+            className="p-1 bg-[#161712] hover:bg-[#873612] text-[#F2E8D5] border border-[#0A0B08] rounded-[4px_1px_4px_1px] shadow-[2px_2px_0px_#0A0B08] cursor-pointer transition-transform active:translate-y-0.5"
           >
             <X className="w-4 h-4" />
           </button>
@@ -228,11 +284,56 @@ export const TacticalConstructionDrawer: React.FC<TacticalConstructionDrawerProp
           )}
 
           {successMsg && (
-            <div className="p-2.5 bg-emerald-950/80 border-2 border-emerald-500 rounded text-emerald-200 text-xs font-mono flex items-center gap-2">
+            <div className="p-2.5 bg-emerald-950/80 border-2 border-emerald-500 rounded-[14px_4px_14px_4px] text-emerald-200 text-xs font-mono flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
               <span>{successMsg}</span>
             </div>
           )}
+
+          {/* Selector Rápido MMO (Viviendas, Extractores, Depósitos, Carreteras, Puentes, Tuberías) */}
+          <div className="p-2.5 bg-[#181914] border-2 border-[#46521F] rounded-[14px_4px_14px_4px] space-y-2">
+            <div className="text-[10px] font-mono font-bold text-[#C46A3A] uppercase">
+              Infraestructura MMO (Terreno Estricto)
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  { id: 'none', label: 'Base Estándar' },
+                  { id: 'housing', label: 'Viviendas' },
+                  { id: 'extractor', label: 'Extractor' },
+                  { id: 'depot', label: 'Depósito' },
+                  { id: 'road', label: 'Carretera' },
+                  { id: 'bridge', label: 'Puente (Agua)' },
+                  { id: 'pipeline', label: 'Tubería' },
+                  { id: 'fortification', label: 'Fortificación' },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setMmoInfraType(opt.id)}
+                  className={`px-2 py-1 text-[10px] font-mono font-bold uppercase rounded-[14px_4px_14px_4px] border cursor-pointer ${
+                    mmoInfraType === opt.id
+                      ? 'bg-[#C46A3A] text-[#0A0B08] border-[#0A0B08]'
+                      : 'bg-[#2B2C24] text-[#F2E8D5] border-[#46521F]'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div
+              className={`p-2 text-[11px] font-mono rounded-[14px_4px_14px_4px] border ${
+                terrainValidation.allowed
+                  ? 'bg-emerald-950/70 border-emerald-500 text-emerald-300'
+                  : 'bg-red-950/80 border-red-500 text-red-200'
+              }`}
+            >
+              {terrainValidation.allowed
+                ? `TERRENO APTO (${terrainValidation.resolvedTerrain.toUpperCase()}) — LISTO PARA OBRA`
+                : terrainValidation.reason}
+            </div>
+          </div>
 
           <div className="space-y-2">
             {BUILDINGS_CATALOG.map((b) => {
@@ -242,6 +343,7 @@ export const TacticalConstructionDrawer: React.FC<TacticalConstructionDrawerProp
                   key={b.type}
                   onClick={() => {
                     audioManager.playHoverTick();
+                    setMmoInfraType('none');
                     setSelectedBuildingType(b.type);
                   }}
                   className={`p-3 rounded-[8px_2px_8px_2px] border-2 transition-all cursor-pointer ${
@@ -283,23 +385,34 @@ export const TacticalConstructionDrawer: React.FC<TacticalConstructionDrawerProp
         </div>
 
         {/* Pie de Mando con Botón Pesado */}
-        <div className="p-3 bg-[#2B2C24] border-t-3 border-[#0A0B08] flex items-center justify-between gap-3">
-          <div className="text-xs font-mono">
-            <span className="text-[10px] text-[#F2E8D5]/60 block">COSTE TOTAL:</span>
-            <span className="text-sm font-black text-amber-400">
-              {selectedBuilding.costEc.toLocaleString()} $G
-            </span>
-          </div>
+        <div className="p-3 bg-[#2B2C24] border-t-3 border-[#0A0B08] space-y-2">
+          <label className="flex items-center gap-2 text-[10px] font-mono text-[#F2E8D5]/80 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={usePersonalTopup}
+              onChange={(e) => setUsePersonalTopup(e.target.checked)}
+              className="accent-amber-400 cursor-pointer"
+            />
+            <span>Usar aporte personal si la tesorería corporativa no alcanza (saldo personal: {userCredits.toLocaleString()} $G)</span>
+          </label>
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-xs font-mono">
+              <span className="text-[10px] text-[#F2E8D5]/60 block">COSTE TOTAL:</span>
+              <span className="text-sm font-black text-amber-400">
+                {selectedBuilding.costEc.toLocaleString()} $G
+              </span>
+            </div>
 
-          <button
-            type="button"
-            disabled={isBuilding}
-            onClick={handleExecuteConstruction}
-            className="tactical-btn-heavy px-5 py-2.5 text-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            <Building2 className="w-4 h-4" />
-            <span>{isBuilding ? 'CONSTRUYENDO...' : '¡ORDENAR CONSTRUCCIÓN!'}</span>
-          </button>
+            <button
+              type="button"
+              disabled={isBuilding || !terrainValidation.allowed}
+              onClick={handleExecuteConstruction}
+              className="tactical-btn-heavy px-5 py-2.5 text-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <Building2 className="w-4 h-4" />
+              <span>{isBuilding ? 'CONSTRUYENDO...' : '¡ORDENAR CONSTRUCCIÓN!'}</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

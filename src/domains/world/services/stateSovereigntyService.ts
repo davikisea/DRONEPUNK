@@ -231,11 +231,15 @@ class StateSovereigntyService {
 
     try {
       // 1. Hidratación inicial desde la base de datos
-      const { data: dbStates, error } = await (supabase as any)
+      const { data: dbStates, error } = await supabase
         .from('state_sovereignty')
         .select('*');
 
-      if (!error && Array.isArray(dbStates)) {
+      if (error) {
+        throw new Error(`SOVEREIGNTY_FETCH_ERROR: ${error.message}`);
+      }
+
+      if (Array.isArray(dbStates)) {
         dbStates.forEach((row: any) => {
           const existing = this.getState(row.state_id);
           if (existing) {
@@ -273,7 +277,8 @@ class StateSovereigntyService {
           }
         });
     } catch (e) {
-      console.warn('[StateSovereigntyService] Error inicializando suscripción Realtime:', e);
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`SOVEREIGNTY_REALTIME_INIT_ERROR: ${msg}`);
     }
   }
 
@@ -371,28 +376,6 @@ class StateSovereigntyService {
    * Obtiene la telemetría de un estado por su identificador.
    */
   public getState(stateId: string): StateSovereigntyRecord | undefined {
-    // Si no está en el mapa, generar dinámicamente para entidades venezolanas adicionales
-    if (!this.statesMap.has(stateId)) {
-      const fallbackState: StateSovereigntyRecord = {
-        stateId,
-        countryId: 'COUNTRY_VEN',
-        canonicalCountryName: 'República de Venezuela',
-        customCountryName: 'República Soberana de Venezuela',
-        canonicalStateName: stateId.replace('REG_VE_', 'Sector Federal '),
-        customStateName: stateId.replace('REG_VE_', 'Guarnición '),
-        controllingFactionId: 'blue_moon',
-        controllingClanId: 'clan-ferro',
-        controllingClanTag: 'FERR',
-        controllingClanName: 'Legión Blindada Ferro',
-        status: 'stable',
-        tcpCurrent: 10000,
-        tcpMax: 10000,
-        gdpWarCreditsPerHour: 5000,
-        resources: { oil: 100, steel: 150, rareEarth: 10, composites: 25 },
-        defenseLevel: 2,
-      };
-      this.statesMap.set(stateId, fallbackState);
-    }
     return this.statesMap.get(stateId);
   }
 
@@ -416,9 +399,9 @@ class StateSovereigntyService {
       canonicalStateName: stateId,
       customStateName: stateId,
       controllingFactionId: 'blue_moon' as FactionId,
-      controllingClanId: 'clan-ferro',
-      controllingClanTag: 'FERR',
-      controllingClanName: 'Legión Blindada Ferro',
+      controllingClanId: '',
+      controllingClanTag: 'N/A',
+      controllingClanName: 'Sin Corporación',
       status: 'stable',
       tcpCurrent: 10000,
       tcpMax: 10000,
@@ -468,21 +451,10 @@ class StateSovereigntyService {
       unlockedByUserName: userContext.userName,
     };
 
-    // Si se cambió el nombre del país, propagarlo a los estados controlados por la misma facción
-    if (input.newCountryName && input.newCountryName !== state.customCountryName) {
-      for (const [sId, st] of this.statesMap.entries()) {
-        if (st.controllingFactionId === state.controllingFactionId) {
-          this.statesMap.set(sId, { ...st, customCountryName: input.newCountryName });
-        }
-      }
-    }
-
-    this.statesMap.set(input.stateId, updated);
-
-    // Intentar sincronizar con Supabase si está disponible en la base de datos
-    try {
-      if (isSupabaseConfigured() && supabase) {
-        await (supabase as any)
+    // Sincronizar con Supabase si está configurado; retornar error recuperable si falla
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { error } = await supabase
           .from('state_sovereignty')
           .upsert({
             state_id: updated.stateId,
@@ -495,11 +467,31 @@ class StateSovereigntyService {
             updated_by_user_id: userContext.userId,
             updated_at: new Date().toISOString(),
           });
+        if (error) {
+          return {
+            success: false,
+            error: `Error sincronizando soberanía con Supabase: ${error.message}`,
+          };
+        }
+      } catch (dbErr) {
+        const msg = dbErr instanceof Error ? dbErr.message : String(dbErr);
+        return {
+          success: false,
+          error: `Error de red al sincronizar soberanía con Supabase: ${msg}`,
+        };
       }
-    } catch (dbErr) {
-      // Degradar graciosamente en memoria local
-      console.warn('[StateSovereigntyService] Sincronización DB omitida (operando en modo activo local):', dbErr);
     }
+
+    // Si se cambió el nombre del país, propagarlo a los estados controlados por la misma facción
+    if (input.newCountryName && input.newCountryName !== state.customCountryName) {
+      for (const [sId, st] of this.statesMap.entries()) {
+        if (st.controllingFactionId === state.controllingFactionId) {
+          this.statesMap.set(sId, { ...st, customCountryName: input.newCountryName });
+        }
+      }
+    }
+
+    this.statesMap.set(input.stateId, updated);
 
     // Notificar suscriptores reactivos
     this.notifyListeners(updated);

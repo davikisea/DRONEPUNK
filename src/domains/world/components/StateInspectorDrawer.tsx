@@ -115,19 +115,20 @@ export const StateInspectorDrawer: React.FC<StateInspectorDrawerProps> = ({
 
   return (
     <>
-      <div className="absolute top-16 left-3.5 z-30 w-84 sm:w-96 bg-[#161712]/95 backdrop-blur-md border-3 border-[#0A0B08] shadow-[8px_8px_0px_#0A0B08] rounded-[14px_4px_14px_4px] overflow-hidden flex flex-col text-[#F2E8D5] animate-in slide-in-from-left duration-200">
+      <div className="absolute top-16 left-3.5 z-30 w-84 sm:w-96 bg-[#161712]/95 backdrop-blur-md border-2 border-[#0A0B08] shadow-[4px_4px_0px_#0A0B08] rounded-[14px_4px_14px_4px] overflow-hidden flex flex-col text-[#F2E8D5] animate-in slide-in-from-left duration-200">
         {/* Cabecera con estandarte de Facción */}
         <div
           className="px-3.5 py-2.5 border-b-2 border-[#0A0B08] flex items-center justify-between"
           style={{ backgroundColor: factionMeta.bg }}
         >
           <div className="flex items-center gap-2">
-            <Flag className="w-4 h-4 text-white drop-shadow" />
+            <img src="/favicon.svg" alt="DRONEPUNK" className="w-4 h-4 shrink-0" />
+            <Flag className="w-4 h-4 text-white" />
             <div>
               <span className="text-[10px] font-mono font-black uppercase tracking-wider text-black/80 block leading-tight">
                 {factionMeta.name}
               </span>
-              <h3 className="text-sm font-display font-black text-white uppercase tracking-wide drop-shadow-sm">
+              <h3 className="text-sm font-display font-black text-white uppercase tracking-wide">
                 {stateRecord.customStateName}
               </h3>
             </div>
@@ -245,17 +246,17 @@ export const StateInspectorDrawer: React.FC<StateInspectorDrawerProps> = ({
             type="button"
             onClick={() => {
               if (authCheck.allowed) {
-                audioManager.playCue('tactical_confirm_click');
+                audioManager.playCue('ui_tile_confirm');
                 setIsSovereignDeckOpen(true);
               } else {
-                audioManager.playCue('defeat_sting');
+                audioManager.playCue('ui_cancel_rollback');
                 setIsSovereignDeckOpen(true); // Abre modal para ver el aviso DEFCON 1
               }
             }}
-            className={`w-full py-2.5 px-3 rounded-[6px_2px_6px_2px] border-2 border-[#0A0B08] shadow-[3px_3px_0px_#0A0B08] flex items-center justify-center gap-2 font-display font-black text-xs uppercase tracking-wide cursor-pointer transition-transform active:translate-y-0.5 ${
+            className={`w-full py-2.5 px-3 flex items-center justify-center gap-2 text-xs ${
               authCheck.allowed
-                ? 'bg-[#E65100] hover:bg-[#F59E0B] text-black'
-                : 'bg-[#2B2C24] hover:bg-[#3B3C32] text-amber-300/80'
+                ? 'tactical-btn-heavy'
+                : 'rounded-[14px_4px_14px_4px] border-2 border-[#0A0B08] shadow-[4px_4px_0px_#0A0B08] font-display font-black uppercase tracking-wide cursor-pointer bg-[#2B2C24] hover:bg-[#3B3C32] text-amber-300/80'
             }`}
           >
             {authCheck.allowed ? (

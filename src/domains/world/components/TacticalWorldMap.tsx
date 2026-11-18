@@ -30,12 +30,19 @@ import {
   lngLatToGridCoords,
   tileFractionToLngLat,
   gridCoordsToLngLat,
+  latLngToH3Res9,
+  h3Res9ToLatLng,
   stateSovereigntyService,
   spatialDeploymentService,
 } from '@domains/world';
 import { useTerritoryMap } from '../hooks/useTerritoryMap';
 import {
   type TacticalUnit,
+  type GridPosition,
+  type TerrainTile,
+  type MovementType,
+  supabase,
+  isSupabaseConfigured,
   assetLoader,
   UNIT_GREEN_SPRITE_PATHS,
   resolveUnitSpriteKey,
@@ -44,9 +51,35 @@ import {
   MicroTacticalDeckHUD,
   TacticalUnitDeployModal,
   TacticalRtsEngine,
-  operationalUnitsService,
+  TacticalPathfindingEngine,
+  calculatePathArrow,
+  BaseProductionModal,
 } from '@domains/tactics';
-import { TacticalConstructionDrawer } from '@domains/economy';
+import { fetchMyCorporation, hasCorpPermission } from '../services/corporationService';
+import { fetchUnitSchedules, type UnitScheduleRow } from '../services/droneScheduleService';
+import { DroneSchedulerDrawer } from './DroneSchedulerDrawer';
+import {
+  TacticalConstructionDrawer,
+  CANONICAL_UNIT_PRODUCTION_CATALOG,
+  fetchOperationalUnits,
+  fetchCorpBuildings,
+  fetchWorldMapBuildings,
+  claimOrCaptureBuildingDb,
+  collectBuildingResourcesDb,
+  calculateBuildingPendingYield,
+  resolveActiveUserCorpId,
+  fetchInfraEdges,
+  createInfraEdge,
+  executeCollectorHaul,
+  syncPipelineLogistics,
+  collectHousingCitizens,
+  repairInfrastructure,
+  triggerVulnerabilityHandshake,
+  damageInfrastructure,
+  type DbOperationalUnitRecord,
+  type DbBuildingRecord,
+  type DbInfraEdgeRecord,
+} from '@domains/economy';
 import { audioManager } from '@domains/game-feel';
 
 export interface TacticalWorldMapProps {
@@ -1416,6 +1449,619 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
   const selectedTacticalUnitIdRef = useRef<string | null>(null);
   selectedTacticalUnitIdRef.current = selectedTacticalUnitId;
 
+  // --- Movimiento Operacional Estilo Advance Wars (100% DB operational_units) ---
+  interface ReachableOpTileEntry {
+    sector: [number, number];
+    cell: [number, number];
+    lngLat: [number, number];
+    h3Index: number;
+    path: GridPosition[];
+    originSector: [number, number];
+    originCell: [number, number];
+    gridOriginX: number;
+    gridOriginY: number;
+  }
+
+  const [activeDbCorpId, setActiveDbCorpId] = useState<string | null>(null);
+  const [isDroneSchedulerOpen, setIsDroneSchedulerOpen] = useState(false);
+  const [corpProdBuildings, setCorpProdBuildings] = useState<DbBuildingRecord[]>([]);
+  const [worldBuildings, setWorldBuildings] = useState<DbBuildingRecord[]>([]);
+  const worldBuildingsRef = useRef<DbBuildingRecord[]>([]);
+  worldBuildingsRef.current = worldBuildings;
+  const [infraEdges, setInfraEdges] = useState<DbInfraEdgeRecord[]>([]);
+  const infraEdgesRef = useRef<DbInfraEdgeRecord[]>([]);
+  infraEdgesRef.current = infraEdges;
+  const [activeSchedules, setActiveSchedules] = useState<UnitScheduleRow[]>([]);
+  const [selectedMapBuilding, setSelectedMapBuilding] = useState<DbBuildingRecord | null>(null);
+  const selectedMapBuildingRef = useRef<DbBuildingRecord | null>(null);
+  selectedMapBuildingRef.current = selectedMapBuilding;
+  const [selectedMapEdge, setSelectedMapEdge] = useState<DbInfraEdgeRecord | null>(null);
+  const selectedMapEdgeRef = useRef<DbInfraEdgeRecord | null>(null);
+  selectedMapEdgeRef.current = selectedMapEdge;
+  const [edgeTraceMode, setEdgeTraceMode] = useState<{
+    type: 'pipeline' | 'road' | 'bridge';
+    fromH3: number;
+    fromBuildingId?: string | null;
+  } | null>(null);
+  const edgeTraceModeRef = useRef(edgeTraceMode);
+  edgeTraceModeRef.current = edgeTraceMode;
+  const [mapInfraFeedback, setMapInfraFeedback] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [isInfraActionBusy, setIsInfraActionBusy] = useState(false);
+
+  const [activeBaseProdBuilding, setActiveBaseProdBuilding] = useState<DbBuildingRecord | null>(null);
+  const [corpEconomySnap, setCorpEconomySnap] = useState({ ec: 0, citizens: 0 });
+  const activeDbCorpIdRef = useRef<string | null>(null);
+  const canControlDbUnitsRef = useRef(false);
+  const canPurchaseUnitsRef = useRef(false);
+  const canConstructDbRef = useRef(false);
+  const canCollectDbRef = useRef(false);
+  const [dbOperationalUnits, setDbOperationalUnits] = useState<DbOperationalUnitRecord[]>([]);
+  const dbOperationalUnitsRef = useRef<DbOperationalUnitRecord[]>([]);
+  dbOperationalUnitsRef.current = dbOperationalUnits;
+
+  const [selectedDbOpUnit, setSelectedDbOpUnit] = useState<DbOperationalUnitRecord | null>(null);
+  const selectedDbOpUnitRef = useRef<DbOperationalUnitRecord | null>(null);
+  selectedDbOpUnitRef.current = selectedDbOpUnit;
+
+  const reachableDbOpTilesRef = useRef<Map<string, ReachableOpTileEntry>>(new Map());
+  const activeOpArrowPathRef = useRef<GridPosition[] | null>(null);
+  const isMovingDbOpUnitRef = useRef<boolean>(false);
+
+  const resolveDbUnitLngLat = useCallback((h3Index: number): [number, number] => {
+    try {
+      if (Number.isFinite(h3Index) && h3Index > 1000) {
+        const [lat, lng] = h3Res9ToLatLng(BigInt(Math.trunc(h3Index)));
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          return [lng, lat];
+        }
+      }
+    } catch {
+      // fallback seguro si h3_index no es H3 Res9 empaquetado
+    }
+    return [-71.455, 10.395];
+  }, []);
+
+  const refreshDbOperationalUnits = useCallback(async () => {
+    try {
+      const [allBuildings, allEdges] = await Promise.all([
+        fetchWorldMapBuildings().catch(() => [] as DbBuildingRecord[]),
+        fetchInfraEdges().catch(() => [] as DbInfraEdgeRecord[]),
+      ]);
+      setWorldBuildings(allBuildings);
+      setInfraEdges(allEdges);
+
+      if (selectedMapBuildingRef.current) {
+        const updatedB = allBuildings.find((b) => b.id === selectedMapBuildingRef.current?.id);
+        if (updatedB) setSelectedMapBuilding(updatedB);
+      }
+      if (selectedMapEdgeRef.current) {
+        const updatedE = allEdges.find((ed) => ed.id === selectedMapEdgeRef.current?.id);
+        if (updatedE) setSelectedMapEdge(updatedE);
+      }
+
+      if (!isSupabaseConfigured() || !supabase) return;
+      const { data: authData } = await supabase.auth.getUser();
+      const userId = authData?.user?.id ?? null;
+      if (!userId) {
+        activeDbCorpIdRef.current = null;
+        canControlDbUnitsRef.current = false;
+        canPurchaseUnitsRef.current = false;
+        canConstructDbRef.current = false;
+        canCollectDbRef.current = false;
+        setActiveDbCorpId(null);
+        setDbOperationalUnits([]);
+        setActiveSchedules([]);
+        return;
+      }
+
+      const myCorp = await fetchMyCorporation(userId).catch(() => null);
+      const corpId = myCorp?.corporation?.id ?? (await resolveActiveUserCorpId().catch(() => null));
+      const effectiveCorpId = corpId ?? (userClanId && userClanId.length > 20 ? userClanId : null);
+
+      activeDbCorpIdRef.current = effectiveCorpId;
+      canControlDbUnitsRef.current = hasCorpPermission(myCorp?.membership, 'can_control_units');
+      canPurchaseUnitsRef.current = hasCorpPermission(myCorp?.membership, 'can_purchase_units');
+      canConstructDbRef.current = hasCorpPermission(myCorp?.membership, 'can_construct');
+      canCollectDbRef.current = hasCorpPermission(myCorp?.membership, 'can_collect');
+      setCorpEconomySnap({
+        ec: myCorp?.corporation?.treasury_ec ?? 0,
+        citizens: myCorp?.corporation?.treasury_citizens ?? 0,
+      });
+      setActiveDbCorpId(effectiveCorpId);
+
+      if (!effectiveCorpId) {
+        setDbOperationalUnits([]);
+        setCorpProdBuildings([]);
+        setActiveSchedules([]);
+        return;
+      }
+      const [rows, buildings, schedules] = await Promise.all([
+        fetchOperationalUnits({ corpId: effectiveCorpId }),
+        fetchCorpBuildings(effectiveCorpId).catch(() => [] as DbBuildingRecord[]),
+        fetchUnitSchedules(effectiveCorpId).catch(() => [] as UnitScheduleRow[]),
+      ]);
+      setDbOperationalUnits(rows);
+      setCorpProdBuildings(
+        buildings.filter((b) =>
+          ['factory', 'barracks', 'port', 'airport', 'hq'].includes(b.building_type)
+        )
+      );
+
+      const runningSchedules = schedules.filter((s) => s.status === 'pending' || s.status === 'active');
+      setActiveSchedules(runningSchedules);
+
+      const unitMap = new Map(rows.map((u) => [u.id, u]));
+      for (const sched of runningSchedules) {
+        if (!sched.unit_id) continue;
+        const unitRow = unitMap.get(sched.unit_id);
+        const rawWps = Array.isArray(sched.waypoints) ? (sched.waypoints as Array<{ h3?: number }>) : [];
+        const wps = rawWps
+          .map((wp) => {
+            const h3Num = Number(wp?.h3);
+            if (!Number.isFinite(h3Num) || h3Num <= 0) return null;
+            const [lng, lat] = resolveDbUnitLngLat(h3Num);
+            return { x: lng, y: lat, h3: h3Num };
+          })
+          .filter((wp): wp is { x: number; y: number; h3: number } => wp !== null);
+
+        if (unitRow && wps.length === 1) {
+          const [uLng, uLat] = resolveDbUnitLngLat(unitRow.h3_index);
+          wps.unshift({ x: uLng, y: uLat, h3: unitRow.h3_index });
+        }
+
+        if (wps.length >= 2) {
+          rtsEngineRef.current.syncScheduledCommand({
+            scheduleId: sched.id,
+            unitId: sched.unit_id,
+            unitCode: unitRow?.unit_code ?? 'recon',
+            ownerId: effectiveCorpId,
+            commandType: sched.command_type as any,
+            waypoints: wps,
+            waypointCursor: sched.waypoint_cursor ?? 0,
+            scheduledAtMs: Date.parse(sched.scheduled_at) || Date.now(),
+            repeatIntervalSec: sched.repeat_interval_sec,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[TacticalWorldMap] Error cargando operational_units:', err);
+    }
+  }, [userClanId, resolveDbUnitLngLat]);
+
+  useEffect(() => {
+    void refreshDbOperationalUnits();
+    if (!isSupabaseConfigured() || !supabase) return;
+    const { data: authSub } = supabase.auth.onAuthStateChange(() => {
+      void refreshDbOperationalUnits();
+    });
+    return () => {
+      authSub?.subscription?.unsubscribe();
+    };
+  }, [refreshDbOperationalUnits]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured() || !supabase) return;
+    const channelScope = activeDbCorpId ?? 'public';
+    const channel = supabase
+      .channel(`corp-ops:${channelScope}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'buildings' },
+        () => {
+          void refreshDbOperationalUnits();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'infra_edges' },
+        () => {
+          void refreshDbOperationalUnits();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'operational_units',
+          ...(activeDbCorpId ? { filter: `corp_id=eq.${activeDbCorpId}` } : {}),
+        },
+        () => {
+          void refreshDbOperationalUnits();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'unit_command_schedules',
+          ...(activeDbCorpId ? { filter: `corp_id=eq.${activeDbCorpId}` } : {}),
+        },
+        () => {
+          void refreshDbOperationalUnits();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'unit_action_logs',
+          ...(activeDbCorpId ? { filter: `corp_id=eq.${activeDbCorpId}` } : {}),
+        },
+        () => {
+          void refreshDbOperationalUnits();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [activeDbCorpId, refreshDbOperationalUnits]);
+
+  const syncDbOperationalLayers = useCallback(
+    (
+      overrideArrow?: {
+        segments: ReturnType<typeof calculatePathArrow>;
+        originSector: [number, number];
+        originCell: [number, number];
+        gridOriginX: number;
+        gridOriginY: number;
+      } | null
+    ) => {
+      const map = mapInstanceRef.current;
+      if (!map || !map.isStyleLoaded()) return;
+
+      const edgesSrc = map.getSource('db-mmo-infra-edges') as GeoJSONSource | undefined;
+      if (edgesSrc) {
+        const edgeFeatures = infraEdgesRef.current.map((ed) => {
+          const fromCoord = resolveDbUnitLngLat(ed.from_h3);
+          const toCoord = resolveDbUnitLngLat(ed.to_h3);
+          return {
+            type: 'Feature' as const,
+            geometry: { type: 'LineString' as const, coordinates: [fromCoord, toCoord] },
+            properties: {
+              id: ed.id,
+              edge_type: ed.edge_type,
+              status: ed.status,
+              corp_id: ed.corp_id,
+              hp: ed.hp,
+              max_hp: ed.max_hp,
+              isSelected: selectedMapEdgeRef.current?.id === ed.id,
+              label:
+                ed.status === 'severed'
+                  ? `${ed.edge_type.toUpperCase()} [CORTADO]`
+                  : ed.edge_type.toUpperCase(),
+            },
+          };
+        });
+        edgesSrc.setData({ type: 'FeatureCollection', features: edgeFeatures });
+      }
+
+      const bldSrc = map.getSource('db-mmo-buildings') as GeoJSONSource | undefined;
+      if (bldSrc) {
+        const bldFeatures = worldBuildingsRef.current.map((b) => {
+          const [lng, lat] = resolveDbUnitLngLat(b.h3_index);
+          const infraState = b.infra_state ?? (b.is_disabled || b.hp <= 0 ? 'RUINED' : 'OPERATIONAL');
+          const isOwn = Boolean(activeDbCorpIdRef.current && b.corp_id === activeDbCorpIdRef.current);
+          const isNeutral = !b.corp_id;
+          const isSelected = selectedMapBuildingRef.current?.id === b.id;
+          const badge = b.is_historical ? '[HIST] ' : '';
+          const stateSuffix =
+            infraState === 'RUINED'
+              ? ' • RUINED'
+              : b.is_production_halted
+              ? ' • ALMACÉN LLENO'
+              : infraState === 'DAMAGED'
+              ? ' • DAÑADO'
+              : '';
+          return {
+            type: 'Feature' as const,
+            geometry: { type: 'Point' as const, coordinates: [lng, lat] },
+            properties: {
+              id: b.id,
+              building_type: b.building_type,
+              corp_id: b.corp_id,
+              h3_index: b.h3_index,
+              infra_state: infraState,
+              is_historical: Boolean(b.is_historical),
+              is_production_halted: Boolean(b.is_production_halted),
+              isOwn,
+              isNeutral,
+              isSelected,
+              label: `${badge}${b.building_type.toUpperCase()}${stateSuffix}`,
+            },
+          };
+        });
+        bldSrc.setData({ type: 'FeatureCollection', features: bldFeatures });
+      }
+
+      const unitsSrc = map.getSource('db-operational-units') as GeoJSONSource | undefined;
+      if (unitsSrc) {
+        const features = dbOperationalUnitsRef.current.map((u) => {
+          const interp = rtsEngineRef.current.getInterpolatedUnitCoords(u.id);
+          const [lng, lat] =
+            interp && Math.abs(interp.x) > 1
+              ? [interp.x, interp.y]
+              : resolveDbUnitLngLat(u.h3_index);
+          const isSelected = selectedDbOpUnitRef.current?.id === u.id;
+          return {
+            type: 'Feature' as const,
+            geometry: { type: 'Point' as const, coordinates: [lng, lat] },
+            properties: {
+              id: u.id,
+              unit_code: u.unit_code,
+              hp: u.hp,
+              tier: u.tier,
+              corp_id: u.corp_id,
+              h3_index: u.h3_index,
+              spriteKey: resolveUnitSpriteKey(u.unit_code),
+              isSelected,
+            },
+          };
+        });
+        unitsSrc.setData({ type: 'FeatureCollection', features });
+      }
+
+      const reachSrc = map.getSource('db-operational-reachable') as GeoJSONSource | undefined;
+      if (reachSrc) {
+        const reachFeatures = Array.from(reachableDbOpTilesRef.current.values()).map((entry) =>
+          buildCellPolygonFeature(entry.sector, entry.cell, 'hover')
+        );
+        reachSrc.setData({ type: 'FeatureCollection', features: reachFeatures });
+      }
+
+      const arrowSrc = map.getSource('db-operational-arrow') as GeoJSONSource | undefined;
+      if (arrowSrc) {
+        if (!overrideArrow || overrideArrow.segments.length === 0) {
+          arrowSrc.setData({ type: 'FeatureCollection', features: [] });
+        } else {
+          const toLngLat = (pos: GridPosition): [number, number] => {
+            const rawX = overrideArrow.originCell[0] + (pos.x - overrideArrow.gridOriginX);
+            const rawY = overrideArrow.originCell[1] + (pos.y - overrideArrow.gridOriginY);
+            const secDx = Math.floor(rawX / TACTICAL_GRID_DIMENSION);
+            const secDy = Math.floor(rawY / TACTICAL_GRID_DIMENSION);
+            const cx = ((rawX % TACTICAL_GRID_DIMENSION) + TACTICAL_GRID_DIMENSION) % TACTICAL_GRID_DIMENSION;
+            const cy = ((rawY % TACTICAL_GRID_DIMENSION) + TACTICAL_GRID_DIMENSION) % TACTICAL_GRID_DIMENSION;
+            return gridCoordsToLngLat(
+              [overrideArrow.originSector[0] + secDx, overrideArrow.originSector[1] + secDy],
+              [cx, cy],
+              TACTICAL_GRID_DIMENSION,
+              ZOOM_TACTICO
+            );
+          };
+
+          const lineCoords = overrideArrow.segments.map((seg) => toLngLat(seg.position));
+          const features: any[] = [];
+          if (lineCoords.length >= 2) {
+            features.push({
+              type: 'Feature',
+              geometry: { type: 'LineString', coordinates: lineCoords },
+              properties: { kind: 'body' },
+            });
+          }
+          const lastSeg = overrideArrow.segments[overrideArrow.segments.length - 1];
+          const firstSeg = overrideArrow.segments[0];
+          features.push({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: toLngLat(firstSeg.position) },
+            properties: { kind: 'origin', rawCode: firstSeg.rawCode },
+          });
+          features.push({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: toLngLat(lastSeg.position) },
+            properties: { kind: 'head', rawCode: lastSeg.rawCode, segType: lastSeg.type },
+          });
+          arrowSrc.setData({ type: 'FeatureCollection', features });
+        }
+      }
+    },
+    [resolveDbUnitLngLat]
+  );
+
+  const syncDbOperationalLayersRef = useRef(syncDbOperationalLayers);
+  syncDbOperationalLayersRef.current = syncDbOperationalLayers;
+
+  useEffect(() => {
+    syncDbOperationalLayersRef.current();
+  }, [dbOperationalUnits, selectedDbOpUnit, worldBuildings, infraEdges, selectedMapBuilding, selectedMapEdge]);
+
+  const clearDbOpSelection = useCallback(() => {
+    setSelectedDbOpUnit(null);
+    selectedDbOpUnitRef.current = null;
+    reachableDbOpTilesRef.current.clear();
+    activeOpArrowPathRef.current = null;
+    syncDbOperationalLayersRef.current(null);
+  }, []);
+
+  const selectDbOperationalUnit = useCallback(
+    (unit: DbOperationalUnitRecord) => {
+      const [lng, lat] = resolveDbUnitLngLat(unit.h3_index);
+      const { sector: originSector, cell: originCell } = lngLatToGridCoords(
+        [lng, lat],
+        TACTICAL_GRID_DIMENSION,
+        ZOOM_TACTICO
+      );
+
+      const GRID_RADIUS = 10;
+      const GRID_SIZE = GRID_RADIUS * 2 + 1;
+      const localTiles: TerrainTile[][] = [];
+
+      const resolveGlobalCell = (gx: number, gy: number): { sec: [number, number]; cel: [number, number] } => {
+        const rawX = originCell[0] + (gx - GRID_RADIUS);
+        const rawY = originCell[1] + (gy - GRID_RADIUS);
+        const secDx = Math.floor(rawX / TACTICAL_GRID_DIMENSION);
+        const secDy = Math.floor(rawY / TACTICAL_GRID_DIMENSION);
+        const cx = ((rawX % TACTICAL_GRID_DIMENSION) + TACTICAL_GRID_DIMENSION) % TACTICAL_GRID_DIMENSION;
+        const cy = ((rawY % TACTICAL_GRID_DIMENSION) + TACTICAL_GRID_DIMENSION) % TACTICAL_GRID_DIMENSION;
+        return {
+          sec: [originSector[0] + secDx, originSector[1] + secDy],
+          cel: [cx, cy],
+        };
+      };
+
+      for (let gy = 0; gy < GRID_SIZE; gy++) {
+        const row: TerrainTile[] = [];
+        for (let gx = 0; gx < GRID_SIZE; gx++) {
+          const { sec, cel } = resolveGlobalCell(gx, gy);
+          const resolved = spatialDeploymentService.resolveSectorCellTerrain(
+            sec,
+            cel,
+            TACTICAL_GRID_DIMENSION
+          );
+          row.push({
+            x: gx,
+            y: gy,
+            type: resolved.type,
+            defenseStars: 0,
+            movementCost: 1,
+          } as TerrainTile);
+        }
+        localTiles.push(row);
+      }
+
+      const unitsMap = new Map<string, TacticalUnit>();
+      for (const other of dbOperationalUnitsRef.current) {
+        if (other.id === unit.id) continue;
+        const [oLng, oLat] = resolveDbUnitLngLat(other.h3_index);
+        const oGrid = lngLatToGridCoords([oLng, oLat], TACTICAL_GRID_DIMENSION, ZOOM_TACTICO);
+        const dx =
+          (oGrid.sector[0] - originSector[0]) * TACTICAL_GRID_DIMENSION +
+          (oGrid.cell[0] - originCell[0]);
+        const dy =
+          (oGrid.sector[1] - originSector[1]) * TACTICAL_GRID_DIMENSION +
+          (oGrid.cell[1] - originCell[1]);
+        const gx = GRID_RADIUS + dx;
+        const gy = GRID_RADIUS + dy;
+        if (gx >= 0 && gx < GRID_SIZE && gy >= 0 && gy < GRID_SIZE) {
+          unitsMap.set(other.id, {
+            id: other.id,
+            unitCode: other.unit_code,
+            displayName: other.unit_code,
+            ownerId: other.corp_id === unit.corp_id ? 'p1' : 'p2',
+            x: gx,
+            y: gy,
+            hp: other.hp,
+            maxHp: 100,
+            movementPoints: 5,
+            movementType: 'treads',
+          } as unknown as TacticalUnit);
+        }
+      }
+
+      const catalogEntry = CANONICAL_UNIT_PRODUCTION_CATALOG[unit.unit_code];
+      const movementPoints = catalogEntry?.movementPoints ?? 5;
+      const movementType: MovementType = (catalogEntry?.movementType as MovementType) ?? 'treads';
+
+      const syntheticUnit = {
+        id: unit.id,
+        unitCode: unit.unit_code,
+        displayName: catalogEntry?.displayName ?? unit.unit_code,
+        ownerId: 'p1',
+        x: GRID_RADIUS,
+        y: GRID_RADIUS,
+        hp: unit.hp,
+        maxHp: 100,
+        ammo: 9,
+        fuel: 99,
+        minRange: catalogEntry?.minRange ?? 1,
+        maxRange: catalogEntry?.maxRange ?? 1,
+        movementPoints,
+        movementType,
+        visionRange: 3,
+        baseAttack: catalogEntry?.baseAttack ?? 55,
+        productionCost: catalogEntry?.cost ?? 1000,
+        hasMoved: false,
+        hasActed: false,
+      } as unknown as TacticalUnit;
+
+      const reachable = TacticalPathfindingEngine.getReachableTiles({
+        unit: syntheticUnit,
+        tiles: localTiles,
+        unitsMap,
+        gridWidth: GRID_SIZE,
+        gridHeight: GRID_SIZE,
+      });
+
+      const nextMap = new Map<string, ReachableOpTileEntry>();
+      for (const tileInfo of reachable) {
+        const { sec, cel } = resolveGlobalCell(tileInfo.x, tileInfo.y);
+        const centerLngLat = gridCoordsToLngLat(sec, cel, TACTICAL_GRID_DIMENSION, ZOOM_TACTICO);
+        const key = `${sec[0]},${sec[1]}:${cel[0]},${cel[1]}`;
+        nextMap.set(key, {
+          sector: sec,
+          cell: cel,
+          lngLat: centerLngLat,
+          h3Index: Number(latLngToH3Res9(centerLngLat[1], centerLngLat[0])),
+          path: tileInfo.path,
+          originSector,
+          originCell,
+          gridOriginX: GRID_RADIUS,
+          gridOriginY: GRID_RADIUS,
+        });
+      }
+
+      reachableDbOpTilesRef.current = nextMap;
+      activeOpArrowPathRef.current = null;
+      setSelectedDbOpUnit(unit);
+      selectedDbOpUnitRef.current = unit;
+      syncDbOperationalLayersRef.current(null);
+      try { audioManager.playHoverTick(); } catch {}
+    },
+    [resolveDbUnitLngLat]
+  );
+
+  const executeDbOperationalMove = useCallback(
+    async (targetEntry: ReachableOpTileEntry) => {
+      const unit = selectedDbOpUnitRef.current;
+      if (
+        !unit ||
+        isMovingDbOpUnitRef.current ||
+        !isSupabaseConfigured() ||
+        !supabase ||
+        !activeDbCorpIdRef.current ||
+        unit.corp_id !== activeDbCorpIdRef.current ||
+        !canControlDbUnitsRef.current
+      ) {
+        try { audioManager.playCue('ui_cancel_rollback'); } catch {}
+        return;
+      }
+
+      isMovingDbOpUnitRef.current = true;
+      try {
+        const { data, error } = await supabase.rpc('move_operational_unit', {
+          p_unit_id: unit.id,
+          p_target_h3: targetEntry.h3Index,
+          p_idempotency_key: crypto.randomUUID(),
+        });
+        if (error) throw new Error(error.message);
+
+        const updatedRecord = (data as { operational_unit?: DbOperationalUnitRecord } | null)
+          ?.operational_unit;
+
+        setDbOperationalUnits((prev) =>
+          prev.map((u) =>
+            u.id === unit.id
+              ? updatedRecord
+                ? updatedRecord
+                : { ...u, h3_index: targetEntry.h3Index }
+              : u
+          )
+        );
+        clearDbOpSelection();
+        try { audioManager.playCue('ui_tile_confirm'); } catch {}
+      } catch (err) {
+        console.warn('[TacticalWorldMap] Error en move_operational_unit:', err);
+        try { audioManager.playCue('ui_cancel_rollback'); } catch {}
+      } finally {
+        isMovingDbOpUnitRef.current = false;
+      }
+    },
+    [clearDbOpSelection]
+  );
+
   const [baseRegionsGeoJSON, setBaseRegionsGeoJSON] = useState<any>(null);
 
   useEffect(() => {
@@ -2356,39 +3002,254 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
             },
           });
 
-          // 7B. Zona de Calor GPU de Unidades en Vista Municipal (Estrato 2: 8.5 <= zoom < 15.0)
-          map.addSource('tactical-operational-units', {
+          // 7B. Capas DB MMO: Aristas de Infraestructura (Tuberías, Carreteras, Puentes) & Edificios / Bases Históricas
+          map.addSource('db-mmo-infra-edges', {
             type: 'geojson',
-            data: operationalUnitsService.toGeoJSON() as any,
+            data: { type: 'FeatureCollection', features: [] },
+          });
+          map.addLayer({
+            id: 'db-mmo-infra-edges-casing',
+            type: 'line',
+            source: 'db-mmo-infra-edges',
+            minzoom: 8.5,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': '#0A0B08',
+              'line-width': ['case', ['boolean', ['get', 'isSelected'], false], 9, 6],
+            },
+          });
+          map.addLayer({
+            id: 'db-mmo-infra-edges-line',
+            type: 'line',
+            source: 'db-mmo-infra-edges',
+            minzoom: 8.5,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': [
+                'case',
+                ['==', ['get', 'status'], 'severed'],
+                '#EF4444',
+                ['match', ['get', 'edge_type'], 'pipeline', '#06B6D4', 'bridge', '#F59E0B', '#D97706'],
+              ],
+              'line-width': ['case', ['boolean', ['get', 'isSelected'], false], 5, 3.2],
+              'line-dasharray': ['case', ['==', ['get', 'status'], 'severed'], ['literal', [2, 2]], ['literal', [1, 0]]],
+            },
+          });
+          map.addLayer({
+            id: 'db-mmo-infra-edges-labels',
+            type: 'symbol',
+            source: 'db-mmo-infra-edges',
+            minzoom: 10.0,
+            layout: {
+              'symbol-placement': 'line-center',
+              'text-field': ['get', 'label'],
+              'text-size': 9,
+            },
+            paint: {
+              'text-color': '#F2E8D5',
+              'text-halo-color': '#0A0B08',
+              'text-halo-width': 1.5,
+            },
           });
 
+          map.addSource('db-mmo-buildings', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] },
+          });
           map.addLayer({
-            id: 'tactical-operational-units-heatmap',
-            type: 'heatmap',
-            source: 'tactical-operational-units',
+            id: 'db-mmo-buildings-halo',
+            type: 'circle',
+            source: 'db-mmo-buildings',
             minzoom: 8.5,
-            maxzoom: ZOOM_TACTICO,
             paint: {
-              'heatmap-weight': 1,
-              'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 8.5, 0.6, 14.0, 1.3],
-              'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 8.5, 18, 12.0, 28, 14.5, 42],
-              'heatmap-color': [
-                'interpolate',
-                ['linear'],
-                ['heatmap-density'],
-                0.0, 'rgba(0, 0, 0, 0)',
-                0.2, 'rgba(34, 197, 94, 0.35)',
-                0.45, 'rgba(234, 179, 8, 0.58)',
-                0.7, 'rgba(249, 115, 22, 0.78)',
-                1.0, 'rgba(239, 68, 68, 0.92)',
+              'circle-radius': ['case', ['boolean', ['get', 'isSelected'], false], 17, 13],
+              'circle-color': [
+                'case',
+                ['boolean', ['get', 'isSelected'], false],
+                '#00FF66',
+                ['boolean', ['get', 'is_production_halted'], false],
+                '#EF4444',
+                ['boolean', ['get', 'is_historical'], false],
+                '#F59E0B',
+                '#46521F',
               ],
-              'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 14.0, 0.82, 14.99, 0.0],
+              'circle-opacity': 0.35,
+            },
+          });
+          map.addLayer({
+            id: 'db-mmo-buildings-circle',
+            type: 'circle',
+            source: 'db-mmo-buildings',
+            minzoom: 8.5,
+            paint: {
+              'circle-radius': ['case', ['boolean', ['get', 'is_historical'], false], 9.5, 7.5],
+              'circle-color': [
+                'case',
+                ['==', ['get', 'infra_state'], 'RUINED'],
+                '#7F1D1D',
+                ['==', ['get', 'infra_state'], 'DAMAGED'],
+                '#D97706',
+                ['boolean', ['get', 'isOwn'], false],
+                '#15803D',
+                ['boolean', ['get', 'isNeutral'], false],
+                '#E2E8F0',
+                '#B91C1C',
+              ],
+              'circle-stroke-color': '#0A0B08',
+              'circle-stroke-width': 2.5,
+            },
+          });
+          map.addLayer({
+            id: 'db-mmo-buildings-labels',
+            type: 'symbol',
+            source: 'db-mmo-buildings',
+            minzoom: 9.5,
+            layout: {
+              'text-field': ['get', 'label'],
+              'text-size': 9.5,
+              'text-offset': [0, 1.45],
+              'text-anchor': 'top',
+              'text-optional': true,
+            },
+            paint: {
+              'text-color': '#F2E8D5',
+              'text-halo-color': '#0A0B08',
+              'text-halo-width': 1.8,
+            },
+          });
+
+          // 7C. Capas DB Operacionales Estilo Advance Wars (Rango, Flecha Retro y Unidades)
+          map.addSource('db-operational-reachable', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] },
+          });
+          map.addLayer({
+            id: 'db-operational-reachable-fill',
+            type: 'fill',
+            source: 'db-operational-reachable',
+            minzoom: 8.5,
+            paint: {
+              'fill-color': '#3B82F6',
+              'fill-opacity': 0.3,
+            },
+          });
+          map.addLayer({
+            id: 'db-operational-reachable-line',
+            type: 'line',
+            source: 'db-operational-reachable',
+            minzoom: 8.5,
+            paint: {
+              'line-color': '#60A5FA',
+              'line-width': 1.5,
+              'line-opacity': 0.85,
+            },
+          });
+
+          map.addSource('db-operational-arrow', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] },
+          });
+          map.addLayer({
+            id: 'db-operational-arrow-casing',
+            type: 'line',
+            source: 'db-operational-arrow',
+            minzoom: 8.5,
+            filter: ['==', ['get', 'kind'], 'body'],
+            layout: { 'line-cap': 'butt', 'line-join': 'miter' },
+            paint: {
+              'line-color': '#0A0B08',
+              'line-width': 11,
+            },
+          });
+          map.addLayer({
+            id: 'db-operational-arrow-fill',
+            type: 'line',
+            source: 'db-operational-arrow',
+            minzoom: 8.5,
+            filter: ['==', ['get', 'kind'], 'body'],
+            layout: { 'line-cap': 'butt', 'line-join': 'miter' },
+            paint: {
+              'line-color': '#F59E0B',
+              'line-width': 7,
+            },
+          });
+          map.addLayer({
+            id: 'db-operational-arrow-core',
+            type: 'line',
+            source: 'db-operational-arrow',
+            minzoom: 8.5,
+            filter: ['==', ['get', 'kind'], 'body'],
+            layout: { 'line-cap': 'butt', 'line-join': 'miter' },
+            paint: {
+              'line-color': '#FDE047',
+              'line-width': 2.5,
+            },
+          });
+          map.addLayer({
+            id: 'db-operational-arrow-nodes',
+            type: 'circle',
+            source: 'db-operational-arrow',
+            minzoom: 8.5,
+            filter: ['in', ['get', 'kind'], ['literal', ['origin', 'head']]],
+            paint: {
+              'circle-radius': ['case', ['==', ['get', 'kind'], 'head'], 7, 5],
+              'circle-color': ['case', ['==', ['get', 'kind'], 'head'], '#FDE047', '#F59E0B'],
+              'circle-stroke-color': '#0A0B08',
+              'circle-stroke-width': 2.5,
+            },
+          });
+
+          map.addSource('db-operational-units', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] },
+          });
+          map.addLayer({
+            id: 'db-operational-units-circle',
+            type: 'circle',
+            source: 'db-operational-units',
+            minzoom: 8.5,
+            paint: {
+              'circle-radius': ['case', ['boolean', ['get', 'isSelected'], false], 16, 12],
+              'circle-color': ['case', ['boolean', ['get', 'isSelected'], false], '#F59E0B', '#15803D'],
+              'circle-opacity': 0.85,
+              'circle-stroke-color': '#0A0B08',
+              'circle-stroke-width': 2.5,
+            },
+          });
+          map.addLayer({
+            id: 'db-operational-units-sprites',
+            type: 'symbol',
+            source: 'db-operational-units',
+            minzoom: 8.5,
+            layout: {
+              'icon-image': ['get', 'spriteKey'],
+              'icon-size': ['case', ['boolean', ['get', 'isSelected'], false], 0.85, 0.7],
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': true,
+            },
+          });
+          map.addLayer({
+            id: 'db-operational-units-labels',
+            type: 'symbol',
+            source: 'db-operational-units',
+            minzoom: 8.5,
+            layout: {
+              'text-field': ['concat', ['get', 'unit_code'], ' ', ['to-string', ['get', 'hp']]],
+              'text-size': 10,
+              'text-offset': [0, 1.5],
+              'text-anchor': 'top',
+            },
+            paint: {
+              'text-color': '#FDE047',
+              'text-halo-color': '#0A0B08',
+              'text-halo-width': 1.5,
             },
           });
 
           syncViewportGridRef.current?.(map);
           syncHoverGridRef.current?.(map);
           syncRtsUnitsToMapRef.current?.();
+          syncDbOperationalLayersRef.current();
 
           // Cursores tácticos e interactividad
           map.on('mouseenter', 'provinces-fill', () => {
@@ -2429,6 +3290,27 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
 
           map.on('mousemove', (e: MapMouseEvent) => {
             wakeFromStandby();
+            if (selectedDbOpUnitRef.current && reachableDbOpTilesRef.current.size > 0) {
+              const { sector: hovSec, cell: hovCel } = lngLatToGridCoords(
+                [e.lngLat.lng, e.lngLat.lat],
+                TACTICAL_GRID_DIMENSION,
+                ZOOM_TACTICO
+              );
+              const key = `${hovSec[0]},${hovSec[1]}:${hovCel[0]},${hovCel[1]}`;
+              const reachEntry = reachableDbOpTilesRef.current.get(key);
+              if (reachEntry && reachEntry.path.length > 0) {
+                const segments = calculatePathArrow(reachEntry.path);
+                syncDbOperationalLayersRef.current({
+                  segments,
+                  originSector: reachEntry.originSector,
+                  originCell: reachEntry.originCell,
+                  gridOriginX: reachEntry.gridOriginX,
+                  gridOriginY: reachEntry.gridOriginY,
+                });
+              } else {
+                syncDbOperationalLayersRef.current(null);
+              }
+            }
             if (map.getZoom() >= ZOOM_TACTICO - 1.0) {
               const { sector, cell } = lngLatToGridCoords(
                 [e.lngLat.lng, e.lngLat.lat],
@@ -2451,6 +3333,128 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
 
           map.on('click', (e: MapMouseEvent) => {
             wakeFromStandby();
+
+            // 1. Selección / Movimiento / Infraestructura DB MMO (Zoom >= 8.5)
+            if (map.getZoom() >= 8.5) {
+              if (edgeTraceModeRef.current && activeDbCorpIdRef.current) {
+                const trace = edgeTraceModeRef.current;
+                let targetH3 = Number(latLngToH3Res9(e.lngLat.lat, e.lngLat.lng));
+                let targetBuildingId: string | null = null;
+                try {
+                  const bldHits = map.queryRenderedFeatures(e.point, {
+                    layers: ['db-mmo-buildings-circle', 'db-mmo-buildings-labels'],
+                  });
+                  const hitId = bldHits[0]?.properties?.id as string | undefined;
+                  const hitBld = worldBuildingsRef.current.find((b) => b.id === hitId);
+                  if (hitBld) {
+                    targetH3 = hitBld.h3_index;
+                    targetBuildingId = hitBld.id;
+                  }
+                } catch {}
+
+                if (targetH3 !== trace.fromH3) {
+                  setIsInfraActionBusy(true);
+                  void createInfraEdge({
+                    corpId: activeDbCorpIdRef.current,
+                    edgeType: trace.type,
+                    fromH3: trace.fromH3,
+                    toH3: targetH3,
+                    fromBuildingId: trace.fromBuildingId ?? null,
+                    toBuildingId: targetBuildingId,
+                  })
+                    .then(async () => {
+                      audioManager.playCue('co_power_charge');
+                      setMapInfraFeedback({ type: 'ok', text: `${trace.type.toUpperCase()} trazada entre hexágonos H3.` });
+                      setEdgeTraceMode(null);
+                      await refreshDbOperationalUnits();
+                    })
+                    .catch((err) => {
+                      audioManager.playCue('ui_cancel_rollback');
+                      setMapInfraFeedback({
+                        type: 'err',
+                        text: err instanceof Error ? err.message : 'Error trazando infraestructura.',
+                      });
+                      setEdgeTraceMode(null);
+                    })
+                    .finally(() => setIsInfraActionBusy(false));
+                  return;
+                }
+              }
+
+              try {
+                const opFeatures = map.queryRenderedFeatures(e.point, {
+                  layers: ['db-operational-units-circle', 'db-operational-units-sprites'],
+                });
+                if (opFeatures.length > 0) {
+                  const clickedId = opFeatures[0]?.properties?.id as string | undefined;
+                  const clickedDbUnit = dbOperationalUnitsRef.current.find((u) => u.id === clickedId);
+                  if (clickedDbUnit) {
+                    if (
+                      !activeDbCorpIdRef.current ||
+                      clickedDbUnit.corp_id !== activeDbCorpIdRef.current ||
+                      !canControlDbUnitsRef.current
+                    ) {
+                      try { audioManager.playCue('ui_cancel_rollback'); } catch {}
+                      return;
+                    }
+                    selectDbOperationalUnit(clickedDbUnit);
+                    return;
+                  }
+                }
+              } catch {
+                // ignorar si las capas aún no están listas
+              }
+
+              if (selectedDbOpUnitRef.current) {
+                const { sector: clickSec, cell: clickCel } = lngLatToGridCoords(
+                  [e.lngLat.lng, e.lngLat.lat],
+                  TACTICAL_GRID_DIMENSION,
+                  ZOOM_TACTICO
+                );
+                const key = `${clickSec[0]},${clickSec[1]}:${clickCel[0]},${clickCel[1]}`;
+                const targetEntry = reachableDbOpTilesRef.current.get(key);
+                if (targetEntry) {
+                  void executeDbOperationalMove(targetEntry);
+                  return;
+                }
+                clearDbOpSelection();
+              }
+
+              try {
+                const bldFeatures = map.queryRenderedFeatures(e.point, {
+                  layers: ['db-mmo-buildings-circle', 'db-mmo-buildings-labels'],
+                });
+                if (bldFeatures.length > 0) {
+                  const bldId = bldFeatures[0]?.properties?.id as string | undefined;
+                  const clickedBld = worldBuildingsRef.current.find((b) => b.id === bldId);
+                  if (clickedBld) {
+                    setSelectedMapEdge(null);
+                    setSelectedMapBuilding(clickedBld);
+                    setMapInfraFeedback(null);
+                    try { audioManager.playCue('ui_tile_confirm'); } catch {}
+                    return;
+                  }
+                }
+
+                const edgeFeatures = map.queryRenderedFeatures(e.point, {
+                  layers: ['db-mmo-infra-edges-line'],
+                });
+                if (edgeFeatures.length > 0) {
+                  const edgeId = edgeFeatures[0]?.properties?.id as string | undefined;
+                  const clickedEdge = infraEdgesRef.current.find((ed) => ed.id === edgeId);
+                  if (clickedEdge) {
+                    setSelectedMapBuilding(null);
+                    setSelectedMapEdge(clickedEdge);
+                    setMapInfraFeedback(null);
+                    try { audioManager.playCue('ui_tile_confirm'); } catch {}
+                    return;
+                  }
+                }
+              } catch {
+                // ignorar si las capas aún no están listas
+              }
+            }
+
             if (map.getZoom() >= ZOOM_TACTICO - 1.0) {
               const { sector, cell } = lngLatToGridCoords(
                 [e.lngLat.lng, e.lngLat.lat],
@@ -2490,7 +3494,7 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
                   if (fireResult.success) {
                     triggerScreenShakeRef.current?.();
                     syncRtsUnitsToMapRef.current?.();
-                    try { audioManager.playCue('action_confirmed'); } catch {}
+                    try { audioManager.playCue('ui_tile_confirm'); } catch {}
                   } else {
                     try { audioManager.playCue('ui_cancel_rollback'); } catch {}
                   }
@@ -2705,42 +3709,6 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
     rtsAnchorSectorRef.current = anchorSector;
 
     const rts = rtsEngineRef.current;
-    for (const opUnit of operationalUnitsService.getAllUnits()) {
-      const { sector, cell } = lngLatToGridCoords(
-        opUnit.coordinates,
-        TACTICAL_GRID_DIMENSION,
-        ZOOM_TACTICO
-      );
-      if (sector[0] === anchorSector[0] && sector[1] === anchorSector[1]) {
-        rts.registerUnit(
-          {
-            id: opUnit.id,
-            unitCode: opUnit.code,
-            displayName: opUnit.name,
-            owner: opUnit.clanId,
-            ownerId: opUnit.clanId,
-            x: cell[0],
-            y: cell[1],
-            hp: opUnit.hp,
-            maxHp: opUnit.maxHp,
-            ammo: 9,
-            fuel: 99,
-            minRange: 1,
-            maxRange: 1,
-            moveRange: 5,
-            movementPoints: 5,
-            movementType: 'treads',
-            visionRange: 3,
-            baseAttack: 85,
-            productionCost: 5000,
-            hasMoved: false,
-            hasActed: false,
-            skinId: 'default',
-          } as any,
-          opUnit.tier || 1
-        );
-      }
-    }
 
     const matrix = spatialDeploymentService.getSectorTerrainMatrix(anchorSector, TACTICAL_GRID_DIMENSION);
     for (let y = 0; y < TACTICAL_GRID_DIMENSION; y++) {
@@ -2750,23 +3718,8 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
     }
   }, []);
 
-  // Sincronización reactiva de unidades operacionales (Estrato 2) y sector ancla RTS (Estrato 3)
+  // Sincronización reactiva de terreno espacial (Estrato 3)
   useEffect(() => {
-    const handleOperationalUnitsChange = () => {
-      const map = mapInstanceRef.current;
-      if (map) {
-        const opSource = map.getSource('tactical-operational-units') as GeoJSONSource | undefined;
-        if (opSource) {
-          opSource.setData(operationalUnitsService.toGeoJSON() as any);
-        }
-      }
-      if (!activeBattleUnits || activeBattleUnits.length === 0) {
-        syncAnchorSectorUnitsToRts();
-        syncRtsUnitsToMapRef.current?.();
-      }
-    };
-
-    const unsub = operationalUnitsService.subscribe(handleOperationalUnitsChange);
     const unsubSpatial = spatialDeploymentService.subscribe(() => {
       const map = mapInstanceRef.current;
       if (map) {
@@ -2784,20 +3737,20 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
       }
     });
     return () => {
-      unsub();
       unsubSpatial();
     };
   }, [activeBattleUnits, syncAnchorSectorUnitsToRts]);
 
-  // Loop de simulación RTS continua a 10 ticks/s (100 ms) en Zoom Táctico (Zero-Jank Dirty Checking)
+  // Loop de simulación RTS continua a 10 ticks/s (100 ms) para Estrato 3 e interpolación de drones programados en Estrato 2/3
   useEffect(() => {
-    if (currentZoom < ZOOM_TACTICO - 1.0) {
+    const hasScheduledDrones = activeSchedules.length > 0 && currentZoom >= 8.5;
+    if (currentZoom < ZOOM_TACTICO - 1.0 && !hasScheduledDrones) {
       syncRtsUnitsToMap();
       return;
     }
 
     // Sembrar unidades del Polígono de Cabimas en sector ancla si el motor está vacío
-    if (rtsEngineRef.current.getAllUnits().length === 0) {
+    if (currentZoom >= ZOOM_TACTICO - 1.0 && rtsEngineRef.current.getAllUnits().length === 0) {
       if (activeBattleUnits && activeBattleUnits.length > 0) {
         for (const u of activeBattleUnits) {
           rtsEngineRef.current.registerUnit(u as any);
@@ -2808,6 +3761,7 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
     }
 
     syncRtsUnitsToMap();
+    syncDbOperationalLayersRef.current();
 
     const interval = window.setInterval(() => {
       if (isStandbyRef.current) return;
@@ -2816,12 +3770,17 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
       const isDirty = rtsEngineRef.current.consumeDirtyFlag();
 
       if (stateChanged || isDirty) {
-        syncRtsUnitsToMap();
+        if (currentZoom >= ZOOM_TACTICO - 1.0) {
+          syncRtsUnitsToMap();
+        }
+        if (hasScheduledDrones) {
+          syncDbOperationalLayersRef.current();
+        }
       }
     }, 100);
 
     return () => window.clearInterval(interval);
-  }, [currentZoom, activeBattleUnits, userClanId, syncRtsUnitsToMap, syncAnchorSectorUnitsToRts]);
+  }, [currentZoom, activeBattleUnits, activeSchedules.length, userClanId, syncRtsUnitsToMap, syncAnchorSectorUnitsToRts]);
 
   const activeMicroCoords = useMemo(() => {
     if (selectedMicroCoords) return selectedMicroCoords;
@@ -2937,6 +3896,30 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
           />
         ))}
 
+        {worldBuildings
+          .filter((b) => b.is_historical)
+          .slice(0, 6)
+          .map((hb, idx) => (
+            <button
+              key={hb.id}
+              type="button"
+              data-building-id={hb.id}
+              data-building-type={hb.building_type}
+              data-testid={idx === 0 ? 'map-historical-base-btn' : undefined}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedMapEdge(null);
+                setSelectedMapBuilding(hb);
+                setMapInfraFeedback(null);
+                try { audioManager.playCue('ui_tile_confirm'); } catch {}
+              }}
+              tabIndex={-1}
+              aria-label={`Base histórica ${hb.building_type} ${hb.municipality_id ?? ''}`}
+              className="absolute pointer-events-auto opacity-0 focus:opacity-100 w-5 h-5 -translate-x-1/2 -translate-y-1/2 cursor-pointer"
+              style={{ left: `${20 + idx * 3}%`, top: `${25 + (idx % 3) * 4}%` }}
+            />
+          ))}
+
         {provinces.map((prov) => {
           const isBuffer = prov.id.startsWith('BUF_');
           return (
@@ -2989,8 +3972,16 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
         />
       )}
 
-      {/* Modales de Despliegue y Construcción Espacial */}
-      {(activeMicroCoords || isDeployModalOpen || isBuildDrawerOpen) && (() => {
+      {/* Modales de Despliegue, Construcción Espacial e Interacción Directa con Edificios / Infraestructura */}
+      {(activeMicroCoords ||
+        isDeployModalOpen ||
+        isBuildDrawerOpen ||
+        selectedMapBuilding ||
+        selectedMapEdge ||
+        activeBaseProdBuilding ||
+        selectedDbOpUnit ||
+        edgeTraceMode ||
+        (activeDbCorpId && corpProdBuildings.length > 0)) && (() => {
         const modalCoords = activeMicroCoords || (() => {
           const fallbackLngLat: [number, number] = [-71.455, 10.395];
           const coords = lngLatToGridCoords(fallbackLngLat, TACTICAL_GRID_DIMENSION, ZOOM_TACTICO);
@@ -3000,6 +3991,38 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
             lngLat: fallbackLngLat,
           };
         })();
+        const modalH3Index = Number(latLngToH3Res9(modalCoords.lngLat[1], modalCoords.lngLat[0]));
+        const bld = selectedMapBuilding;
+        const bldState = bld ? bld.infra_state ?? (bld.is_disabled || bld.hp <= 0 ? 'RUINED' : 'OPERATIONAL') : 'OPERATIONAL';
+        const isOwnBld = Boolean(bld && activeDbCorpId && bld.corp_id === activeDbCorpId);
+        const isNeutralBld = Boolean(bld && !bld.corp_id);
+        const isRivalBld = Boolean(bld && bld.corp_id && (!activeDbCorpId || bld.corp_id !== activeDbCorpId));
+        const isProdFacility = Boolean(
+          bld && ['factory', 'barracks', 'port', 'airport', 'hq'].includes(bld.building_type)
+        );
+        const isHousingBld = Boolean(bld && bld.building_type === 'housing');
+        const isLogisticsBld = Boolean(bld && ['extractor', 'depot', 'hq'].includes(bld.building_type));
+        const bldYield = bld ? calculateBuildingPendingYield(bld) : null;
+        const activeCollectorUnit = dbOperationalUnits.find(
+          (u) => u.unit_role === 'collector' && u.status === 'active'
+        );
+
+        const runInfraAction = async (fn: () => Promise<void>) => {
+          setIsInfraActionBusy(true);
+          setMapInfraFeedback(null);
+          try {
+            await fn();
+          } catch (err) {
+            audioManager.playCue('ui_cancel_rollback');
+            setMapInfraFeedback({
+              type: 'err',
+              text: err instanceof Error ? err.message : 'Error ejecutando operación de infraestructura.',
+            });
+          } finally {
+            setIsInfraActionBusy(false);
+          }
+        };
+
         const portalContent = (
           <>
             <TacticalUnitDeployModal
@@ -3010,8 +4033,10 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
               lngLat={modalCoords.lngLat}
               userClanId={userClanId || 'clan-ferro'}
               userFactionId="blue_moon"
+              corpId={activeDbCorpId}
               onDeploySuccess={() => {
                 syncRtsUnitsToMap();
+                void refreshDbOperationalUnits();
               }}
             />
 
@@ -3022,8 +4047,385 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
               cell={modalCoords.cell}
               lngLat={modalCoords.lngLat}
               userClanId={userClanId || 'clan-ferro'}
-              onConstructionSuccess={() => {}}
+              corpId={activeDbCorpId ?? undefined}
+              h3Index={modalH3Index}
+              onConstructionSuccess={() => {
+                void refreshDbOperationalUnits();
+              }}
             />
+
+            {edgeTraceMode && (
+              <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[90] px-4 py-2 bg-[#181914] border-2 border-[#00FF66] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] font-mono text-xs text-[#F2E8D5] flex items-center gap-3">
+                <span className="text-[#00FF66] font-black uppercase">
+                  MODO TRAZADO ({edgeTraceMode.type.toUpperCase()}): HAZ CLIC EN EL HEXÁGONO O EDIFICIO DESTINO
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setEdgeTraceMode(null)}
+                  className="px-2 py-0.5 bg-rose-950 border border-rose-600 rounded-[8px_2px_8px_2px] text-[10px] cursor-pointer"
+                >
+                  CANCELAR
+                </button>
+              </div>
+            )}
+
+            {(bld || selectedMapEdge) && (
+              <div
+                data-testid="map-infra-action-panel"
+                className="fixed bottom-24 left-4 z-[85] w-80 max-w-[92vw] bg-[#181914] border-2 border-[#0A0B08] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] p-3.5 font-mono text-[#F2E8D5] space-y-2.5"
+              >
+                <div className="flex items-start justify-between gap-2 border-b border-[#46521F] pb-2">
+                  <div>
+                    <div className="text-[10px] text-[#C46A3A] font-black uppercase">
+                      {bld
+                        ? `${bld.is_historical ? 'ENCLAVE HISTÓRICO' : 'INFRAESTRUCTURA'} // ${bld.municipality_id ?? 'MAPA'}`
+                        : `ARISTA ${selectedMapEdge?.edge_type.toUpperCase()}`}
+                    </div>
+                    <h4 className="text-xs font-black uppercase">
+                      {bld
+                        ? `${bld.building_type.toUpperCase()} Nv.${bld.level} (${bldState})`
+                        : `${selectedMapEdge?.edge_type.toUpperCase()} • ${selectedMapEdge?.status.toUpperCase()}`}
+                    </h4>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMapBuilding(null);
+                      setSelectedMapEdge(null);
+                      setMapInfraFeedback(null);
+                    }}
+                    className="px-1.5 py-0.5 bg-[#2B2C24] border border-[#7B8A4A] rounded-[8px_2px_8px_2px] text-[10px] cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {mapInfraFeedback && (
+                  <div
+                    className={`p-2 text-[10px] border rounded-[8px_2px_8px_2px] ${
+                      mapInfraFeedback.type === 'ok'
+                        ? 'bg-emerald-950/70 border-emerald-500 text-emerald-200'
+                        : 'bg-rose-950/80 border-rose-500 text-rose-200'
+                    }`}
+                  >
+                    {mapInfraFeedback.text}
+                  </div>
+                )}
+
+                {bld && (
+                  <div className="space-y-2 text-[11px]">
+                    <div className="flex justify-between text-[#7B8A4A]">
+                      <span>Integridad: {bld.hp} / {bld.max_hp ?? 30} HP</span>
+                      <span>{isOwnBld ? 'PROPIO' : isNeutralBld ? 'NEUTRAL' : 'RIVAL'}</span>
+                    </div>
+
+                    {bld.building_type === 'extractor' && bldYield && (
+                      <div className="p-2 bg-[#2B2C24] border border-[#46521F] rounded-[8px_2px_8px_2px] space-y-1">
+                        <div className="flex justify-between text-[10px]">
+                          <span>Almacén Finito:</span>
+                          <span className={bldYield.isProductionHalted ? 'text-rose-400 font-black' : 'text-emerald-400'}>
+                            {bldYield.totalStored} / {bldYield.storageCap}
+                          </span>
+                        </div>
+                        {bldYield.isProductionHalted && (
+                          <div className="text-[10px] text-rose-300 font-bold">
+                            ⚠ PRODUCCIÓN DETENIDA (CONECTAR TUBERÍA O RECOLECTOR)
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-1.5">
+                      {!activeDbCorpId && (
+                        <div className="text-[10px] text-amber-300/90">
+                          Conecta una cuenta con Corporación para capturar, producir o atacar infraestructura.
+                        </div>
+                      )}
+                      {activeDbCorpId && (isNeutralBld || (isRivalBld && bldState === 'RUINED')) && (
+                        <button
+                          type="button"
+                          disabled={isInfraActionBusy}
+                          onClick={() =>
+                            void runInfraAction(async () => {
+                              await claimOrCaptureBuildingDb(bld.id, activeDbCorpId);
+                              audioManager.playCue('co_power_charge');
+                              setMapInfraFeedback({ type: 'ok', text: 'Enclave capturado y puesto en operación.' });
+                              await refreshDbOperationalUnits();
+                            })
+                          }
+                          className="tactical-btn-heavy px-2.5 py-1 text-[10px] cursor-pointer disabled:opacity-45"
+                        >
+                          CAPTURAR ENCLAVE
+                        </button>
+                      )}
+
+                      {isOwnBld && isProdFacility && bldState !== 'RUINED' && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveBaseProdBuilding(bld)}
+                          className="tactical-btn-heavy px-2.5 py-1 text-[10px] cursor-pointer"
+                        >
+                          PRODUCCIÓN ADVANCE WARS
+                        </button>
+                      )}
+
+                      {isOwnBld && isHousingBld && bldState !== 'RUINED' && (
+                        <button
+                          type="button"
+                          disabled={isInfraActionBusy}
+                          onClick={() =>
+                            void runInfraAction(async () => {
+                              await collectHousingCitizens(bld.id, activeDbCorpId!, false);
+                              audioManager.playCue('ui_tile_confirm');
+                              setMapInfraFeedback({ type: 'ok', text: 'Ciudadanos recolectados en Corporación.' });
+                              await refreshDbOperationalUnits();
+                            })
+                          }
+                          className="px-2.5 py-1 bg-[#46521F] border border-[#7B8A4A] rounded-[8px_2px_8px_2px] text-[10px] font-bold cursor-pointer"
+                        >
+                          RECOLECTAR CIUDADANOS
+                        </button>
+                      )}
+
+                      {isOwnBld && isLogisticsBld && bldState !== 'RUINED' && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={isInfraActionBusy}
+                            onClick={() =>
+                              void runInfraAction(async () => {
+                                await syncPipelineLogistics(activeDbCorpId!);
+                                if (bld.building_type !== 'depot') {
+                                  await collectBuildingResourcesDb(bld.id, activeDbCorpId!).catch(() => null);
+                                }
+                                audioManager.playCue('ui_tile_confirm');
+                                setMapInfraFeedback({ type: 'ok', text: 'Logística de tuberías y almacén sincronizada.' });
+                                await refreshDbOperationalUnits();
+                              })
+                            }
+                            className="px-2.5 py-1 bg-[#2B2C24] border border-cyan-500 text-cyan-300 rounded-[8px_2px_8px_2px] text-[10px] font-bold cursor-pointer"
+                          >
+                            SINCRONIZAR TUBERÍA
+                          </button>
+
+                          {bld.building_type === 'extractor' && activeCollectorUnit && (
+                            <button
+                              type="button"
+                              disabled={isInfraActionBusy}
+                              onClick={() =>
+                                void runInfraAction(async () => {
+                                  await executeCollectorHaul({
+                                    unitId: activeCollectorUnit.id,
+                                    extractorBuildingId: bld.id,
+                                  });
+                                  audioManager.playCue('ui_tile_confirm');
+                                  setMapInfraFeedback({ type: 'ok', text: 'Unidad recolectora completó acarreo al depósito.' });
+                                  await refreshDbOperationalUnits();
+                                })
+                              }
+                              className="px-2.5 py-1 bg-[#2B2C24] border border-emerald-500 text-emerald-300 rounded-[8px_2px_8px_2px] text-[10px] font-bold cursor-pointer"
+                            >
+                              ACARREAR (RECOLECTOR)
+                            </button>
+                          )}
+                        </>
+                      )}
+
+                      {activeDbCorpId && isOwnBld && (
+                        <>
+                          {(['pipeline', 'road', 'bridge'] as const).map((edgeT) => (
+                            <button
+                              key={edgeT}
+                              type="button"
+                              onClick={() => {
+                                setEdgeTraceMode({ type: edgeT, fromH3: bld.h3_index, fromBuildingId: bld.id });
+                                setMapInfraFeedback({
+                                  type: 'ok',
+                                  text: `Haz clic en otro hexágono/edificio para conectar ${edgeT.toUpperCase()}.`,
+                                });
+                              }}
+                              className="px-2 py-1 bg-[#2B2C24] border border-[#46521F] rounded-[8px_2px_8px_2px] text-[10px] uppercase cursor-pointer"
+                            >
+                              + {edgeT}
+                            </button>
+                          ))}
+                        </>
+                      )}
+
+                      {isOwnBld && bldState !== 'OPERATIONAL' && (
+                        <button
+                          type="button"
+                          disabled={isInfraActionBusy}
+                          onClick={() =>
+                            void runInfraAction(async () => {
+                              await repairInfrastructure('building', bld.id, activeDbCorpId!);
+                              audioManager.playCue('co_power_charge');
+                              setMapInfraFeedback({ type: 'ok', text: 'Edificio reparado (~35% costo).' });
+                              await refreshDbOperationalUnits();
+                            })
+                          }
+                          className="px-2.5 py-1 bg-amber-900/70 border border-amber-500 rounded-[8px_2px_8px_2px] text-[10px] font-bold cursor-pointer"
+                        >
+                          REPARAR (~35%)
+                        </button>
+                      )}
+
+                      {activeDbCorpId && !isOwnBld && (
+                        <>
+                          {isRivalBld && (
+                            <button
+                              type="button"
+                              disabled={isInfraActionBusy}
+                              onClick={() =>
+                                void runInfraAction(async () => {
+                                  await triggerVulnerabilityHandshake({
+                                    municipalityId: bld.municipality_id ?? 'MUN_ZULIA_CABIMAS',
+                                    attackerCorpId: activeDbCorpId,
+                                    defenderCorpId: bld.corp_id,
+                                  });
+                                  audioManager.playCue('trap_alert');
+                                  setMapInfraFeedback({ type: 'ok', text: 'Handshake 120s iniciado para ataque.' });
+                                })
+                              }
+                              className="px-2.5 py-1 bg-amber-950 border border-amber-500 text-amber-200 rounded-[8px_2px_8px_2px] text-[10px] font-bold cursor-pointer"
+                            >
+                              HANDSHAKE 120s
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            disabled={isInfraActionBusy}
+                            onClick={() =>
+                              void runInfraAction(async () => {
+                                await damageInfrastructure({
+                                  targetKind: 'building',
+                                  targetId: bld.id,
+                                  attackerCorpId: activeDbCorpId,
+                                  damage: 15,
+                                });
+                                audioManager.playCue('explosion_critical');
+                                setMapInfraFeedback({ type: 'ok', text: 'Impacto balístico aplicado (35% scrap al arruinar).' });
+                                await refreshDbOperationalUnits();
+                              })
+                            }
+                            className="px-2.5 py-1 bg-rose-950 border border-rose-500 text-rose-200 rounded-[8px_2px_8px_2px] text-[10px] font-bold cursor-pointer"
+                          >
+                            ATACAR OBJETIVO
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {selectedMapEdge && (
+                  <div className="space-y-2 text-[11px]">
+                    <div className="flex justify-between text-[#7B8A4A]">
+                      <span>HP: {selectedMapEdge.hp} / {selectedMapEdge.max_hp}</span>
+                      <span>{selectedMapEdge.status.toUpperCase()}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {activeDbCorpId &&
+                        selectedMapEdge.corp_id === activeDbCorpId &&
+                        selectedMapEdge.status === 'severed' && (
+                          <button
+                            type="button"
+                            disabled={isInfraActionBusy}
+                            onClick={() =>
+                              void runInfraAction(async () => {
+                                await repairInfrastructure('edge', selectedMapEdge.id, activeDbCorpId);
+                                audioManager.playCue('co_power_charge');
+                                setMapInfraFeedback({ type: 'ok', text: 'Ruta reparada (~35% costo).' });
+                                await refreshDbOperationalUnits();
+                              })
+                            }
+                            className="px-2.5 py-1 bg-amber-900/70 border border-amber-500 rounded-[8px_2px_8px_2px] text-[10px] font-bold cursor-pointer"
+                          >
+                            REPARAR RUTA (~35%)
+                          </button>
+                        )}
+                      {activeDbCorpId && selectedMapEdge.corp_id !== activeDbCorpId && (
+                        <button
+                          type="button"
+                          disabled={isInfraActionBusy}
+                          onClick={() =>
+                            void runInfraAction(async () => {
+                              await damageInfrastructure({
+                                targetKind: 'edge',
+                                targetId: selectedMapEdge.id,
+                                attackerCorpId: activeDbCorpId,
+                                damage: 15,
+                              });
+                              audioManager.playCue('explosion_critical');
+                              setMapInfraFeedback({ type: 'ok', text: 'Sabotaje ejecutado sobre ruta.' });
+                              await refreshDbOperationalUnits();
+                            })
+                          }
+                          className="px-2.5 py-1 bg-rose-950 border border-rose-500 text-rose-200 rounded-[8px_2px_8px_2px] text-[10px] font-bold cursor-pointer"
+                        >
+                          SABOTEAR RUTA
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeDbCorpId && corpProdBuildings.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setActiveBaseProdBuilding(corpProdBuildings[0])}
+                className="fixed bottom-12 right-4 z-[80] tactical-btn-heavy px-3.5 py-2 text-xs font-mono cursor-pointer"
+              >
+                PRODUCCIÓN BASE ({corpProdBuildings[0].building_type.toUpperCase()})
+              </button>
+            )}
+
+            {activeDbCorpId && activeBaseProdBuilding && (
+              <BaseProductionModal
+                isOpen={Boolean(activeBaseProdBuilding)}
+                onClose={() => setActiveBaseProdBuilding(null)}
+                corpId={activeDbCorpId}
+                buildingId={activeBaseProdBuilding.id}
+                buildingType={
+                  (activeBaseProdBuilding.building_type as 'factory' | 'barracks' | 'port' | 'airport' | 'hq') ||
+                  'factory'
+                }
+                h3Index={activeBaseProdBuilding.h3_index}
+                corpEc={corpEconomySnap.ec}
+                corpCitizens={corpEconomySnap.citizens}
+                canPurchaseUnits={canPurchaseUnitsRef.current}
+                canControlUnits={canControlDbUnitsRef.current}
+                isRuined={activeBaseProdBuilding.is_disabled || activeBaseProdBuilding.hp <= 0}
+                onDeployed={async () => {
+                  await refreshDbOperationalUnits();
+                }}
+              />
+            )}
+
+            {selectedDbOpUnit && activeDbCorpId && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsDroneSchedulerOpen(true)}
+                  className="fixed bottom-24 right-4 z-[80] tactical-btn-heavy px-3.5 py-2 text-xs font-mono cursor-pointer"
+                >
+                  PROGRAMAR DRON / BITÁCORA ({selectedDbOpUnit.unit_code.toUpperCase()})
+                </button>
+                <DroneSchedulerDrawer
+                  isOpen={isDroneSchedulerOpen}
+                  onClose={() => setIsDroneSchedulerOpen(false)}
+                  corpId={activeDbCorpId}
+                  unitId={selectedDbOpUnit.id}
+                  unitCode={selectedDbOpUnit.unit_code}
+                  currentH3={selectedDbOpUnit.h3_index}
+                  canControlUnits={canControlDbUnitsRef.current}
+                  availableBuildings={worldBuildings}
+                  onSchedulesUpdated={refreshDbOperationalUnits}
+                />
+              </>
+            )}
           </>
         );
         return typeof document !== 'undefined' ? createPortal(portalContent, document.body) : portalContent;

@@ -32,7 +32,8 @@ import {
   Palette
 } from 'lucide-react';
 import { UserProfileIdentity } from '../types/index';
-import { audioManager } from '@domains/game-feel';
+
+export type ProfileModalSfxCue = 'menu_select' | 'menu_cancel' | 'hover_tick' | 'button_click';
 
 interface CommanderProfileModalProps {
   isOpen: boolean;
@@ -41,7 +42,8 @@ interface CommanderProfileModalProps {
   onUpdateProfile: (updated: UserProfileIdentity) => void;
   userGems: number;
   onUpdateUserGems: (gems: number) => void;
-  onSignOut?: () => void;
+  onSignOut?: (scope?: 'local' | 'global') => void;
+  onPlaySfx?: (cue: ProfileModalSfxCue) => void;
 }
 
 const FACTION_FLAGS = [
@@ -70,9 +72,9 @@ const MILITARY_TITLES = [
 ];
 
 const AVATAR_FRAMES = [
-  { id: 'frame_iron_standard', name: 'Bisel de Hierro Forjado', border: 'border-slate-500', glow: 'shadow-none' },
-  { id: 'frame_cyber_neon', name: 'Resplandor Neón Retro', border: 'border-emerald-400', glow: 'shadow-[0_0_15px_rgba(52,211,153,0.5)]' },
-  { id: 'frame_gold_laurel', name: 'Laurel Dorado de Estado Mayor', border: 'border-amber-400', glow: 'shadow-[0_0_15px_rgba(251,191,36,0.6)]' },
+  { id: 'frame_iron_standard', name: 'Bisel de Hierro Forjado', border: 'border-[#7B8A4A]', glow: 'shadow-[4px_4px_0px_#0A0B08]' },
+  { id: 'frame_cyber_neon', name: 'Resplandor Neón Retro', border: 'border-emerald-400', glow: 'shadow-[4px_4px_0px_#0A0B08]' },
+  { id: 'frame_gold_laurel', name: 'Laurel Dorado de Estado Mayor', border: 'border-amber-400', glow: 'shadow-[4px_4px_0px_#0A0B08]' },
 ];
 
 export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
@@ -83,6 +85,7 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
   userGems,
   onUpdateUserGems,
   onSignOut,
+  onPlaySfx,
 }) => {
   const [activeTab, setActiveTab] = useState<'dossier' | 'customize' | 'medals'>('dossier');
   const [tempBio, setTempBio] = useState(profile.customBio);
@@ -96,18 +99,18 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        audioManager.play('menu_cancel');
+        onPlaySfx?.('menu_cancel');
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, onPlaySfx]);
 
   if (!isOpen) return null;
 
   const handleSaveCustomization = () => {
-    audioManager.play('menu_select');
+    onPlaySfx?.('menu_select');
     const updated: UserProfileIdentity = {
       ...profile,
       customBio: tempBio,
@@ -127,24 +130,24 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          audioManager.play('menu_cancel');
+          onPlaySfx?.('menu_cancel');
           onClose();
         }
       }}
     >
-      <div className="relative w-full max-w-3xl bg-[#2B2C24] border-4 border-[#46521F] rounded-[40px_10px_40px_10px] shadow-[12px_12px_0px_#0A0B08] text-[#F2E8D5] font-mono overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="relative w-full max-w-3xl bg-[#2B2C24] border-2 border-[#46521F] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] text-[#F2E8D5] font-mono overflow-hidden flex flex-col max-h-[90vh]">
         {/* Cabecera Técnica Retro-Futurista */}
         <div className="flex items-center justify-between px-6 py-4 bg-[#181914] border-b-2 border-[#46521F]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-[10px_2px_10px_2px] bg-[#46521F] flex items-center justify-center text-lg border border-[#7B8A4A]">
-              🪖
+            <div className="w-9 h-9 rounded-[14px_4px_14px_4px] bg-[#46521F] flex items-center justify-center border border-[#7B8A4A] shadow-[4px_4px_0px_#0A0B08]">
+              <img src="/favicon.svg" alt="DRONEPUNK" className="w-6 h-6 object-contain" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-black tracking-widest text-[#C46A3A] uppercase">
                   DOCUMENTO CLASIFICADO • ESTADO MAYOR
                 </span>
-                <span className="text-[10px] bg-[#46521F] px-2 py-0.5 rounded text-[#F2E8D5] font-bold">
+                <span className="text-[10px] bg-[#46521F] px-2 py-0.5 rounded-[14px_4px_14px_4px] border border-[#7B8A4A] text-[#F2E8D5] font-bold">
                   EXPEDIENTE CONFIDENCIAL
                 </span>
               </div>
@@ -156,11 +159,11 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
 
           <button
             onClick={() => {
-              audioManager.play('menu_cancel');
+              onPlaySfx?.('menu_cancel');
               onClose();
             }}
-            onMouseEnter={() => audioManager.playHoverTick()}
-            className="h-8 px-2.5 rounded-[8px_2px_8px_2px] bg-[#3B3C34] hover:bg-[#C46A3A] border border-[#7B8A4A] flex items-center justify-center gap-1.5 text-[#F2E8D5] transition-colors cursor-pointer text-xs font-bold"
+            onMouseEnter={() => onPlaySfx?.('hover_tick')}
+            className="h-8 px-2.5 rounded-[14px_4px_14px_4px] bg-[#3B3C34] hover:bg-[#C46A3A] border border-[#7B8A4A] flex items-center justify-center gap-1.5 text-[#F2E8D5] transition-colors cursor-pointer text-xs font-bold"
             title="Cerrar (ESC)"
           >
             <span className="text-[10px] text-amber-400/90 hidden sm:inline">[ESC]</span>
@@ -179,10 +182,10 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
         <div className="flex border-b-2 border-[#46521F] bg-[#22231C]">
           <button
             onClick={() => {
-              audioManager.play('menu_select');
+              onPlaySfx?.('menu_select');
               setActiveTab('dossier');
             }}
-            onMouseEnter={() => audioManager.playHoverTick()}
+            onMouseEnter={() => onPlaySfx?.('hover_tick')}
             className={`flex-1 py-3 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
               activeTab === 'dossier'
                 ? 'bg-[#2B2C24] text-[#F2E8D5] border-b-4 border-[#C46A3A]'
@@ -193,10 +196,10 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
           </button>
           <button
             onClick={() => {
-              audioManager.play('menu_select');
+              onPlaySfx?.('menu_select');
               setActiveTab('customize');
             }}
-            onMouseEnter={() => audioManager.playHoverTick()}
+            onMouseEnter={() => onPlaySfx?.('hover_tick')}
             className={`flex-1 py-3 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
               activeTab === 'customize'
                 ? 'bg-[#2B2C24] text-[#F2E8D5] border-b-4 border-[#C46A3A]'
@@ -207,10 +210,10 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
           </button>
           <button
             onClick={() => {
-              audioManager.play('menu_select');
+              onPlaySfx?.('menu_select');
               setActiveTab('medals');
             }}
-            onMouseEnter={() => audioManager.playHoverTick()}
+            onMouseEnter={() => onPlaySfx?.('hover_tick')}
             className={`flex-1 py-3 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
               activeTab === 'medals'
                 ? 'bg-[#2B2C24] text-[#F2E8D5] border-b-4 border-[#C46A3A]'
@@ -226,16 +229,16 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
           {activeTab === 'dossier' && (
             <div className="space-y-6">
               {/* Tarjeta de Identidad Superior */}
-              <div className="p-4 bg-[#181914] border-2 border-[#46521F] rounded-[25px_5px_25px_5px] flex flex-col sm:flex-row items-center gap-5">
+              <div className="p-4 bg-[#181914] border-2 border-[#46521F] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] flex flex-col sm:flex-row items-center gap-5">
                 <div className="relative">
                   <div
-                    className={`w-20 h-20 rounded-[20px_5px_20px_5px] bg-[#2B2C24] border-4 flex items-center justify-center text-3xl ${
-                      AVATAR_FRAMES.find(f => f.id === profile.activeAvatarFrameId)?.border || 'border-slate-500'
+                    className={`w-20 h-20 rounded-[14px_4px_14px_4px] bg-[#2B2C24] border-4 flex items-center justify-center text-3xl ${
+                      AVATAR_FRAMES.find(f => f.id === profile.activeAvatarFrameId)?.border || 'border-[#7B8A4A]'
                     } ${AVATAR_FRAMES.find(f => f.id === profile.activeAvatarFrameId)?.glow || ''}`}
                   >
                     ⭐
                   </div>
-                  <div className="absolute -bottom-2 -right-2 px-1.5 py-0.5 rounded bg-[#46521F] text-[10px] font-black border border-[#7B8A4A]">
+                  <div className="absolute -bottom-2 -right-2 px-1.5 py-0.5 rounded-[14px_4px_14px_4px] bg-[#46521F] text-[10px] font-black border border-[#7B8A4A]">
                     {currentFlagObj.icon}
                   </div>
                 </div>
@@ -244,7 +247,7 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
                   <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                     <span className="text-base font-black uppercase text-[#F2E8D5]">{profile.displayName}</span>
                     <span className="text-xs text-[#7B8A4A] font-bold">{profile.tagId}</span>
-                    <span className="text-[10px] bg-[#46521F]/80 text-[#F2E8D5] px-2 py-0.5 rounded font-black border border-[#7B8A4A]">
+                    <span className="text-[10px] bg-[#46521F]/80 text-[#F2E8D5] px-2 py-0.5 rounded-[14px_4px_14px_4px] font-black border border-[#7B8A4A]">
                       {currentFlagObj.label}
                     </span>
                   </div>
@@ -271,25 +274,25 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
                   <Crosshair size={14} /> Telemetría de Combate y Rendimiento
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="p-3 bg-[#181914] border border-[#46521F] rounded-[15px_4px_15px_4px] text-center">
+                  <div className="p-3 bg-[#181914] border border-[#46521F] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] text-center">
                     <span className="text-[10px] text-[#7B8A4A] uppercase block font-bold">Winrate 1v1</span>
                     <span className="text-xl font-black text-[#F2E8D5]">{profile.winrate1v1}%</span>
                     <span className="text-[9px] text-[#7B8A4A] block">Duelos Singulares</span>
                   </div>
 
-                  <div className="p-3 bg-[#181914] border-2 border-[#C46A3A]/70 rounded-[15px_4px_15px_4px] text-center bg-gradient-to-b from-[#C46A3A]/10 to-transparent">
+                  <div className="p-3 bg-[#181914] border-2 border-[#C46A3A]/70 rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] text-center bg-gradient-to-b from-[#C46A3A]/10 to-transparent">
                     <span className="text-[10px] text-[#C46A3A] uppercase block font-black">Winrate 2v2</span>
                     <span className="text-xl font-black text-amber-300">{profile.winrate2v2}%</span>
                     <span className="text-[9px] text-amber-200/70 block">Ajedrez Cruzado</span>
                   </div>
 
-                  <div className="p-3 bg-[#181914] border border-[#46521F] rounded-[15px_4px_15px_4px] text-center">
+                  <div className="p-3 bg-[#181914] border border-[#46521F] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] text-center">
                     <span className="text-[10px] text-[#7B8A4A] uppercase block font-bold">Comandante Insignia</span>
                     <span className="text-sm font-black text-[#F2E8D5] block truncate mt-1">Mayor Stella</span>
                     <span className="text-[9px] text-emerald-400 block font-bold">Vínculo Nv. {profile.commanderBondLevel}</span>
                   </div>
 
-                  <div className="p-3 bg-[#181914] border border-[#46521F] rounded-[15px_4px_15px_4px] text-center">
+                  <div className="p-3 bg-[#181914] border border-[#46521F] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] text-center">
                     <span className="text-[10px] text-[#7B8A4A] uppercase block font-bold">Licencias Cuartel</span>
                     <span className="text-xl font-black text-[#F2E8D5]">{profile.militaryFurloughsLeft} / 2</span>
                     <span className="text-[9px] text-[#7B8A4A] block">Disponibles este mes</span>
@@ -303,7 +306,7 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
                   <Award size={14} /> Condecoraciones Fijas de Mando
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="p-3 bg-[#181914] border border-[#46521F] rounded-[15px_4px_15px_4px] flex items-center gap-3">
+                  <div className="p-3 bg-[#181914] border border-[#46521F] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] flex items-center gap-3">
                     <span className="text-2xl">🎖️</span>
                     <div>
                       <div className="text-xs font-black text-[#F2E8D5]">Cruz del Buen Camarada</div>
@@ -311,7 +314,7 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-3 bg-[#181914] border border-[#46521F] rounded-[15px_4px_15px_4px] flex items-center gap-3">
+                  <div className="p-3 bg-[#181914] border border-[#46521F] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] flex items-center gap-3">
                     <span className="text-2xl">⚡</span>
                     <div>
                       <div className="text-xs font-black text-[#F2E8D5]">As del Ajedrez Cruzado</div>
@@ -319,7 +322,7 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-3 bg-[#181914] border border-[#46521F] rounded-[15px_4px_15px_4px] flex items-center gap-3">
+                  <div className="p-3 bg-[#181914] border border-[#46521F] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] flex items-center gap-3">
                     <span className="text-2xl">🏆</span>
                     <div>
                       <div className="text-xs font-black text-[#F2E8D5]">Veterano de Guerra</div>
@@ -342,7 +345,7 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
                   value={tempBio}
                   onChange={e => setTempBio(e.target.value.substring(0, 140))}
                   rows={2}
-                  className="w-full p-3 bg-[#181914] border-2 border-[#46521F] rounded-[15px_4px_15px_4px] text-sm text-[#F2E8D5] focus:outline-none focus:border-[#C46A3A]"
+                  className="w-full p-3 bg-[#181914] border-2 border-[#46521F] rounded-[14px_4px_14px_4px] text-sm text-[#F2E8D5] focus:outline-none focus:border-[#7B8A4A]"
                   placeholder="Escribe tu doctrina bélica..."
                 />
                 <div className="text-right text-[10px] text-[#7B8A4A] mt-1 font-bold">
@@ -360,12 +363,12 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
                     <button
                       key={f.code}
                       onClick={() => {
-                        audioManager.play('menu_select');
+                        onPlaySfx?.('menu_select');
                         setSelectedFlag(f.code);
                       }}
-                      className={`p-2 rounded-[10px_2px_10px_2px] border text-left flex items-center gap-2 transition-all ${
+                      className={`p-2 rounded-[14px_4px_14px_4px] border text-left flex items-center gap-2 transition-all cursor-pointer ${
                         selectedFlag === f.code
-                          ? 'bg-[#46521F] border-[#C46A3A] text-[#F2E8D5]'
+                          ? 'bg-[#46521F] border-[#C46A3A] text-[#F2E8D5] shadow-[4px_4px_0px_#0A0B08]'
                           : 'bg-[#181914] border-[#46521F]/60 text-[#7B8A4A] hover:border-[#7B8A4A]'
                       }`}
                     >
@@ -384,7 +387,7 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
                 <select
                   value={selectedTitle}
                   onChange={e => setSelectedTitle(e.target.value)}
-                  className="w-full p-3 bg-[#181914] border-2 border-[#46521F] rounded-[15px_4px_15px_4px] text-xs font-bold text-[#F2E8D5] focus:outline-none focus:border-[#C46A3A]"
+                  className="w-full p-3 bg-[#181914] border-2 border-[#46521F] rounded-[14px_4px_14px_4px] text-xs font-bold text-[#F2E8D5] focus:outline-none focus:border-[#7B8A4A]"
                 >
                   {MILITARY_TITLES.map(title => (
                     <option key={title} value={title} className="bg-[#181914] text-[#F2E8D5]">
@@ -404,16 +407,16 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
                     <button
                       key={frame.id}
                       onClick={() => {
-                        audioManager.play('menu_select');
+                        onPlaySfx?.('menu_select');
                         setSelectedFrame(frame.id);
                       }}
-                      className={`p-3 rounded-[15px_4px_15px_4px] border-2 text-center transition-all ${
+                      className={`p-3 rounded-[14px_4px_14px_4px] border-2 text-center transition-all cursor-pointer ${
                         selectedFrame === frame.id
-                          ? 'bg-[#46521F] border-[#C46A3A] text-[#F2E8D5]'
+                          ? 'bg-[#46521F] border-[#C46A3A] text-[#F2E8D5] shadow-[4px_4px_0px_#0A0B08]'
                           : 'bg-[#181914] border-[#46521F]/60 text-[#7B8A4A] hover:border-[#7B8A4A]'
                       }`}
                     >
-                      <div className={`w-12 h-12 mx-auto rounded-[12px_3px_12px_3px] border-2 ${frame.border} flex items-center justify-center text-xl mb-2`}>
+                      <div className={`w-12 h-12 mx-auto rounded-[14px_4px_14px_4px] border-2 ${frame.border} flex items-center justify-center text-xl mb-2`}>
                         ⭐
                       </div>
                       <span className="text-xs font-bold block">{frame.name}</span>
@@ -426,7 +429,7 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
               <div className="pt-4 border-t border-[#46521F]">
                 <button
                   onClick={handleSaveCustomization}
-                  className="w-full py-3 bg-[#C46A3A] hover:bg-[#b05d32] text-[#F2E8D5] font-black uppercase tracking-widest rounded-[15px_4px_15px_4px] shadow-[6px_6px_0px_rgba(0,0,0,0.5)] border-2 border-[#F2E8D5]/20 flex items-center justify-center gap-2 transition-all active:translate-y-1"
+                  className="tactical-btn-heavy w-full py-3 text-xs flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <CheckCircle2 size={16} /> Guardar Directivas de Expediente
                 </button>
@@ -436,7 +439,7 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
 
           {activeTab === 'medals' && (
             <div className="space-y-4">
-              <div className="p-4 bg-[#181914] border border-[#46521F] rounded-[20px_5px_20px_5px]">
+              <div className="p-4 bg-[#181914] border border-[#46521F] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08]">
                 <h4 className="text-xs font-black uppercase text-[#C46A3A] mb-1">
                   Doctrina de Condecoraciones y Mérito Militar
                 </h4>
@@ -446,29 +449,29 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-3 bg-[#181914] border-2 border-amber-500/50 rounded-[15px_4px_15px_4px] flex items-center gap-3">
+                <div className="p-3 bg-[#181914] border-2 border-amber-500/50 rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] flex items-center gap-3">
                   <div className="text-3xl">🏅</div>
                   <div>
                     <div className="text-xs font-black text-amber-300">Medalla de la Salvaguarda Táctica</div>
                     <div className="text-[10px] text-[#7B8A4A]">Alcanza 10 victorias consecutivas con multiplicador 2.0x Doble Botín.</div>
-                    <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-bold mt-1 inline-block">
+                    <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded-[14px_4px_14px_4px] font-bold mt-1 inline-block">
                       ¡COMPLETADO!
                     </span>
                   </div>
                 </div>
 
-                <div className="p-3 bg-[#181914] border-2 border-emerald-500/50 rounded-[15px_4px_15px_4px] flex items-center gap-3">
+                <div className="p-3 bg-[#181914] border-2 border-emerald-500/50 rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] flex items-center gap-3">
                   <div className="text-3xl">🛡️</div>
                   <div>
                     <div className="text-xs font-black text-emerald-300">Cruz del Buen Camarada</div>
                     <div className="text-[10px] text-[#7B8A4A]">Saldó la fianza militar de un camarada bajo embargo.</div>
-                    <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-bold mt-1 inline-block">
+                    <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded-[14px_4px_14px_4px] font-bold mt-1 inline-block">
                       ¡COMPLETADO!
                     </span>
                   </div>
                 </div>
 
-                <div className="p-3 bg-[#181914] border border-[#46521F] rounded-[15px_4px_15px_4px] flex items-center gap-3 opacity-60">
+                <div className="p-3 bg-[#181914] border border-[#46521F] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] flex items-center gap-3 opacity-60">
                   <div className="text-3xl">🔒</div>
                   <div>
                     <div className="text-xs font-black text-[#F2E8D5]">Gran Mariscal de los 7 Sectores</div>
@@ -477,7 +480,7 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
                   </div>
                 </div>
 
-                <div className="p-3 bg-[#181914] border border-[#46521F] rounded-[15px_4px_15px_4px] flex items-center gap-3 opacity-60">
+                <div className="p-3 bg-[#181914] border border-[#46521F] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] flex items-center gap-3 opacity-60">
                   <div className="text-3xl">🔒</div>
                   <div>
                     <div className="text-xs font-black text-[#F2E8D5]">Logística Fraternal de Acero</div>
@@ -497,17 +500,31 @@ export const CommanderProfileModal: React.FC<CommanderProfileModalProps> = ({
             <span className="text-emerald-400 font-bold hidden sm:inline">● PROTOCOLO CIFRADO ACTIVO</span>
           </div>
           {onSignOut && (
-            <button
-              type="button"
-              onClick={() => {
-                audioManager.playSFX('button_click');
-                onClose();
-                onSignOut();
-              }}
-              className="px-3 py-1 bg-red-950/80 hover:bg-red-800 text-red-200 border border-red-700/60 rounded text-xs font-mono font-bold cursor-pointer transition-colors"
-            >
-              Cerrar Sesión Militar
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onPlaySfx?.('button_click');
+                  onClose();
+                  onSignOut('global');
+                }}
+                className="px-2.5 py-1 bg-[#181914] hover:bg-red-950 text-amber-300 border border-[#7B8A4A] rounded-[14px_4px_14px_4px] text-[10px] font-mono font-bold cursor-pointer transition-colors"
+                title="Revocar todos los dispositivos conectados (ISO 27002 A.8.5)"
+              >
+                Revocar Sesiones
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onPlaySfx?.('button_click');
+                  onClose();
+                  onSignOut('local');
+                }}
+                className="px-3 py-1 bg-red-950/90 hover:bg-red-800 text-red-200 border border-[#0A0B08] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] text-xs font-mono font-bold cursor-pointer transition-colors"
+              >
+                Cerrar Sesión Militar
+              </button>
+            </div>
           )}
         </div>
       </div>

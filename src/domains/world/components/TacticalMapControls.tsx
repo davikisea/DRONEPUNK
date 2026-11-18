@@ -79,7 +79,8 @@ export const TacticalMapControls: React.FC<TacticalMapControlsProps> = ({
   return (
     <div className={`absolute top-4 left-4 z-30 flex flex-col gap-2 pointer-events-auto ${className}`}>
       {/* 1. Selector de las 4 Vistas Especializadas C4ISR */}
-      <div className="bg-[#12130E]/90 backdrop-blur-md border border-[#46521F] p-1.5 rounded-lg shadow-2xl flex gap-1.5">
+      <div className="bg-[#12130E]/92 backdrop-blur-md border-2 border-[#0A0B08] p-1.5 rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] flex items-center gap-1.5">
+        <img src="/favicon.svg" alt="DRONEPUNK" className="w-4 h-4 mx-1 shrink-0" />
         {views.map(v => {
           const isActive = currentViewMode === v.mode;
           return (
@@ -87,10 +88,10 @@ export const TacticalMapControls: React.FC<TacticalMapControlsProps> = ({
               key={v.mode}
               onClick={() => onSelectViewMode(v.mode)}
               title={v.desc}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-bold tracking-wider transition-all duration-150 ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[14px_4px_14px_4px] text-xs font-mono font-bold tracking-wider transition-all duration-150 cursor-pointer ${
                 isActive
-                  ? `${v.color} border shadow-lg ring-1 ring-white/20 scale-105`
-                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/40 border border-transparent'
+                  ? `${v.color} border-2 border-[#0A0B08] shadow-[4px_4px_0px_#0A0B08]`
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/40 border-2 border-transparent'
               }`}
             >
               {v.icon}
@@ -104,7 +105,7 @@ export const TacticalMapControls: React.FC<TacticalMapControlsProps> = ({
         <button
           onClick={onCenterCabimas}
           title="Centrar Teatro Cabimas (COL, Zulia)"
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-mono font-bold text-amber-400 bg-amber-950/20 border border-amber-500/30 hover:bg-amber-900/40 transition-colors"
+          className="tactical-btn-heavy flex items-center gap-1.5 px-2.5 py-1.5 text-xs"
         >
           <Navigation className="w-3.5 h-3.5" />
           <span>CABIMAS</span>
@@ -112,7 +113,7 @@ export const TacticalMapControls: React.FC<TacticalMapControlsProps> = ({
       </div>
 
       {/* 2. Barra de Herramientas WPlace (Marcas Tácticas Colaborativas) */}
-      <div className="bg-[#12130E]/90 backdrop-blur-md border border-[#46521F] p-2 rounded-lg shadow-2xl flex items-center justify-between text-xs font-mono text-stone-300">
+      <div className="bg-[#12130E]/92 backdrop-blur-md border-2 border-[#0A0B08] p-2 rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] flex items-center justify-between text-xs font-mono text-stone-300">
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-stone-500 uppercase tracking-widest font-bold">WPLACE MARKS ({activeMarksCount})</span>
         </div>
@@ -154,7 +155,7 @@ export const TacticalMapControls: React.FC<TacticalMapControlsProps> = ({
 
       {/* 3. Panel de Estado del Comandante en Campo */}
       {commander && (
-        <div className="bg-[#12130E]/90 backdrop-blur-md border border-[#46521F] p-2 rounded-lg shadow-xl text-xs font-mono text-stone-300 flex items-center justify-between">
+        <div className="bg-[#12130E]/92 backdrop-blur-md border-2 border-[#0A0B08] p-2 rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] text-xs font-mono text-stone-300 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="font-bold text-stone-100">{commander.callsign}</span>

@@ -94,8 +94,6 @@ export interface ConstructBuildingInput {
 
 type SpatialChangeListener = () => void;
 
-const SECTOR_TERRAIN_STORAGE_KEY = 'dronepunk_sector_terrain_overrides_v1';
-
 function hashGridInt(x: number, y: number, seed: number): number {
   let h = (Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(seed, 1442695041)) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
@@ -268,7 +266,8 @@ class SpatialDeploymentService {
           }
         });
     } catch (e) {
-      console.warn('[SpatialDeploymentService] Error configurando suscripción Realtime:', e);
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`SPATIAL_REALTIME_INIT_ERROR: ${msg}`);
     }
   }
 
@@ -294,12 +293,16 @@ class SpatialDeploymentService {
 
     try {
       // Despliegues militares
-      const { data: deployments, error: depError } = await (supabase as any)
+      const { data: deployments, error: depError } = await supabase
         .from('tactical_spatial_deployments')
         .select('*')
         .eq('region_id', regionId);
 
-      if (!depError && Array.isArray(deployments)) {
+      if (depError) {
+        throw new Error(`SPATIAL_DEPLOYMENTS_FETCH_ERROR: ${depError.message}`);
+      }
+
+      if (Array.isArray(deployments)) {
         deployments.forEach((row: any) => {
           const unit: DeployedOperationalUnit = {
             id: row.id,
@@ -325,12 +328,16 @@ class SpatialDeploymentService {
       }
 
       // Estructuras de feudos
-      const { data: constructions, error: constError } = await (supabase as any)
+      const { data: constructions, error: constError } = await supabase
         .from('tactical_fief_constructions')
         .select('*')
         .eq('region_id', regionId);
 
-      if (!constError && Array.isArray(constructions)) {
+      if (constError) {
+        throw new Error(`SPATIAL_CONSTRUCTIONS_FETCH_ERROR: ${constError.message}`);
+      }
+
+      if (Array.isArray(constructions)) {
         constructions.forEach((row: any) => {
           const building: FiefBuilding = {
             id: row.id,
@@ -360,7 +367,8 @@ class SpatialDeploymentService {
       this.isHydrated = true;
       this.notifyListeners();
     } catch (hydrateErr) {
-      console.warn('[SpatialDeploymentService] Error hidratando estado de región:', hydrateErr);
+      const msg = hydrateErr instanceof Error ? hydrateErr.message : String(hydrateErr);
+      throw new Error(`SPATIAL_HYDRATION_ERROR: ${msg}`);
     }
   }
 
@@ -509,7 +517,14 @@ class SpatialDeploymentService {
     }
 
     const isDeployable = !deployedUnit;
-    const isConstructible = !deployedBuilding && !deployedUnit;
+    const isNaturalImmutable =
+      resolved.type === 'mountain' ||
+      resolved.type === 'forest' ||
+      resolved.type === 'sea' ||
+      resolved.type === 'reef' ||
+      resolved.type === 'river' ||
+      resolved.type === 'shoal';
+    const isConstructible = !deployedBuilding && !deployedUnit && !isNaturalImmutable;
 
     return {
       sector,
@@ -527,6 +542,64 @@ class SpatialDeploymentService {
       isDeployable,
       isConstructible,
     };
+  }
+
+  /**
+   * Valida estrictamente qué tipo de infraestructura puede construirse según el terreno
+   * (prohíbe aplanar montañas/bosques o rellenar agua; permite puentes sobre río/vado).
+   */
+  public canConstructBuilding(
+    lngLat: [number, number],
+    buildingType: string,
+    gridSize = 20,
+    zoom = 15
+  ): { allowed: boolean; reason?: string; resolvedTerrain: string } {
+    const info = this.getSpatialAssignment(lngLat, gridSize, zoom);
+    const t = info.canonicalTerrain;
+    const b = buildingType.trim().toLowerCase();
+
+    if (info.deployedBuilding && b !== 'pipeline') {
+      return { allowed: false, reason: 'Celda ocupada por otra estructura.', resolvedTerrain: t };
+    }
+    if (t === 'sea' || t === 'reef') {
+      return { allowed: false, reason: 'PROHIBIDO RELLENAR MAR O ARRECIFES.', resolvedTerrain: t };
+    }
+    if (t === 'mountain') {
+      return { allowed: false, reason: 'PROHIBIDO APLANAR MONTAÑAS.', resolvedTerrain: t };
+    }
+
+    if (b === 'bridge') {
+      if (t !== 'river' && t !== 'shoal') {
+        return { allowed: false, reason: 'PUENTE SOLO SOBRE RÍO O VADO.', resolvedTerrain: t };
+      }
+      return { allowed: true, resolvedTerrain: t };
+    }
+
+    if (b === 'pipeline') {
+      if (t !== 'plains' && t !== 'road' && t !== 'river' && t !== 'shoal') {
+        return { allowed: false, reason: 'TUBERÍA NO PERMITIDA EN ESTE TERRENO.', resolvedTerrain: t };
+      }
+      return { allowed: true, resolvedTerrain: t };
+    }
+
+    if (b === 'fortification') {
+      if (t !== 'plains' && t !== 'forest') {
+        return { allowed: false, reason: 'FORTIFICACIÓN SOLO EN LLANURA O BOSQUE.', resolvedTerrain: t };
+      }
+      return { allowed: true, resolvedTerrain: t };
+    }
+
+    if (b === 'port' && t === 'shoal') {
+      return { allowed: true, resolvedTerrain: t };
+    }
+
+    if (t === 'forest') {
+      return { allowed: false, reason: 'PROHIBIDO TALAR/APLANAR BOSQUES.', resolvedTerrain: t };
+    }
+    if (t !== 'plains') {
+      return { allowed: false, reason: `TERRENO NO APTO (${t.toUpperCase()}).`, resolvedTerrain: t };
+    }
+    return { allowed: true, resolvedTerrain: t };
   }
 
   /**
@@ -580,35 +653,35 @@ class SpatialDeploymentService {
 
     // Persistencia asíncrona no bloqueante en Supabase
     if (isSupabaseConfigured() && supabase) {
-      (supabase as any)
-        .from('tactical_spatial_deployments')
-        .upsert({
-          id: newUnit.id,
-          region_id: this.activeRegionId,
-          cell_key: cellKey,
-          sector_x: input.sector[0],
-          sector_y: input.sector[1],
-          cell_x: input.cell[0],
-          cell_y: input.cell[1],
-          lat: input.lngLat[1],
-          lng: input.lngLat[0],
-          unit_code: input.unitCode,
-          unit_name: input.unitName,
-          clan_id: input.clanId,
-          clan_tag: input.clanTag,
-          faction_id: input.factionId,
-          callsign: input.callsign,
-          tier: input.tier || 1,
-          hp: newUnit.hp,
-          max_hp: newUnit.maxHp,
-          status: newUnit.status,
-          color_hex: newUnit.colorHex,
-          updated_at: new Date().toISOString(),
-        })
-        .then(({ error }: any) => {
-          if (error) console.warn('[SpatialDeploymentService] Error persistiendo unidad en Supabase:', error.message);
-        })
-        .catch((err: any) => console.warn('[SpatialDeploymentService] Error de red Supabase:', err));
+      Promise.resolve(
+        supabase
+          .from('tactical_spatial_deployments')
+          .upsert({
+            id: newUnit.id,
+            region_id: this.activeRegionId,
+            cell_key: cellKey,
+            sector_x: input.sector[0],
+            sector_y: input.sector[1],
+            cell_x: input.cell[0],
+            cell_y: input.cell[1],
+            lat: input.lngLat[1],
+            lng: input.lngLat[0],
+            unit_code: input.unitCode,
+            unit_name: input.unitName,
+            clan_id: input.clanId,
+            clan_tag: input.clanTag,
+            faction_id: input.factionId,
+            callsign: input.callsign,
+            tier: input.tier || 1,
+            hp: newUnit.hp,
+            max_hp: newUnit.maxHp,
+            status: newUnit.status,
+            color_hex: newUnit.colorHex,
+            updated_at: new Date().toISOString(),
+          })
+      ).then(({ error }: any) => {
+        if (error) console.warn('[SpatialDeploymentService] Error persistiendo unidad en Supabase:', error.message);
+      }).catch((err: any) => console.warn('[SpatialDeploymentService] Error de red Supabase:', err));
     }
 
     this.notifyListeners();
@@ -668,32 +741,32 @@ class SpatialDeploymentService {
 
     // Persistencia asíncrona no bloqueante en Supabase
     if (isSupabaseConfigured() && supabase) {
-      (supabase as any)
-        .from('tactical_fief_constructions')
-        .upsert({
-          id: orderRes.building.id,
-          fief_id: orderRes.building.fiefId,
-          region_id: this.activeRegionId,
-          cell_key: cellKey,
-          sector_x: input.sector[0],
-          sector_y: input.sector[1],
-          cell_x: input.cell[0],
-          cell_y: input.cell[1],
-          lat: input.lngLat[1],
-          lng: input.lngLat[0],
-          building_type: orderRes.building.buildingType,
-          clan_id: orderRes.building.clanId,
-          adjacent_road_segment_id: orderRes.building.adjacentRoadSegmentId,
-          level: orderRes.building.level,
-          current_hp: orderRes.building.currentHp,
-          max_hp: orderRes.building.maxHp,
-          hourly_upkeep_ec: orderRes.building.hourlyUpkeepEc,
-          updated_at: new Date().toISOString(),
-        })
-        .then(({ error }: any) => {
-          if (error) console.warn('[SpatialDeploymentService] Error persistiendo edificio en Supabase:', error.message);
-        })
-        .catch((err: any) => console.warn('[SpatialDeploymentService] Error de red Supabase:', err));
+      Promise.resolve(
+        supabase
+          .from('tactical_fief_constructions')
+          .upsert({
+            id: orderRes.building.id,
+            fief_id: orderRes.building.fiefId,
+            region_id: this.activeRegionId,
+            cell_key: cellKey,
+            sector_x: input.sector[0],
+            sector_y: input.sector[1],
+            cell_x: input.cell[0],
+            cell_y: input.cell[1],
+            lat: input.lngLat[1],
+            lng: input.lngLat[0],
+            building_type: orderRes.building.buildingType,
+            clan_id: orderRes.building.clanId,
+            adjacent_road_segment_id: orderRes.building.adjacentRoadSegmentId,
+            level: orderRes.building.level,
+            current_hp: orderRes.building.currentHp,
+            max_hp: orderRes.building.maxHp,
+            hourly_upkeep_ec: orderRes.building.hourlyUpkeepEc,
+            updated_at: new Date().toISOString(),
+          })
+      ).then(({ error }: any) => {
+        if (error) console.warn('[SpatialDeploymentService] Error persistiendo edificio en Supabase:', error.message);
+      }).catch((err: any) => console.warn('[SpatialDeploymentService] Error de red Supabase:', err));
     }
 
     this.notifyListeners();
@@ -817,7 +890,6 @@ class SpatialDeploymentService {
     if (this.terrainInitialized) return;
     this.terrainInitialized = true;
     this.seedPilotCabimasTerrainOverrides();
-    this.loadTerrainOverridesFromStorage();
   }
 
   public getSectorKey(sector: [number, number]): string {
@@ -937,7 +1009,6 @@ class SpatialDeploymentService {
     if (Object.keys(nextCells).length === 0) {
       this.sectorTerrainOverrides.delete(sectorKey);
       this.terrainRevision += 1;
-      this.saveTerrainOverridesToStorage();
       this.notifyListeners();
       return null;
     }
@@ -952,7 +1023,6 @@ class SpatialDeploymentService {
     };
     this.sectorTerrainOverrides.set(sectorKey, record);
     this.terrainRevision += 1;
-    this.saveTerrainOverridesToStorage();
     this.notifyListeners();
     return record;
   }
@@ -962,7 +1032,6 @@ class SpatialDeploymentService {
     const sectorKey = this.getSectorKey(sector);
     if (this.sectorTerrainOverrides.delete(sectorKey)) {
       this.terrainRevision += 1;
-      this.saveTerrainOverridesToStorage();
       this.notifyListeners();
     }
   }
@@ -1065,36 +1134,6 @@ class SpatialDeploymentService {
       updatedAt: new Date().toISOString(),
       source,
     });
-  }
-
-  private loadTerrainOverridesFromStorage(): void {
-    try {
-      if (typeof localStorage === 'undefined') return;
-      const raw = localStorage.getItem(SECTOR_TERRAIN_STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as SectorTerrainOverride[];
-      if (Array.isArray(parsed)) {
-        for (const rec of parsed) {
-          if (rec?.sectorKey && rec.cells) {
-            this.sectorTerrainOverrides.set(rec.sectorKey, rec);
-          }
-        }
-      }
-    } catch {
-      // Ignorar errores de almacenamiento en entornos headless
-    }
-  }
-
-  private saveTerrainOverridesToStorage(): void {
-    try {
-      if (typeof localStorage === 'undefined') return;
-      localStorage.setItem(
-        SECTOR_TERRAIN_STORAGE_KEY,
-        JSON.stringify(Array.from(this.sectorTerrainOverrides.values()))
-      );
-    } catch {
-      // Ignorar errores de cuota/entorno
-    }
   }
 
   public subscribe(listener: SpatialChangeListener): () => void {

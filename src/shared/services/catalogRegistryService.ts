@@ -115,7 +115,7 @@ class CatalogRegistryService {
 
     try {
       // 1. Obtener encabezado ligero del manifiesto
-      const { data: header, error: headerError } = await (supabase as any)
+      const { data: header, error: headerError } = await supabase
         .from('system_catalog_manifest')
         .select('version_tag, content_hash')
         .eq('id', 'current')
@@ -131,7 +131,7 @@ class CatalogRegistryService {
       }
 
       // 2. Hash diferente detectado: descargar bundle delta consolidado
-      const { data: manifestRow, error: bundleError } = await (supabase as any)
+      const { data: manifestRow, error: bundleError } = await supabase
         .from('system_catalog_manifest')
         .select('bundle_json, version_tag, content_hash')
         .eq('id', 'current')

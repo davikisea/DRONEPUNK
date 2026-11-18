@@ -17,7 +17,7 @@
  * 8. Protocolo de Salvaguarda Táctica: Seguro de racha proactivo (Multiplicador 1.0x a 2.0x).
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Shield,
   Award,
@@ -59,6 +59,15 @@ import {
   CardRarity
 } from '@domains/world';
 import { audioManager } from '@domains/game-feel';
+import {
+  fetchMyCorporation,
+  fetchCorporationMembers,
+  hasCorpPermission,
+  updateMemberPermissions,
+  type MyCorporationContext,
+  type CorporationMemberRecord,
+  type DelegatedPermissions,
+} from '../services/corporationService';
 
 interface ClanHeadquartersViewProps {
   clan: Clan;
@@ -95,6 +104,48 @@ export const ClanHeadquartersView: React.FC<ClanHeadquartersViewProps> = ({
   const [statusBanner, setStatusBanner] = useState<{ message: string; type: 'success' | 'alert' } | null>(null);
   const [showEmbargoModal, setShowEmbargoModal] = useState<boolean>(false);
   const [showRescueModal, setShowRescueModal] = useState<ClanMember | null>(null);
+  const [corpContext, setCorpContext] = useState<MyCorporationContext | null>(null);
+  const [corpMembers, setCorpMembers] = useState<CorporationMemberRecord[]>([]);
+  const [updatingPermUserId, setUpdatingPermUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    let cancelled = false;
+    fetchMyCorporation(currentUserId)
+      .then(async (ctx) => {
+        if (cancelled) return;
+        setCorpContext(ctx);
+        if (ctx?.corporation.id) {
+          try {
+            const roster = await fetchCorporationMembers(ctx.corporation.id);
+            if (!cancelled) setCorpMembers(roster);
+          } catch {
+            // Ignorar si RLS o red impide leer nómina completa
+          }
+        }
+      })
+      .catch(() => {
+        // Modo offline / sin corporación
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId]);
+
+  const canUseTreasury = !corpContext || hasCorpPermission(corpContext.membership, 'can_use_treasury');
+  const canControlUnits = !corpContext || hasCorpPermission(corpContext.membership, 'can_control_units');
+  const isShareholderAdmin =
+    corpContext?.membership.role === 'majority_shareholder' ||
+    corpContext?.membership.role === 'shareholder';
+
+  const treasuryEcDisplay = corpContext?.corporation.treasury_ec ?? clan.treasuryGold;
+  const treasuryAlloysDisplay = corpContext?.corporation.treasury_alloys ?? clan.treasurySteel;
+  const treasuryFuelDisplay = corpContext?.corporation.treasury_fuel ?? 0;
+  const treasuryChipsDisplay = corpContext?.corporation.treasury_chips ?? 0;
+  const treasuryRareEarthDisplay = corpContext?.corporation.treasury_rare_earth ?? 0;
+  const treasuryCompositesDisplay = corpContext?.corporation.treasury_composites ?? 0;
+  const controlledMunicipalitiesCount = corpContext?.corporation.controlled_municipalities_count ?? 0;
+  const controlledStatesCount = corpContext?.corporation.controlled_states_count ?? 0;
 
   // Estado local para Sectores de Guerra y Solicitudes de Donación
   const [sectors, setSectors] = useState<TerritorySector[]>(CANONICAL_TERRITORY_SECTORS);
@@ -259,6 +310,11 @@ export const ClanHeadquartersView: React.FC<ClanHeadquartersViewProps> = ({
 
   // Acción: Contribuir Tropas a un Sector de Guerra Territorial
   const handleDeployToSector = (sector: TerritorySector, is2v2: boolean) => {
+    if (!canControlUnits) {
+      audioManager.play('menu_cancel');
+      triggerNotification('ACCESO DENEGADO: Se requiere permiso can_control_units para desplegar en sectores.', 'alert');
+      return;
+    }
     audioManager.play('turn_start');
     const result = ClanEngine.contributeTerritoryPoints(sector, clan.id, true, is2v2, sector.sectorId === clan.prioritySectorId);
     
@@ -271,6 +327,11 @@ export const ClanHeadquartersView: React.FC<ClanHeadquartersViewProps> = ({
 
   // Acción: Activar Proyecto del Alto Mando
   const handleActivateProject = (projectId: 'industrial_overcharge' | 'war_siege_funding') => {
+    if (!canUseTreasury) {
+      audioManager.play('menu_cancel');
+      triggerNotification('ACCESO DENEGADO: Se requiere permiso can_use_treasury para autorizar proyectos.', 'alert');
+      return;
+    }
     const result = ClanEngine.activateClanProject(clan, currentUserMember.role, projectId);
     if (!result.success) {
       audioManager.play('menu_cancel');
@@ -281,6 +342,43 @@ export const ClanHeadquartersView: React.FC<ClanHeadquartersViewProps> = ({
     audioManager.play('victory_fanfare');
     onUpdateClan(result.updatedClan!);
     triggerNotification(`¡Proyecto militar autorizado por el Alto Mando! Fondos deducidos de la Tesorería.`, 'success');
+  };
+
+  const handleToggleCorpPermission = async (
+    targetMember: CorporationMemberRecord,
+    permKey: keyof DelegatedPermissions
+  ) => {
+    if (!corpContext || !isShareholderAdmin) {
+      triggerNotification('Solo Accionistas (Shareholders) pueden delegar permisos.', 'alert');
+      return;
+    }
+    const nextPermissions: DelegatedPermissions = {
+      ...targetMember.delegated_permissions,
+      [permKey]: !targetMember.delegated_permissions[permKey],
+    };
+    setUpdatingPermUserId(targetMember.user_id);
+    try {
+      await updateMemberPermissions(
+        corpContext.corporation.id,
+        targetMember.user_id,
+        targetMember.role,
+        nextPermissions
+      );
+      setCorpMembers((prev) =>
+        prev.map((m) =>
+          m.user_id === targetMember.user_id
+            ? { ...m, delegated_permissions: nextPermissions }
+            : m
+        )
+      );
+      audioManager.play('menu_select');
+      triggerNotification('Permisos delegados actualizados en DB.', 'success');
+    } catch (err: any) {
+      audioManager.play('menu_cancel');
+      triggerNotification(`Error actualizando permisos: ${err?.message || 'Error DB'}`, 'alert');
+    } finally {
+      setUpdatingPermUserId(null);
+    }
   };
 
   // Acción: Equipar / Desequipar Salvaguarda
@@ -353,31 +451,36 @@ export const ClanHeadquartersView: React.FC<ClanHeadquartersViewProps> = ({
       )}
 
       {/* Cabecera Principal del Cuartel General */}
-      <div className="bg-[#2B2C24] border-4 border-[#46521F] rounded-[40px_10px_40px_10px] p-5 mb-6 shadow-[10px_10px_0px_#0A0B08]">
+      <div className="bg-[#2B2C24] border-4 border-[#0A0B08] rounded-[14px_4px_14px_4px] p-5 mb-6 shadow-[4px_4px_0px_#0A0B08]">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-[20px_5px_20px_5px] bg-[#181914] border-2 border-[#7B8A4A] flex items-center justify-center text-3xl shadow-[4px_4px_0px_#0A0B08]">
+            <div className="w-16 h-16 rounded-[14px_4px_14px_4px] bg-[#181914] border-2 border-[#7B8A4A] flex items-center justify-center text-3xl shadow-[4px_4px_0px_#0A0B08]">
               {clan.emblemIcon}
             </div>
             <div>
               <div className="flex items-center gap-2">
+                <img src="/favicon.svg" alt="DRONEPUNK" className="w-4 h-4 shrink-0" />
                 <span className="text-xs bg-[#46521F] text-[#F2E8D5] px-2 py-0.5 rounded font-black tracking-widest border border-[#7B8A4A]">
-                  {clan.tag}
+                  {corpContext?.corporation.tag ?? clan.tag}
                 </span>
-                <span className="text-xs text-[#7B8A4A] font-bold">FUERZAS MILITARES DE VANGUARDIA</span>
+                <span className="text-xs text-[#7B8A4A] font-bold">
+                  {corpContext
+                    ? `ROL: ${corpContext.membership.role.toUpperCase()} • ${controlledStatesCount} ESTADOS / ${controlledMunicipalitiesCount} MUNICIPIOS`
+                    : 'FUERZAS MILITARES DE VANGUARDIA'}
+                </span>
               </div>
               <h1 className="text-2xl font-black uppercase tracking-wider text-[#F2E8D5] mt-1">
-                {clan.name}
+                {corpContext?.corporation.name ?? clan.name}
               </h1>
               <div className="flex flex-wrap items-center gap-4 text-xs text-[#7B8A4A] mt-1 font-bold">
                 <span className="flex items-center gap-1">
-                  <Users size={14} className="text-[#F2E8D5]" /> {members.length} / {clan.maxMembers} Miembros
+                  <Users size={14} className="text-[#F2E8D5]" /> {corpMembers.length || members.length} / {clan.maxMembers} Miembros
                 </span>
                 <span className="flex items-center gap-1">
                   <Flame size={14} className="text-[#C46A3A]" /> {clan.warScore} Puntos Bélicos
                 </span>
                 <span className="flex items-center gap-1">
-                  <Coins size={14} className="text-amber-400" /> Tesoro: {clan.treasuryGold.toLocaleString()}G | {clan.treasurySteel} Acero
+                  <Coins size={14} className="text-amber-400" /> Tesoro: {treasuryEcDisplay.toLocaleString()} EC | {treasuryAlloysDisplay} Aleaciones
                 </span>
               </div>
             </div>
@@ -531,7 +634,7 @@ export const ClanHeadquartersView: React.FC<ClanHeadquartersViewProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   onClick={handlePayEmbargoFee}
-                  className="px-4 py-3 bg-[#C46A3A] hover:bg-[#b05d32] text-[#F2E8D5] font-black text-xs uppercase tracking-widest rounded-[12px_3px_12px_3px] shadow-[4px_4px_0px_#0A0B08] border border-[#F2E8D5]/20"
+                  className="tactical-btn-heavy px-4 py-3 text-xs"
                 >
                   Pagar Fianza (1,500G)
                 </button>
@@ -546,7 +649,7 @@ export const ClanHeadquartersView: React.FC<ClanHeadquartersViewProps> = ({
           )}
 
           {/* Tarjeta de la Bóveda Actual */}
-          <div className="bg-[#2B2C24] border-4 border-[#46521F] rounded-[30px_10px_30px_10px] p-6 shadow-[10px_10px_0px_#0A0B08]">
+          <div className="bg-[#2B2C24] border-4 border-[#0A0B08] rounded-[14px_4px_14px_4px] p-6 shadow-[4px_4px_0px_#0A0B08]">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b-2 border-[#46521F] pb-4 mb-4">
               <div>
                 <span className="text-xs text-[#7B8A4A] font-bold uppercase tracking-wider block">Recompensa Militar del Ciclo</span>
@@ -584,10 +687,10 @@ export const ClanHeadquartersView: React.FC<ClanHeadquartersViewProps> = ({
 
             <button
               onClick={handleClaimVault}
-              className={`w-full py-4 rounded-[18px_5px_18px_5px] font-black uppercase tracking-widest text-sm flex items-center justify-center gap-2 border-2 shadow-[6px_6px_0px_#0A0B08] transition-all ${
+              className={`w-full py-4 text-sm flex items-center justify-center gap-2 ${
                 isUserEmbargoed
-                  ? 'bg-[#3B3C34] text-[#7B8A4A] border-[#46521F] cursor-not-allowed'
-                  : 'bg-[#46521F] hover:bg-[#576627] text-[#F2E8D5] border-[#7B8A4A]'
+                  ? 'rounded-[14px_4px_14px_4px] font-black uppercase tracking-widest border-2 shadow-[4px_4px_0px_#0A0B08] bg-[#3B3C34] text-[#7B8A4A] border-[#46521F] cursor-not-allowed'
+                  : 'tactical-btn-heavy'
               }`}
             >
               {isUserEmbargoed ? <Lock size={16} /> : <Unlock size={16} />}
@@ -781,18 +884,30 @@ export const ClanHeadquartersView: React.FC<ClanHeadquartersViewProps> = ({
             <h2 className="text-lg font-black uppercase text-[#F2E8D5] mb-2">
               Bóveda de Fondos Estratégicos del Clan
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
               <div className="p-4 bg-[#181914] border-2 border-amber-500/50 rounded-[18px_4px_18px_4px] text-center">
-                <span className="text-xs text-[#7B8A4A] uppercase block font-bold">Oro del Tesoro</span>
-                <span className="text-2xl font-black text-amber-400">{clan.treasuryGold.toLocaleString()}G</span>
+                <span className="text-xs text-[#7B8A4A] uppercase block font-bold">Tesorería EC</span>
+                <span className="text-xl font-black text-amber-400">{treasuryEcDisplay.toLocaleString()} EC</span>
               </div>
               <div className="p-4 bg-[#181914] border-2 border-slate-400/50 rounded-[18px_4px_18px_4px] text-center">
-                <span className="text-xs text-[#7B8A4A] uppercase block font-bold">Acero Refinado</span>
-                <span className="text-2xl font-black text-slate-200">{clan.treasurySteel} Vigas</span>
+                <span className="text-xs text-[#7B8A4A] uppercase block font-bold">Aleaciones</span>
+                <span className="text-xl font-black text-slate-200">{treasuryAlloysDisplay}</span>
+              </div>
+              <div className="p-4 bg-[#181914] border-2 border-orange-500/50 rounded-[18px_4px_18px_4px] text-center">
+                <span className="text-xs text-[#7B8A4A] uppercase block font-bold">Combustible</span>
+                <span className="text-xl font-black text-orange-300">{treasuryFuelDisplay}</span>
+              </div>
+              <div className="p-4 bg-[#181914] border-2 border-cyan-500/50 rounded-[18px_4px_18px_4px] text-center">
+                <span className="text-xs text-[#7B8A4A] uppercase block font-bold">Microchips</span>
+                <span className="text-xl font-black text-cyan-300">{treasuryChipsDisplay}</span>
+              </div>
+              <div className="p-4 bg-[#181914] border-2 border-purple-500/50 rounded-[18px_4px_18px_4px] text-center">
+                <span className="text-xs text-[#7B8A4A] uppercase block font-bold">Tierras Raras</span>
+                <span className="text-xl font-black text-purple-300">{treasuryRareEarthDisplay}</span>
               </div>
               <div className="p-4 bg-[#181914] border-2 border-emerald-500/50 rounded-[18px_4px_18px_4px] text-center">
-                <span className="text-xs text-[#7B8A4A] uppercase block font-bold">Gemas de Mando</span>
-                <span className="text-2xl font-black text-emerald-400">{clan.treasuryGems || 0} Gemas</span>
+                <span className="text-xs text-[#7B8A4A] uppercase block font-bold">Compuestos</span>
+                <span className="text-xl font-black text-emerald-400">{treasuryCompositesDisplay}</span>
               </div>
             </div>
 
@@ -838,6 +953,69 @@ export const ClanHeadquartersView: React.FC<ClanHeadquartersViewProps> = ({
               Embargo: Parásitos con 0 batallas
             </span>
           </div>
+
+          {corpMembers.length > 0 && (
+            <div className="bg-[#2B2C24] border-2 border-[#46521F] rounded-[20px_5px_20px_5px] p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase tracking-wider text-amber-300">
+                  Permisos Delegados Corporativos (DB: corporation_members)
+                </span>
+                <span className="text-[11px] text-[#7B8A4A] font-bold">
+                  {isShareholderAdmin ? 'Accionista: Edición habilitada' : 'Solo lectura'}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {corpMembers.map((cm) => {
+                  const isAdminRole = cm.role === 'majority_shareholder' || cm.role === 'shareholder';
+                  const permKeys: Array<{ key: keyof DelegatedPermissions; label: string }> = [
+                    { key: 'can_use_treasury', label: 'Tesorería' },
+                    { key: 'can_construct', label: 'Construir' },
+                    { key: 'can_remodel', label: 'Remodelar' },
+                    { key: 'can_collect', label: 'Cosechar' },
+                    { key: 'can_purchase_units', label: 'Comprar Tropas' },
+                    { key: 'can_control_units', label: 'Comandar Tropas' },
+                  ];
+                  return (
+                    <div
+                      key={cm.id}
+                      className="p-3 bg-[#181914] border border-[#46521F] rounded-[12px_3px_12px_3px] flex flex-col gap-2"
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-mono font-bold text-[#F2E8D5]">
+                          {cm.user_id.slice(0, 8)}... ({cm.role})
+                        </span>
+                        <span className="text-[#7B8A4A] font-bold">{cm.shares}% Acciones</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {permKeys.map(({ key, label }) => {
+                          const enabled = isAdminRole || cm.delegated_permissions[key];
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              disabled={!isShareholderAdmin || isAdminRole || updatingPermUserId === cm.user_id}
+                              onClick={() => handleToggleCorpPermission(cm, key)}
+                              className={`px-2 py-1 text-[10px] font-bold uppercase rounded border ${
+                                enabled
+                                  ? 'bg-emerald-900/60 border-emerald-500/60 text-emerald-200'
+                                  : 'bg-[#2B2C24] border-[#46521F] text-stone-400'
+                              } ${
+                                isShareholderAdmin && !isAdminRole
+                                  ? 'cursor-pointer hover:border-amber-400'
+                                  : 'cursor-default opacity-80'
+                              }`}
+                            >
+                              {label}: {enabled ? 'SÍ' : 'NO'}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             {members.map(member => {
@@ -954,7 +1132,7 @@ export const ClanHeadquartersView: React.FC<ClanHeadquartersViewProps> = ({
 
               <button
                 onClick={handleCraftSafeguard}
-                className="flex-1 py-3 bg-[#C46A3A] hover:bg-[#b05d32] text-[#F2E8D5] font-black text-xs uppercase tracking-wider rounded-[15px_4px_15px_4px] shadow-[4px_4px_0px_#0A0B08] border border-[#F2E8D5]/20 flex items-center justify-center gap-2"
+                className="tactical-btn-heavy flex-1 py-3 text-xs flex items-center justify-center gap-2"
               >
                 <Hammer size={16} /> Forjar Nueva Salvaguarda (5,000G + 50 Acero)
               </button>

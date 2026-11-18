@@ -18,11 +18,20 @@ import {
   MASTER_METAGAME_CONSTANTS,
 } from '@shared';
 import { audioManager } from '@domains/game-feel';
+import {
+  fetchOperationalUnits,
+  deployOperationalUnitDb,
+  recallOperationalUnitDb,
+  type DbOperationalUnitRecord,
+} from '../services/hangarDbService';
+import { resolveActiveUserCorpId } from '../services/buildingDbService';
 
 export interface UseUserHangarReturn {
   hangarUnits: UnitHangarEntry[];
+  operationalUnits: DbOperationalUnitRecord[];
   unlockedPatents: PatentRegistryEntry[];
   battlegroup: UnitHangarEntry[];
+  activeCorpId: string | null;
   isLoading: boolean;
   error: string | null;
   refreshHangar: () => Promise<void>;
@@ -45,14 +54,23 @@ export interface UseUserHangarReturn {
     recoveredEc: number;
     message: string;
   }>;
+  deployUnitToField: (params: {
+    hangarSlotId: string;
+    h3Index?: number;
+    municipalityId?: string | null;
+    corpId?: string;
+  }) => Promise<{ success: boolean; message: string }>;
+  recallUnitToHangar: (unitId: string) => Promise<{ success: boolean; message: string }>;
   toggleBattlegroupUnit: (unit: UnitHangarEntry) => void;
   setBattlegroupLoadout: (units: UnitHangarEntry[]) => void;
 }
 
 export function useUserHangar(userId?: string | null): UseUserHangarReturn {
   const [hangarUnits, setHangarUnits] = useState<UnitHangarEntry[]>([]);
+  const [operationalUnits, setOperationalUnits] = useState<DbOperationalUnitRecord[]>([]);
   const [unlockedPatents, setUnlockedPatents] = useState<PatentRegistryEntry[]>([]);
   const [battlegroup, setBattlegroup] = useState<UnitHangarEntry[]>([]);
+  const [activeCorpId, setActiveCorpId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -83,7 +101,7 @@ export function useUserHangar(userId?: string | null): UseUserHangarReturn {
       }
 
       // Consulta paralela a tablas reales de Supabase
-      const [hangarRes, patentsRes] = await Promise.all([
+      const [hangarRes, patentsRes, opsRes, corpId] = await Promise.all([
         supabase
           .from('user_unit_hangar')
           .select('*')
@@ -94,6 +112,8 @@ export function useUserHangar(userId?: string | null): UseUserHangarReturn {
           .select('*')
           .eq('user_id', activeUserId)
           .order('tier', { ascending: false }),
+        fetchOperationalUnits({ userId: activeUserId }).catch(() => [] as DbOperationalUnitRecord[]),
+        resolveActiveUserCorpId().catch(() => null),
       ]);
 
       if (hangarRes.error) {
@@ -127,7 +147,9 @@ export function useUserHangar(userId?: string | null): UseUserHangarReturn {
         }));
 
         setHangarUnits(loadedHangar);
+        setOperationalUnits(opsRes);
         setUnlockedPatents(loadedPatents);
+        setActiveCorpId(corpId);
 
         // Auto-seleccionar primer elemento en battlegroup si está vacío
         setBattlegroup((prev) => {
@@ -163,6 +185,9 @@ export function useUserHangar(userId?: string | null): UseUserHangarReturn {
       tier: number;
       level: number;
       quantity: number;
+      corpId?: string;
+      buildingId?: string;
+      personalContribution?: { ec?: number; alloys?: number; rare_earth?: number; composites?: number };
       costs: { ec: number; steel: number; rareEarth?: number; composites?: number };
     }) => {
       try {
@@ -173,48 +198,57 @@ export function useUserHangar(userId?: string | null): UseUserHangarReturn {
           return { success: false, message: 'Autenticación requerida para ensamblar unidades en el Hangar.' };
         }
 
-        // Inserción real en Supabase
-        const { data, error: insertError } = await supabase
-          .from('user_unit_hangar')
-          .insert({
-            user_id: activeUserId,
-            unit_code: params.unitCode,
-            tier: params.tier,
-            level: params.level,
-            hp: 100,
-            quantity: params.quantity,
-            location_province_id: 'ES_MADRID',
-          })
-          .select()
-          .single();
-
-        if (insertError) {
-          throw insertError;
+        let targetCorpId = params.corpId;
+        if (!targetCorpId) {
+          const { data: prof } = await supabase
+            .from('profiles')
+            .select('corp_id')
+            .eq('id', activeUserId)
+            .single();
+          targetCorpId = prof?.corp_id ?? undefined;
+        }
+        if (!targetCorpId) {
+          return { success: false, message: 'CORP_REQUIRED: Debes pertenecer a una Corporación para fabricar unidades.' };
         }
 
-        if (data) {
-          const newUnit: UnitHangarEntry = {
-            id: data.id,
-            userId: data.user_id,
-            clanId: data.clan_id,
-            unitCode: data.unit_code,
-            tier: data.tier,
-            level: data.level,
-            hp: data.hp,
-            quantity: data.quantity,
-            locationProvinceId: data.location_province_id,
-          };
-          setHangarUnits((prev) => [newUnit, ...prev]);
+        let targetBuildingId = params.buildingId;
+        if (!targetBuildingId) {
+          const { data: bld } = await supabase
+            .from('buildings')
+            .select('id')
+            .eq('corp_id', targetCorpId)
+            .in('building_type', ['barracks', 'factory', 'war_factory', 'airport', 'port', 'hq'])
+            .eq('is_disabled', false)
+            .limit(1)
+            .maybeSingle();
+          targetBuildingId = bld?.id;
+        }
+        if (!targetBuildingId) {
+          return { success: false, message: 'BARRACKS_REQUIRED: Tu Corporación necesita un Barracón/Fábrica operativo.' };
         }
 
+        const { error: rpcError } = await supabase.rpc('purchase_unit_from_barracks', {
+          p_corp_id: targetCorpId,
+          p_building_id: targetBuildingId,
+          p_unit_code: params.unitCode,
+          p_tier: params.tier,
+          p_personal_contribution: params.personalContribution ?? {},
+          p_idempotency_key: crypto.randomUUID(),
+        });
+
+        if (rpcError) {
+          throw rpcError;
+        }
+
+        await loadHangarData();
         audioManager.playSFX('co_power');
-        return { success: true, message: `Unidad ${params.unitCode} T${params.tier} forjada con éxito.` };
+        return { success: true, message: `Unidad ${params.unitCode} T${params.tier} forjada en DB.` };
       } catch (err: any) {
         console.error('[useUserHangar] Fallo en forja:', err);
         return { success: false, message: err.message || 'Error de base de datos durante la forja.' };
       }
     },
-    [userId]
+    [userId, loadHangarData]
   );
 
   /**
@@ -287,24 +321,26 @@ export function useUserHangar(userId?: string | null): UseUserHangarReturn {
       const recoveredEc = Math.floor(baseValEc * salvageRate);
 
       try {
-        const { error: deleteError } = await supabase
-          .from('user_unit_hangar')
-          .delete()
-          .eq('id', hangarUnitId);
+        const { data: rpcData, error: rpcError } = await supabase.rpc('scrap_unit_from_hangar', {
+          p_hangar_slot_id: hangarUnitId,
+          p_idempotency_key: crypto.randomUUID(),
+        });
 
-        if (deleteError) {
-          throw deleteError;
+        if (rpcError) {
+          throw rpcError;
         }
 
-        setHangarUnits((prev) => prev.filter((u) => u.id !== hangarUnitId));
-        setBattlegroup((prev) => prev.filter((u) => u.id !== hangarUnitId));
+        const serverEc = (rpcData as Record<string, unknown> | null)?.tech_scrap_ec;
+        const creditedEc = typeof serverEc === 'number' ? serverEc : recoveredEc;
+
+        await loadHangarData();
         audioManager.playSFX('combat_hit');
 
         return {
           success: true,
           recoveredSteel,
-          recoveredEc,
-          message: `Desguazado: +${recoveredSteel} Acero, +${recoveredEc} EC recuperados.`,
+          recoveredEc: creditedEc,
+          message: `Desguazado en DB: +${creditedEc} EC (35% Tech Scrap).`,
         };
       } catch (err: any) {
         console.error('[useUserHangar] Fallo en desguace:', err);
@@ -319,6 +355,57 @@ export function useUserHangar(userId?: string | null): UseUserHangarReturn {
     [hangarUnits]
   );
 
+  const deployUnitToField = useCallback(
+    async (params: {
+      hangarSlotId: string;
+      h3Index?: number;
+      municipalityId?: string | null;
+      corpId?: string;
+    }) => {
+      try {
+        const targetCorpId = params.corpId ?? activeCorpId ?? (await resolveActiveUserCorpId());
+        if (!targetCorpId) {
+          return {
+            success: false,
+            message: 'CORP_REQUIRED: Debes pertenecer a una Corporación para desplegar tropas.',
+          };
+        }
+        await deployOperationalUnitDb({
+          hangarSlotId: params.hangarSlotId,
+          corpId: targetCorpId,
+          h3Index: params.h3Index ?? 1,
+          municipalityId: params.municipalityId ?? null,
+        });
+        await loadHangarData();
+        audioManager.playSFX('co_power');
+        return { success: true, message: 'Chasis desplegado al frente operativo en DB.' };
+      } catch (err: unknown) {
+        return {
+          success: false,
+          message: err instanceof Error ? err.message : 'Error desplegando unidad en DB.',
+        };
+      }
+    },
+    [activeCorpId, loadHangarData]
+  );
+
+  const recallUnitToHangar = useCallback(
+    async (unitId: string) => {
+      try {
+        await recallOperationalUnitDb(unitId);
+        await loadHangarData();
+        audioManager.playSFX('button_click');
+        return { success: true, message: 'Chasis retirado a la Reserva del Hangar Físico (DB).' };
+      } catch (err: unknown) {
+        return {
+          success: false,
+          message: err instanceof Error ? err.message : 'Error retirando unidad a reserva.',
+        };
+      }
+    },
+    [loadHangarData]
+  );
+
   const toggleBattlegroupUnit = useCallback((unit: UnitHangarEntry) => {
     audioManager.playHoverTick();
     setBattlegroup((prev) => {
@@ -326,7 +413,7 @@ export function useUserHangar(userId?: string | null): UseUserHangarReturn {
       if (exists) {
         return prev.filter((u) => u.id !== unit.id);
       }
-      if (prev.length >= 3) {
+      if (prev.length >= 4) {
         return prev;
       }
       return [...prev, unit];
@@ -334,19 +421,23 @@ export function useUserHangar(userId?: string | null): UseUserHangarReturn {
   }, []);
 
   const setBattlegroupLoadout = useCallback((units: UnitHangarEntry[]) => {
-    setBattlegroup(units.slice(0, 3));
+    setBattlegroup(units.slice(0, 4));
   }, []);
 
   return {
     hangarUnits,
+    operationalUnits,
     unlockedPatents,
     battlegroup,
+    activeCorpId,
     isLoading,
     error,
     refreshHangar: loadHangarData,
     craftUnit,
     unlockPatent,
     scrapUnit,
+    deployUnitToField,
+    recallUnitToHangar,
     toggleBattlegroupUnit,
     setBattlegroupLoadout,
   };

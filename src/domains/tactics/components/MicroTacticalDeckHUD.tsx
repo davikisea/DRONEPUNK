@@ -123,7 +123,7 @@ export const MicroTacticalDeckHUD: React.FC<MicroTacticalDeckHUDProps> = ({
           <button
             type="button"
             onClick={() => {
-              audioManager.playCue('tactical_confirm_click');
+              audioManager.playCue('ui_tile_confirm');
               onOpenDeploy();
             }}
             className="tactical-btn-heavy px-3 py-2 text-xs flex items-center gap-1.5 cursor-pointer"
@@ -136,7 +136,7 @@ export const MicroTacticalDeckHUD: React.FC<MicroTacticalDeckHUDProps> = ({
           <button
             type="button"
             onClick={() => {
-              audioManager.playCue('tactical_confirm_click');
+              audioManager.playCue('ui_tile_confirm');
               onOpenBuild();
             }}
             className="px-3 py-2 bg-[#46521F] hover:bg-[#586827] text-amber-200 border-2 border-[#0A0B08] font-display font-black text-xs uppercase tracking-wide rounded-[6px_2px_6px_2px] shadow-[3px_3px_0px_#0A0B08] flex items-center gap-1.5 cursor-pointer transition-transform active:translate-y-0.5"

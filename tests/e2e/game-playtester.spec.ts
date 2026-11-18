@@ -20,6 +20,266 @@ test.describe('DRONEPUNK 0.0.1 - Playtesting E2E Capa 1 (Metajuego Geopolítico 
   });
 
   async function setupSupabaseMocks(page: any) {
+    await page.route('**/auth/v1/**', async (route: any) => {
+      const url = route.request().url();
+      const mockUser = {
+        id: '11111111-1111-1111-1111-111111111111',
+        aud: 'authenticated',
+        role: 'authenticated',
+        email: 'commander1@tactical.local',
+        email_confirmed_at: '2026-11-18T00:00:00Z',
+        confirmed_at: '2026-11-18T00:00:00Z',
+        user_metadata: { callsign: 'Alpha Commander' },
+      };
+      if (url.includes('/token') || url.includes('/signup')) {
+        const mockJwt = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMTExMTExMS0xMTExLTExMTEtMTExMS0xMTExMTExMTExMTEiLCJyb2xlIjoiYXV0aGVudGljYXRlZCIsImV4cCI6OTk5OTk5OTk5OX0.mock-e2e-sig';
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            access_token: mockJwt,
+            token_type: 'bearer',
+            expires_in: 3600,
+            refresh_token: 'mock-e2e-refresh-token',
+            user: mockUser,
+          }),
+        });
+      } else if (url.includes('/user')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(mockUser),
+        });
+      } else {
+        const mockJwt = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMTExMTExMS0xMTExLTExMTEtMTExMS0xMTExMTExMTExMTEiLCJyb2xlIjoiYXV0aGVudGljYXRlZCIsImV4cCI6OTk5OTk5OTk5OX0.mock-e2e-sig';
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ user: mockUser, session: { access_token: mockJwt, user: mockUser } }),
+        });
+      }
+    });
+
+    await page.route('**/rest/v1/profiles*', async (route: any) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: '11111111-1111-1111-1111-111111111111',
+          callsign: 'Alpha Commander',
+          corp_id: '22222222-2222-2222-2222-222222222222',
+          battle_credits: 5000,
+          command_gems: 120,
+          account_level: 3,
+          current_xp: 250,
+          selected_commander_id: 'stella',
+          is_admin: false,
+        }),
+      });
+    });
+
+    await page.route('**/rest/v1/corporations*', async (route: any) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: '22222222-2222-2222-2222-222222222222',
+          name: 'Legión de Hierro E2E',
+          tag: 'FERR',
+          leader_user_id: '11111111-1111-1111-1111-111111111111',
+          treasury_ec: 15000,
+          treasury_alloys: 500,
+          treasury_fuel: 400,
+          treasury_chips: 200,
+          treasury_rare_earth: 100,
+          treasury_composites: 100,
+          tech_level: 3,
+          controlled_municipalities_count: 1,
+          controlled_states_count: 1,
+        }),
+      });
+    });
+
+    await page.route('**/rest/v1/corporation_members*', async (route: any) => {
+      const accept = route.request().headers()['accept'] || '';
+      const memberObj = {
+        id: '33333333-3333-3333-3333-333333333333',
+        corp_id: '22222222-2222-2222-2222-222222222222',
+        user_id: '11111111-1111-1111-1111-111111111111',
+        role: 'majority_shareholder',
+        shares: 100,
+        delegated_permissions: {
+          can_use_treasury: true,
+          can_construct: true,
+          can_remodel: true,
+          can_collect: true,
+          can_purchase_units: true,
+          can_control_units: true,
+        },
+        joined_at: new Date().toISOString(),
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(accept.includes('vnd.pgrst.object') ? memberObj : [memberObj]),
+      });
+    });
+
+    await page.route('**/rest/v1/rpc/log_auth_telemetry*', async (route: any) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ logged: true, event_type: 'login_success', key_version: 1 }),
+      });
+    });
+
+    await page.route('**/rest/v1/rpc/check_email_domain_allowed*', async (route: any) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ allowed: true, list_type: 'neutral' }),
+      });
+    });
+
+    await page.route('**/rest/v1/user_industrial_inventory*', async (route: any) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          user_id: '11111111-1111-1111-1111-111111111111',
+          raw_iron: 200,
+          raw_stone: 150,
+          raw_rare_earth: 50,
+          refined_steel: 100,
+          refined_concrete: 80,
+          refined_microchip: 40,
+          campaign_fuel: 120,
+        }),
+      });
+    });
+
+    await page.route('**/rest/v1/user_unit_hangar*', async (route: any) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: '44444444-4444-4444-4444-444444444444',
+            user_id: '11111111-1111-1111-1111-111111111111',
+            corp_id: '22222222-2222-2222-2222-222222222222',
+            unit_code: 'infantry',
+            tier: 1,
+            hp: 100,
+            quantity: 2,
+            slot_type: 'vanguard',
+          },
+        ]),
+      });
+    });
+
+    await page.route('**/rest/v1/operational_units*', async (route: any) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+
+    await page.route('**/rest/v1/buildings*', async (route: any) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+
+    await page.route('**/rest/v1/infra_edges*', async (route: any) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+
+    await page.route('**/rest/v1/vulnerability_windows*', async (route: any) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+
+    await page.route('**/rest/v1/unit_command_schedules*', async (route: any) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+
+    await page.route('**/rest/v1/unit_action_logs*', async (route: any) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+
+    await page.route('**/rest/v1/rpc/claim_or_capture_building*', async (route: any) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          building: {
+            id: 'hist-caracas-hq',
+            corp_id: '22222222-2222-2222-2222-222222222222',
+            infra_state: 'OPERATIONAL',
+            hp: 15,
+          },
+        }),
+      });
+    });
+
+    await page.route('**/rest/v1/rpc/create_infra_edge*', async (route: any) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ edge: { id: 'edge-e2e-1', status: 'operational' } }) });
+    });
+
+    await page.route('**/rest/v1/rpc/execute_collector_haul*', async (route: any) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ hauled: { alloys: 50, fuel: 30, chips: 10 }, extractor_halted_after: false }) });
+    });
+
+    await page.route('**/rest/v1/rpc/sync_pipeline_logistics*', async (route: any) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ alloys: 20, fuel: 10, chips: 5, halted_extractors: 0 }) });
+    });
+
+    await page.route('**/rest/v1/rpc/repair_infrastructure*', async (route: any) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ repaired: true, cost_ec: 100, cost_alloys: 5 }) });
+    });
+
+    await page.route('**/rest/v1/rpc/trigger_vulnerability_handshake*', async (route: any) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ handshake_seconds: 120 }) });
+    });
+
+    await page.route('**/rest/v1/rpc/damage_infrastructure*', async (route: any) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ infra_state: 'RUINED', loot_tech_scrap: 210, loot_alloys: 8 }) });
+    });
+
+    await page.route('**/rest/v1/user_patents*', async (route: any) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+
+    await page.route('**/rest/v1/user_industrial_plots*', async (route: any) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+
     await page.route('**/rest/v1/state_sovereignty*', async (route: any) => {
       await route.fulfill({
         status: 200,
@@ -132,6 +392,21 @@ test.describe('DRONEPUNK 0.0.1 - Playtesting E2E Capa 1 (Metajuego Geopolítico 
     });
   }
 
+  async function authenticateThroughModal(page: any) {
+    const emailInput = page.getByPlaceholder('comandante@dominio.com');
+    const regionLocator = page.locator('[data-region-id^="REG_VE_"]').first();
+    await Promise.race([
+      emailInput.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {}),
+      regionLocator.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {}),
+    ]);
+    if (await emailInput.isVisible().catch(() => false)) {
+      await emailInput.fill('sandbox.qa@dronepunk.local');
+      await page.getByPlaceholder('••••••••••••').fill('SandboxTestPass123!');
+      await page.getByRole('button', { name: /CONECTAR TERMINAL/i }).click();
+      await page.waitForTimeout(800);
+    }
+  }
+
   test(' Recorrido E2E Capa 1: Boot, Teatro Venezuela (24+7), Edictos, Peajes, Asedio Político y Bark de Mayor Stella', async ({ page }) => {
     test.setTimeout(180000);
     await setupSupabaseMocks(page);
@@ -165,10 +440,7 @@ test.describe('DRONEPUNK 0.0.1 - Playtesting E2E Capa 1 (Metajuego Geopolítico 
     // --- FASE A.1: CARGA DE ARRANQUE (BOOT SCREEN) ---
     console.log('QA [1/6]: Navegando a http://localhost:5000...');
     await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 35000 });
-    await page.waitForFunction(
-      () => (document.querySelector('#root')?.children.length ?? 0) > 0,
-      { timeout: 25000 }
-    );
+    await page.waitForSelector('#root > *', { timeout: 25000 });
 
     const rootChildren = await page.locator('#root').evaluate((el) => el.children.length);
     expect(rootChildren, 'La aplicación debe montar contenido en #root').toBeGreaterThan(0);
@@ -176,6 +448,9 @@ test.describe('DRONEPUNK 0.0.1 - Playtesting E2E Capa 1 (Metajuego Geopolítico 
     const bootScreenshot = path.join(screenshotsDir, '01_boot_screen.png');
     await page.screenshot({ path: bootScreenshot, fullPage: true });
     console.log('QA: Captura 01_boot_screen.png registrada.');
+
+    // Autenticar cuando el modal de terminal de seguridad aparezca tras el arranque
+    await authenticateThroughModal(page);
 
     // Esperar a que el Boot Screen alcance el 100% y transicione automáticamente al Estado Mayor
     await page.waitForSelector('[data-region-id^="REG_VE_"]', { timeout: 20000 });
@@ -348,6 +623,7 @@ test.describe('DRONEPUNK 0.0.1 - Playtesting E2E Capa 1 (Metajuego Geopolítico 
 
     console.log('QA ZOOM [1/4]: Cargando aplicación y esperando mapa WebGL...');
     await page.goto('/?no-splash=1', { waitUntil: 'domcontentloaded', timeout: 35000 });
+    await authenticateThroughModal(page);
     await page.waitForSelector('[data-region-id^="REG_VE_"]', { timeout: 20000 });
     await page.waitForTimeout(1000);
 
@@ -407,6 +683,22 @@ test.describe('DRONEPUNK 0.0.1 - Playtesting E2E Capa 1 (Metajuego Geopolítico 
     await expect(page.getByTestId('unified-region-inspector')).toHaveAttribute('data-scale', 'municipality');
     await expect(page.getByRole('heading', { name: /Cabimas/i })).toBeVisible();
 
+    // Validar interacción directa con Base Histórica de Ciudad en el Mapa (Panel In-Situ)
+    const histBaseBtn = page.getByTestId('map-historical-base-btn');
+    await expect(histBaseBtn).toBeAttached();
+    await histBaseBtn.dispatchEvent('click');
+    await page.waitForTimeout(300);
+    const infraPanel = page.getByTestId('map-infra-action-panel');
+    await expect(infraPanel).toBeVisible();
+    await expect(infraPanel.getByText(/ENCLAVE HISTÓRICO/i)).toBeVisible();
+    const captureBtn = infraPanel.getByRole('button', { name: /CAPTURAR ENCLAVE/i });
+    if (await captureBtn.isVisible().catch(() => false)) {
+      await captureBtn.click();
+      await expect(infraPanel.getByText(/Enclave capturado y puesto en operación/i)).toBeVisible();
+    }
+    await infraPanel.getByRole('button', { name: '✕' }).click();
+    await expect(infraPanel).toBeHidden();
+
     const operationalScreenshot = path.join(screenshotsDir, '06_operational_zoom_level2.png');
     await page.screenshot({ path: operationalScreenshot, fullPage: true });
 
@@ -439,7 +731,7 @@ test.describe('DRONEPUNK 0.0.1 - Playtesting E2E Capa 1 (Metajuego Geopolítico 
     // Probar apertura del Modal de Despliegue de Unidades
     await deployBtn.click({ force: true });
     await page.waitForTimeout(500);
-    await expect(page.getByText(/DESPLIEGUE TÁCTICO DE TROPA/i)).toBeVisible();
+    await expect(page.getByText(/DESPLIEGUE Y BARRACONES/i)).toBeVisible();
     const closeDeploy = page.getByTitle('Cerrar Despliegue');
     if (await closeDeploy.isVisible()) await closeDeploy.click({ force: true });
     await page.waitForTimeout(400);
@@ -569,6 +861,7 @@ test.describe('DRONEPUNK 0.0.1 - Playtesting E2E Capa 1 (Metajuego Geopolítico 
 
     console.log('QA TOPOLOGY [1/5]: Navegando y esperando mapa WebGL + fuentes TopoJSON locales...');
     await page.goto('/?no-splash=1', { waitUntil: 'domcontentloaded', timeout: 35000 });
+    await authenticateThroughModal(page);
     await page.waitForSelector('[data-region-id^="REG_VE_"]', { timeout: 25000 });
 
     // Plegar el inspector derecho si está abierto para despejar el teatro venezolano completo en las capturas
@@ -812,7 +1105,7 @@ test.describe('DRONEPUNK 0.0.1 - Playtesting E2E Capa 1 (Metajuego Geopolítico 
           bordersMeshCount: map.queryRenderedFeatures({ layers: ['tactical-borders-mesh'] }).length,
           hitMunIds: centerMuns.map((f: any) => f.properties?.id),
           cityNames: Array.from(new Set(cityPts.map((f: any) => f.properties?.name))),
-          opUnitSpritesCount: map.queryRenderedFeatures({ layers: ['tactical-operational-units-heatmap'] }).length,
+          hasHeatmapLayer: Boolean(map.getLayer('tactical-operational-units-heatmap')),
         };
       }, cp.center);
       expect(cpMetrics.worldLandBorderCount, `${cp.label}: world-land-border no debe renderizar a z=10.5`).toBe(0);
@@ -821,9 +1114,7 @@ test.describe('DRONEPUNK 0.0.1 - Playtesting E2E Capa 1 (Metajuego Geopolítico 
       expect(cpMetrics.bordersMeshCount, `${cp.label}: tactical-borders-mesh debe estar activo`).toBeGreaterThan(0);
       expect(cpMetrics.hitMunIds, `${cp.label}: centro debe caer en ${cp.munId}`).toContain(cp.munId);
       expect(cpMetrics.cityNames, `${cp.label}: cabecera ${cp.cityName} debe renderizarse`).toContain(cp.cityName);
-      if (cp.munId === 'MUN_ZULIA_CABIMAS') {
-        expect(cpMetrics.opUnitSpritesCount, 'Cabimas Estrato 2 debe renderizar sprites verdes de unidades').toBeGreaterThan(0);
-      }
+      expect(cpMetrics.hasHeatmapLayer, `${cp.label}: tactical-operational-units-heatmap debe permanecer eliminado`).toBe(false);
     }
 
     // --- ZOOM 15.5: ESTRATO TÁCTICO 20x20 (CABIMAS) ---
@@ -851,7 +1142,7 @@ test.describe('DRONEPUNK 0.0.1 - Playtesting E2E Capa 1 (Metajuego Geopolítico 
     expect(tacticalMetrics.gridLinesCount).toBeGreaterThan(0);
     expect(tacticalMetrics.sectorTerrainFillCount, 'Estrato 3 debe renderizar geografía persistente de sector (tactical-sector-terrain-fill)').toBeGreaterThan(0);
     expect(tacticalMetrics.sectorTerrainSpritesCount, 'Estrato 3 debe renderizar sprites de terreno (tactical-sector-terrain-sprites)').toBeGreaterThan(0);
-    expect(tacticalMetrics.rtsSpritesCount, 'Estrato 3 (Cabimas z=15.5) debe renderizar los sprites RTS verdes').toBeGreaterThanOrEqual(25);
+    expect(tacticalMetrics.rtsSpritesCount, 'Estrato 3 sin unidades pre-desplegadas debe iniciar en 0 hasta desplegar desde Corporación').toBe(0);
     expect(tacticalMetrics.worldLandBorderCount).toBe(0);
     expect(tacticalMetrics.provincesFillCount).toBe(0);
     expect(tacticalMetrics.provincesBordersCount).toBe(0);

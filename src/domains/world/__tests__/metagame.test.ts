@@ -481,15 +481,15 @@ assert(
 );
 
 const lobbyBarkCheck = barkEngine.getLobbyContextualBark({
-  commanderId: 'volkov', // Incluso si se solicita otro comandante, Capa 3 fuerza al sujeto de prueba 'stella'
+  commanderId: 'volkov', // Con singleSubjectLock = false, resuelve los 29 COs canónicos ('volkov' -> 'grit')
   intent: 'commander_poke',
   pokeCounter: 1,
 });
 const optMetricsAfter = barkEngine.recordUserPokeOptimization();
 
 assert(
-  lobbyBarkCheck.commanderId === 'stella' && optMetricsAfter.testSubjectCommanderId === 'stella',
-  'Capa 3 Bark Engine: Bloqueo en Sujeto de Prueba Único (Mayor Stella) y Auto-Optimización',
+  lobbyBarkCheck.commanderId === 'grit' && optMetricsAfter.adaptiveScorePercent > 0,
+  'Capa 3 Bark Engine: Desbloqueo de 29 COs (singleSubjectLock=false) y Auto-Optimización',
   `Comandante devuelto: ${lobbyBarkCheck.commanderId} (${lobbyBarkCheck.commanderName}) • Eficacia adaptativa: ${optMetricsAfter.adaptiveScorePercent}%.`
 );
 

@@ -48,7 +48,7 @@ export function useMatchSync({
   // Desconectar canal activo
   const disconnect = useCallback(() => {
     if (channelRef.current) {
-      channelRef.current.unsubscribe();
+      supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
     updateStatus('DISCONNECTED');
@@ -171,7 +171,7 @@ export function useMatchSync({
     channelRef.current = channel;
 
     return () => {
-      channel.unsubscribe();
+      supabase.removeChannel(channel);
       channelRef.current = null;
     };
   }, [matchId, userId, onRemoteAction, disconnect, updateStatus]);

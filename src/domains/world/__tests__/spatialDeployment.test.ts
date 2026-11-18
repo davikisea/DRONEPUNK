@@ -150,8 +150,8 @@ try {
   // ----------------------------------------------------------------------------
   console.log('\n--- SUITE 4: CONSTRUCCIÓN IN-SITU DE EDIFICIOS ---');
 
-  // Coordenada vial libre adyacente para construir
-  const buildCoord: [number, number] = [-71.4480, 10.3880];
+  // Coordenada de llanura libre adyacente a carretera para construir (terreno inmutable fluvial/boscoso bloqueado por invariante)
+  const buildCoord: [number, number] = [-71.4580, 10.3940];
   const buildAssignment = spatialDeploymentService.getSpatialAssignment(buildCoord);
 
   const constructRes = spatialDeploymentService.constructBuildingAt({

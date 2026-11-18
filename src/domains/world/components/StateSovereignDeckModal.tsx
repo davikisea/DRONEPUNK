@@ -71,10 +71,10 @@ export const StateSovereignDeckModal: React.FC<StateSovereignDeckModalProps> = (
       });
 
       if (!res.success || !res.state) {
-        audioManager.playCue('defeat_sting');
+        audioManager.playCue('ui_cancel_rollback');
         setErrorMsg(res.error || 'Fallo de autorización al proclamar soberanía.');
       } else {
-        audioManager.playCue('victory_fanfare');
+        audioManager.playCue('co_power_charge');
         setSuccessMsg('¡DECRETO SOBERANO APROBADO Y TRANSMITIDO AL TEATRO GLOBAL!');
         if (onSuccess) onSuccess(res.state);
         window.setTimeout(() => {

@@ -151,8 +151,8 @@ export function useSiegeRealtime(
       audioManager.playSFX('co_power');
 
       try {
-        const db = supabase as any;
-        await db.from('territorial_battle_sessions').insert({
+        if (!supabase) throw new Error('Supabase no configurado');
+        await supabase.from('territorial_battle_sessions').insert({
           id: session.id,
           region_id: session.regionId,
           attacker_clan_id: session.attackerClanId,
@@ -163,7 +163,7 @@ export function useSiegeRealtime(
           status: session.status,
         });
 
-        await db
+        await supabase
           .from('region_sovereignty')
           .update({
             status: 'under_siege',
@@ -206,15 +206,16 @@ export function useSiegeRealtime(
       audioManager.playSFX('unit_order');
 
       try {
-        const db = supabase as any;
-        await db
-          .from('territorial_battle_sessions')
-          .update({
-            defender_commander_id: defenderCommanderId,
-            mode: 'pvp_realtime',
-            status: 'in_combat',
-          })
-          .eq('id', activeSession.id);
+        if (supabase) {
+          await supabase
+            .from('territorial_battle_sessions')
+            .update({
+              defender_commander_id: defenderCommanderId,
+              mode: 'pvp_realtime',
+              status: 'in_combat',
+            })
+            .eq('id', activeSession.id);
+        }
       } catch (err: any) {
         console.warn('[SiegeRealtime] Error al persistir claim:', err.message);
       }
@@ -239,16 +240,17 @@ export function useSiegeRealtime(
 
       setActiveSession(res.session);
 
-      const db = supabase as any;
-      Promise.resolve(
-        db
-          .from('territorial_battle_sessions')
-          .update({
-            mode: 'pve_garrison',
-            status: 'in_combat',
-          })
-          .eq('id', activeSession.id)
-      ).catch((err: any) => console.warn('[SiegeRealtime] Fallback timeout local:', err));
+      if (supabase) {
+        Promise.resolve(
+          supabase
+            .from('territorial_battle_sessions')
+            .update({
+              mode: 'pve_garrison',
+              status: 'in_combat',
+            })
+            .eq('id', activeSession.id)
+        ).catch((err: unknown) => console.warn('[SiegeRealtime] Fallback timeout local:', err));
+      }
     },
     [activeSession]
   );

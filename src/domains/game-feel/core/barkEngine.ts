@@ -702,7 +702,7 @@ class ProceduralBarkEngine {
   private currentTurnCooldowns: Map<string, number> = new Map();
   private activeBark: ActiveBarkDisplay | null = null;
   private activeTimeoutId: number | null = null;
-  private singleSubjectLock: boolean = true; // CAPA 3 MVP: Sujeto de Prueba Único ('stella')
+  private singleSubjectLock: boolean = false; // Desbloqueado para los 29 COs canónicos
   private optMetrics: BarkSelfOptimizationMetrics;
 
   private constructor() {

@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Volume2, VolumeX, Cpu } from 'lucide-react';
 import { catalogRegistry } from '@shared';
+import { audioManager } from '@domains/game-feel';
 
 interface GeotacticsLoadingScreenProps {
   mapName?: string;
@@ -23,53 +24,15 @@ export const GeotacticsLoadingScreen: React.FC<GeotacticsLoadingScreenProps> = (
   const [audioMuted, setAudioMuted] = useState<boolean>(false);
   const [zuluTime, setZuluTime] = useState<string>('');
 
-  const audioCtxRef = useRef<AudioContext | null>(null);
-
-  // Sintetizador procedural rápido para clics de telemetría y pulsos
-  const playTacticalBlip = useCallback((freq = 440, type: OscillatorType = 'sine', duration = 0.03) => {
+  // Reproducción de telemetría vía TacticalAudioManager centralizado (@domains/game-feel)
+  const playTacticalBlip = useCallback((isComplete = false) => {
     if (audioMuted) return;
-    try {
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-      }
-      if (audioCtxRef.current.state === 'suspended') {
-        audioCtxRef.current.resume();
-      }
-      const osc = audioCtxRef.current.createOscillator();
-      const gain = audioCtxRef.current.createGain();
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, audioCtxRef.current.currentTime);
-      gain.gain.setValueAtTime(0.08, audioCtxRef.current.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtxRef.current.currentTime + duration);
-      osc.connect(gain);
-      gain.connect(audioCtxRef.current.destination);
-      osc.start();
-      osc.stop(audioCtxRef.current.currentTime + duration);
-    } catch {
-      // AudioContext bloqueado hasta interacción de usuario, ignorar de forma segura
-    }
+    audioManager.playCue(isComplete ? 'ui_tile_confirm' : 'ui_cursor_move');
   }, [audioMuted]);
 
   const playHeavyDeploySound = useCallback(() => {
     if (audioMuted) return;
-    try {
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-      }
-      const osc = audioCtxRef.current.createOscillator();
-      const gain = audioCtxRef.current.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(220, audioCtxRef.current.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(45, audioCtxRef.current.currentTime + 0.16);
-      gain.gain.setValueAtTime(0.3, audioCtxRef.current.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtxRef.current.currentTime + 0.18);
-      osc.connect(gain);
-      gain.connect(audioCtxRef.current.destination);
-      osc.start();
-      osc.stop(audioCtxRef.current.currentTime + 0.18);
-    } catch {
-      // safe ignore
-    }
+    audioManager.playCue('airdrop_impact');
   }, [audioMuted]);
 
   // Reloj militar Zulu en tiempo real
@@ -101,10 +64,10 @@ export const GeotacticsLoadingScreen: React.FC<GeotacticsLoadingScreenProps> = (
         clearInterval(interval);
         setProgress(100);
         setIsReady(true);
-        playTacticalBlip(880, 'triangle', 0.08);
+        playTacticalBlip(true);
       } else {
         setProgress(currentPct);
-        playTacticalBlip(320 + currentPct * 3, 'sine', 0.02);
+        playTacticalBlip(false);
       }
     }, 120);
 

@@ -14,6 +14,324 @@ export type Database = {
   }
   public: {
     Tables: {
+      infra_edges: {
+        Row: {
+          corp_id: string | null
+          created_at: string
+          edge_type: string
+          from_building_id: string | null
+          from_h3: number
+          hp: number
+          id: string
+          is_historical_anchor: boolean
+          max_hp: number
+          ruined_at: string | null
+          status: string
+          to_building_id: string | null
+          to_h3: number
+        }
+        Insert: {
+          corp_id?: string | null
+          created_at?: string
+          edge_type: string
+          from_building_id?: string | null
+          from_h3: number
+          hp?: number
+          id?: string
+          is_historical_anchor?: boolean
+          max_hp?: number
+          ruined_at?: string | null
+          status?: string
+          to_building_id?: string | null
+          to_h3: number
+        }
+        Update: {
+          corp_id?: string | null
+          created_at?: string
+          edge_type?: string
+          from_building_id?: string | null
+          from_h3?: number
+          hp?: number
+          id?: string
+          is_historical_anchor?: boolean
+          max_hp?: number
+          ruined_at?: string | null
+          status?: string
+          to_building_id?: string | null
+          to_h3?: number
+        }
+        Relationships: []
+      }
+      unit_action_logs: {
+        Row: {
+          action_type: string
+          corp_id: string
+          created_at: string
+          h3_index: number | null
+          id: string
+          metadata: Json
+          schedule_id: string | null
+          summary: string
+          unit_id: string | null
+        }
+        Insert: {
+          action_type: string
+          corp_id: string
+          created_at?: string
+          h3_index?: number | null
+          id?: string
+          metadata?: Json
+          schedule_id?: string | null
+          summary: string
+          unit_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          corp_id?: string
+          created_at?: string
+          h3_index?: number | null
+          id?: string
+          metadata?: Json
+          schedule_id?: string | null
+          summary?: string
+          unit_id?: string | null
+        }
+        Relationships: []
+      }
+      unit_command_schedules: {
+        Row: {
+          command_type: string
+          corp_id: string
+          created_at: string
+          created_by: string
+          failure_reason: string | null
+          hangar_slot_id: string | null
+          id: string
+          next_tick_at: string
+          repeat_interval_sec: number | null
+          scheduled_at: string
+          status: string
+          target_building_id: string | null
+          unit_id: string | null
+          updated_at: string
+          waypoint_cursor: number
+          waypoints: Json
+        }
+        Insert: {
+          command_type?: string
+          corp_id: string
+          created_at?: string
+          created_by: string
+          failure_reason?: string | null
+          hangar_slot_id?: string | null
+          id?: string
+          next_tick_at?: string
+          repeat_interval_sec?: number | null
+          scheduled_at?: string
+          status?: string
+          target_building_id?: string | null
+          unit_id?: string | null
+          updated_at?: string
+          waypoint_cursor?: number
+          waypoints?: Json
+        }
+        Update: {
+          command_type?: string
+          corp_id?: string
+          created_at?: string
+          created_by?: string
+          failure_reason?: string | null
+          hangar_slot_id?: string | null
+          id?: string
+          next_tick_at?: string
+          repeat_interval_sec?: number | null
+          scheduled_at?: string
+          status?: string
+          target_building_id?: string | null
+          unit_id?: string | null
+          updated_at?: string
+          waypoint_cursor?: number
+          waypoints?: Json
+        }
+        Relationships: []
+      }
+      vulnerability_windows: {
+        Row: {
+          active_from: string
+          attacker_corp_id: string
+          defender_corp_id: string | null
+          expires_at: string
+          handshake_started_at: string
+          id: string
+          municipality_id: string
+          status: string
+        }
+        Insert: {
+          active_from?: string
+          attacker_corp_id: string
+          defender_corp_id?: string | null
+          expires_at: string
+          handshake_started_at?: string
+          id?: string
+          municipality_id: string
+          status?: string
+        }
+        Update: {
+          active_from?: string
+          attacker_corp_id?: string
+          defender_corp_id?: string | null
+          expires_at?: string
+          handshake_started_at?: string
+          id?: string
+          municipality_id?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      account_risk_signals: {
+        Row: {
+          cooldown_until: string | null
+          created_at: string
+          evidence_json: Json
+          id: string
+          review_status: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          risk_score: number
+          signal_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cooldown_until?: string | null
+          created_at?: string
+          evidence_json?: Json
+          id?: string
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          risk_score: number
+          signal_type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cooldown_until?: string | null
+          created_at?: string
+          evidence_json?: Json
+          id?: string
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          risk_score?: number
+          signal_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      auth_audit_logs: {
+        Row: {
+          asn: number | null
+          canvas_webgl_hash: string | null
+          country_code: string | null
+          created_at: string
+          event_type: string
+          fingerprint_hash: string | null
+          id: string
+          ip_hash: string
+          ip_subnet_hash: string
+          key_version: number
+          metadata: Json
+          user_id: string | null
+        }
+        Insert: {
+          asn?: number | null
+          canvas_webgl_hash?: string | null
+          country_code?: string | null
+          created_at?: string
+          event_type: string
+          fingerprint_hash?: string | null
+          id?: string
+          ip_hash: string
+          ip_subnet_hash: string
+          key_version: number
+          metadata?: Json
+          user_id?: string | null
+        }
+        Update: {
+          asn?: number | null
+          canvas_webgl_hash?: string | null
+          country_code?: string | null
+          created_at?: string
+          event_type?: string
+          fingerprint_hash?: string | null
+          id?: string
+          ip_hash?: string
+          ip_subnet_hash?: string
+          key_version?: number
+          metadata?: Json
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      email_domain_reputation: {
+        Row: {
+          domain: string
+          list_type: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          domain: string
+          list_type: string
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          domain?: string
+          list_type?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_device_fingerprints: {
+        Row: {
+          canvas_webgl_hash: string | null
+          fingerprint_hash: string
+          first_seen_at: string
+          id: string
+          key_version: number
+          last_seen_at: string
+          trust_level: string
+          tz_screen_hash: string | null
+          user_id: string
+        }
+        Insert: {
+          canvas_webgl_hash?: string | null
+          fingerprint_hash: string
+          first_seen_at?: string
+          id?: string
+          key_version: number
+          last_seen_at?: string
+          trust_level?: string
+          tz_screen_hash?: string | null
+          user_id: string
+        }
+        Update: {
+          canvas_webgl_hash?: string | null
+          fingerprint_hash?: string
+          first_seen_at?: string
+          id?: string
+          key_version?: number
+          last_seen_at?: string
+          trust_level?: string
+          tz_screen_hash?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       active_matches: {
         Row: {
           bot_difficulty: string | null
@@ -2337,6 +2655,7 @@ export type Database = {
           battle_credits: number
           clan_id: string | null
           command_gems: number
+          corp_id: string | null
           country_code: string | null
           created_at: string
           current_win_streak: number
@@ -2352,6 +2671,7 @@ export type Database = {
           highest_trophies: number
           highest_win_streak: number
           id: string
+          is_admin: boolean
           is_chat_banned: boolean
           is_safeguard_equipped: boolean
           last_competitive_match_at: string | null
@@ -2361,6 +2681,7 @@ export type Database = {
           last_furlough_reset_at: string | null
           last_nickname_change_at: string | null
           last_offline_match_date: string | null
+          metadata: Json
           military_furloughs_left: number | null
           military_title: string | null
           muted_until: string | null
@@ -2387,6 +2708,7 @@ export type Database = {
           battle_credits?: number
           clan_id?: string | null
           command_gems?: number
+          corp_id?: string | null
           country_code?: string | null
           created_at?: string
           current_win_streak?: number
@@ -2402,6 +2724,7 @@ export type Database = {
           highest_trophies?: number
           highest_win_streak?: number
           id: string
+          is_admin?: boolean
           is_chat_banned?: boolean
           is_safeguard_equipped?: boolean
           last_competitive_match_at?: string | null
@@ -2411,6 +2734,7 @@ export type Database = {
           last_furlough_reset_at?: string | null
           last_nickname_change_at?: string | null
           last_offline_match_date?: string | null
+          metadata?: Json
           military_furloughs_left?: number | null
           military_title?: string | null
           muted_until?: string | null
@@ -2437,6 +2761,7 @@ export type Database = {
           battle_credits?: number
           clan_id?: string | null
           command_gems?: number
+          corp_id?: string | null
           country_code?: string | null
           created_at?: string
           current_win_streak?: number
@@ -2452,6 +2777,7 @@ export type Database = {
           highest_trophies?: number
           highest_win_streak?: number
           id?: string
+          is_admin?: boolean
           is_chat_banned?: boolean
           is_safeguard_equipped?: boolean
           last_competitive_match_at?: string | null
@@ -2461,6 +2787,7 @@ export type Database = {
           last_furlough_reset_at?: string | null
           last_nickname_change_at?: string | null
           last_offline_match_date?: string | null
+          metadata?: Json
           military_furloughs_left?: number | null
           military_title?: string | null
           muted_until?: string | null
@@ -3668,39 +3995,48 @@ export type Database = {
       }
       user_unit_hangar: {
         Row: {
+          building_id: string | null
           clan_id: string | null
+          corp_id: string | null
           created_at: string
           hp: number
           id: string
           level: number
           location_province_id: string | null
           quantity: number
+          slot_type: string
           tier: number
           unit_code: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          building_id?: string | null
           clan_id?: string | null
+          corp_id?: string | null
           created_at?: string
           hp?: number
           id?: string
           level?: number
           location_province_id?: string | null
           quantity?: number
+          slot_type?: string
           tier?: number
           unit_code: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          building_id?: string | null
           clan_id?: string | null
+          corp_id?: string | null
           created_at?: string
           hp?: number
           id?: string
           level?: number
           location_province_id?: string | null
           quantity?: number
+          slot_type?: string
           tier?: number
           unit_code?: string
           updated_at?: string
@@ -3857,46 +4193,73 @@ export type Database = {
       }
       buildings: {
         Row: {
+          base_terrain: string
           building_type: string
           corp_id: string | null
           created_at: string
           h3_index: number
           hp: number
           id: string
+          infra_state: string
           is_disabled: boolean
+          is_historical: boolean
+          is_production_halted: boolean
+          last_collected_at: string
           level: number
+          max_hp: number
           municipality_id: string | null
           owner_user_id: string | null
+          ruined_at: string | null
+          storage_cap: number
           stored_resources: Json
           tax_rate: number
+          updated_at: string
         }
         Insert: {
+          base_terrain?: string
           building_type: string
           corp_id?: string | null
           created_at?: string
           h3_index: number
           hp?: number
           id?: string
+          infra_state?: string
           is_disabled?: boolean
+          is_historical?: boolean
+          is_production_halted?: boolean
+          last_collected_at?: string
           level?: number
+          max_hp?: number
           municipality_id?: string | null
           owner_user_id?: string | null
+          ruined_at?: string | null
+          storage_cap?: number
           stored_resources?: Json
           tax_rate?: number
+          updated_at?: string
         }
         Update: {
+          base_terrain?: string
           building_type?: string
           corp_id?: string | null
           created_at?: string
           h3_index?: number
           hp?: number
           id?: string
+          infra_state?: string
           is_disabled?: boolean
+          is_historical?: boolean
+          is_production_halted?: boolean
+          last_collected_at?: string
           level?: number
+          max_hp?: number
           municipality_id?: string | null
           owner_user_id?: string | null
+          ruined_at?: string | null
+          storage_cap?: number
           stored_resources?: Json
           tax_rate?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -3905,6 +4268,7 @@ export type Database = {
           active_state_perks: Json
           controlled_municipalities_count: number
           controlled_states_count: number
+          created_at: string
           id: string
           leader_user_id: string | null
           name: string
@@ -3912,12 +4276,20 @@ export type Database = {
           tech_level: number
           treasury_alloys: number
           treasury_chips: number
+          treasury_composites: number
+          treasury_ec: number
           treasury_fuel: number
+          treasury_rare_earth: number
+          treasury_citizens: number
+          treasury_tech_scrap: number
+          population_cap: number
+          updated_at: string
         }
         Insert: {
           active_state_perks?: Json
           controlled_municipalities_count?: number
           controlled_states_count?: number
+          created_at?: string
           id?: string
           leader_user_id?: string | null
           name: string
@@ -3925,12 +4297,20 @@ export type Database = {
           tech_level?: number
           treasury_alloys?: number
           treasury_chips?: number
+          treasury_composites?: number
+          treasury_ec?: number
           treasury_fuel?: number
+          treasury_rare_earth?: number
+          treasury_citizens?: number
+          treasury_tech_scrap?: number
+          population_cap?: number
+          updated_at?: string
         }
         Update: {
           active_state_perks?: Json
           controlled_municipalities_count?: number
           controlled_states_count?: number
+          created_at?: string
           id?: string
           leader_user_id?: string | null
           name?: string
@@ -3938,7 +4318,14 @@ export type Database = {
           tech_level?: number
           treasury_alloys?: number
           treasury_chips?: number
+          treasury_composites?: number
+          treasury_ec?: number
           treasury_fuel?: number
+          treasury_rare_earth?: number
+          treasury_citizens?: number
+          treasury_tech_scrap?: number
+          population_cap?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -4250,7 +4637,6 @@ export type Database = {
           },
         ]
       }
-    }
       territorial_battle_sessions: {
         Row: {
           attacker_clan_id: string
@@ -4341,10 +4727,595 @@ export type Database = {
         }
         Relationships: []
       }
+      corporation_members: {
+        Row: {
+          corp_id: string
+          delegated_permissions: Json
+          id: string
+          joined_at: string
+          role: string
+          shares: number
+          user_id: string
+        }
+        Insert: {
+          corp_id: string
+          delegated_permissions?: Json
+          id?: string
+          joined_at?: string
+          role?: string
+          shares?: number
+          user_id: string
+        }
+        Update: {
+          corp_id?: string
+          delegated_permissions?: Json
+          id?: string
+          joined_at?: string
+          role?: string
+          shares?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      operational_units: {
+        Row: {
+          cargo: Json
+          cargo_cap: number
+          citizens_aboard: number
+          corp_id: string
+          deployed_at: string
+          depot_building_id: string | null
+          h3_index: number
+          hangar_slot_id: string | null
+          hp: number
+          id: string
+          municipality_id: string | null
+          next_haul_at: string | null
+          owner_user_id: string
+          source_building_id: string | null
+          status: string
+          tier: number
+          unit_code: string
+          unit_role: string
+          updated_at: string
+        }
+        Insert: {
+          cargo?: Json
+          cargo_cap?: number
+          citizens_aboard?: number
+          corp_id: string
+          deployed_at?: string
+          depot_building_id?: string | null
+          h3_index: number
+          hangar_slot_id?: string | null
+          hp?: number
+          id?: string
+          municipality_id?: string | null
+          next_haul_at?: string | null
+          owner_user_id: string
+          source_building_id?: string | null
+          status?: string
+          tier?: number
+          unit_code: string
+          unit_role?: string
+          updated_at?: string
+        }
+        Update: {
+          cargo?: Json
+          cargo_cap?: number
+          citizens_aboard?: number
+          corp_id?: string
+          deployed_at?: string
+          depot_building_id?: string | null
+          h3_index?: number
+          hangar_slot_id?: string | null
+          hp?: number
+          id?: string
+          municipality_id?: string | null
+          next_haul_at?: string | null
+          owner_user_id?: string
+          source_building_id?: string | null
+          status?: string
+          tier?: number
+          unit_code?: string
+          unit_role?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      economy_rpc_idempotency: {
+        Row: {
+          created_at: string
+          idempotency_key: string
+          response: Json
+          rpc_name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          idempotency_key: string
+          response: Json
+          rpc_name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          idempotency_key?: string
+          response?: Json
+          rpc_name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      faction_unit_hangar: {
+        Row: {
+          clan_id: string
+          id: string
+          quantity: number
+          tier: number
+          unit_code: string
+          updated_at: string
+        }
+        Insert: {
+          clan_id: string
+          id?: string
+          quantity?: number
+          tier?: number
+          unit_code: string
+          updated_at?: string
+        }
+        Update: {
+          clan_id?: string
+          id?: string
+          quantity?: number
+          tier?: number
+          unit_code?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      unit_production_queue: {
+        Row: {
+          clan_id: string
+          completes_at: string
+          created_at: string
+          id: string
+          quantity: number
+          status: string
+          tier: number
+          unit_code: string
+        }
+        Insert: {
+          clan_id: string
+          completes_at: string
+          created_at?: string
+          id?: string
+          quantity?: number
+          status?: string
+          tier?: number
+          unit_code: string
+        }
+        Update: {
+          clan_id?: string
+          completes_at?: string
+          created_at?: string
+          id?: string
+          quantity?: number
+          status?: string
+          tier?: number
+          unit_code?: string
+        }
+        Relationships: []
+      }
+      state_sovereignty: {
+        Row: {
+          controlling_clan_id: string | null
+          controlling_faction_id: string | null
+          custom_country_name: string | null
+          custom_motto: string | null
+          custom_state_name: string | null
+          sovereign_proclamation: string | null
+          state_id: string
+          updated_at: string
+          updated_by_user_id: string | null
+        }
+        Insert: {
+          controlling_clan_id?: string | null
+          controlling_faction_id?: string | null
+          custom_country_name?: string | null
+          custom_motto?: string | null
+          custom_state_name?: string | null
+          sovereign_proclamation?: string | null
+          state_id: string
+          updated_at?: string
+          updated_by_user_id?: string | null
+        }
+        Update: {
+          controlling_clan_id?: string | null
+          controlling_faction_id?: string | null
+          custom_country_name?: string | null
+          custom_motto?: string | null
+          custom_state_name?: string | null
+          sovereign_proclamation?: string | null
+          state_id?: string
+          updated_at?: string
+          updated_by_user_id?: string | null
+        }
+        Relationships: []
+      }
+      tactical_spatial_deployments: {
+        Row: {
+          callsign: string | null
+          cell_key: string
+          cell_x: number
+          cell_y: number
+          clan_id: string
+          clan_tag: string | null
+          color_hex: string | null
+          created_at: string
+          faction_id: string | null
+          hp: number
+          id: string
+          lat: number
+          lng: number
+          max_hp: number
+          region_id: string
+          sector_x: number
+          sector_y: number
+          status: string
+          tier: number
+          unit_code: string
+          unit_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          callsign?: string | null
+          cell_key: string
+          cell_x: number
+          cell_y: number
+          clan_id: string
+          clan_tag?: string | null
+          color_hex?: string | null
+          created_at?: string
+          faction_id?: string | null
+          hp?: number
+          id?: string
+          lat: number
+          lng: number
+          max_hp?: number
+          region_id: string
+          sector_x: number
+          sector_y: number
+          status?: string
+          tier?: number
+          unit_code: string
+          unit_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          callsign?: string | null
+          cell_key?: string
+          cell_x?: number
+          cell_y?: number
+          clan_id?: string
+          clan_tag?: string | null
+          color_hex?: string | null
+          created_at?: string
+          faction_id?: string | null
+          hp?: number
+          id?: string
+          lat?: number
+          lng?: number
+          max_hp?: number
+          region_id?: string
+          sector_x?: number
+          sector_y?: number
+          status?: string
+          tier?: number
+          unit_code?: string
+          unit_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tactical_fief_constructions: {
+        Row: {
+          adjacent_road_segment_id: string | null
+          building_type: string
+          cell_key: string
+          cell_x: number
+          cell_y: number
+          clan_id: string
+          constructed_by_user_id: string | null
+          created_at: string
+          current_hp: number
+          fief_id: string | null
+          hourly_upkeep_ec: number
+          id: string
+          lat: number
+          level: number
+          lng: number
+          max_hp: number
+          region_id: string
+          sector_x: number
+          sector_y: number
+          updated_at: string
+        }
+        Insert: {
+          adjacent_road_segment_id?: string | null
+          building_type: string
+          cell_key: string
+          cell_x: number
+          cell_y: number
+          clan_id: string
+          constructed_by_user_id?: string | null
+          created_at?: string
+          current_hp?: number
+          fief_id?: string | null
+          hourly_upkeep_ec?: number
+          id?: string
+          lat: number
+          level?: number
+          lng: number
+          max_hp?: number
+          region_id: string
+          sector_x: number
+          sector_y: number
+          updated_at?: string
+        }
+        Update: {
+          adjacent_road_segment_id?: string | null
+          building_type?: string
+          cell_key?: string
+          cell_x?: number
+          cell_y?: number
+          clan_id?: string
+          constructed_by_user_id?: string | null
+          created_at?: string
+          current_hp?: number
+          fief_id?: string | null
+          hourly_upkeep_ec?: number
+          id?: string
+          lat?: number
+          level?: number
+          lng?: number
+          max_hp?: number
+          region_id?: string
+          sector_x?: number
+          sector_y?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      region_sovereignty: {
+        Row: {
+          active_battle_id: string | null
+          controller_clan_id: string | null
+          controlling_clan_id: string | null
+          owner_clan_id: string | null
+          region_id: string
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          active_battle_id?: string | null
+          controller_clan_id?: string | null
+          controlling_clan_id?: string | null
+          owner_clan_id?: string | null
+          region_id: string
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active_battle_id?: string | null
+          controller_clan_id?: string | null
+          controlling_clan_id?: string | null
+          owner_clan_id?: string | null
+          region_id?: string
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      regions: {
+        Row: {
+          country_code: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          country_code?: string | null
+          id: string
+          name: string
+        }
+        Update: {
+          country_code?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      system_catalog_manifest: {
+        Row: {
+          bundle_json: Json | null
+          catalog_hash: string
+          catalog_name: string
+          content_hash: string
+          id: string
+          updated_at: string
+          version: string
+          version_tag: string
+        }
+        Insert: {
+          bundle_json?: Json | null
+          catalog_hash?: string
+          catalog_name?: string
+          content_hash?: string
+          id?: string
+          updated_at?: string
+          version?: string
+          version_tag?: string
+        }
+        Update: {
+          bundle_json?: Json | null
+          catalog_hash?: string
+          catalog_name?: string
+          content_hash?: string
+          id?: string
+          updated_at?: string
+          version?: string
+          version_tag?: string
+        }
+        Relationships: []
+      }
+    }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      create_infra_edge: {
+        Args: {
+          p_corp_id: string
+          p_edge_type: string
+          p_from_building_id?: string | null
+          p_from_h3: number
+          p_idempotency_key?: string | null
+          p_to_building_id?: string | null
+          p_to_h3: number
+          p_use_personal_topup?: boolean
+        }
+        Returns: Json
+      }
+      damage_infrastructure: {
+        Args: {
+          p_attacker_corp_id: string
+          p_bypass_handshake_in_simulation?: boolean
+          p_damage?: number
+          p_idempotency_key?: string | null
+          p_target_id: string
+          p_target_kind: string
+        }
+        Returns: Json
+      }
+      execute_collector_haul: {
+        Args: {
+          p_depot_building_id?: string | null
+          p_extractor_building_id?: string | null
+          p_idempotency_key?: string | null
+          p_unit_id: string
+        }
+        Returns: Json
+      }
+      seed_historical_city_bases: {
+        Args: never
+        Returns: Json
+      }
+      trigger_vulnerability_handshake: {
+        Args: {
+          p_attacker_corp_id: string
+          p_defender_corp_id?: string | null
+          p_idempotency_key?: string | null
+          p_municipality_id: string
+          p_window_duration_sec?: number
+        }
+        Returns: Json
+      }
+      cancel_unit_command: {
+        Args: { p_idempotency_key?: string | null; p_schedule_id: string }
+        Returns: Json
+      }
+      collect_housing_citizens: {
+        Args: {
+          p_building_id: string
+          p_corp_id: string
+          p_idempotency_key?: string | null
+          p_spawn_as_unit?: boolean
+        }
+        Returns: Json
+      }
+      process_due_unit_schedules: {
+        Args: { p_batch_limit?: number }
+        Returns: Json
+      }
+      recruit_and_deploy_unit: {
+        Args: {
+          p_building_id: string
+          p_corp_id: string
+          p_idempotency_key?: string | null
+          p_personal_contribution?: number
+          p_target_h3_index?: number | null
+          p_tier?: number
+          p_unit_code: string
+        }
+        Returns: Json
+      }
+      repair_infrastructure: {
+        Args: {
+          p_corp_id: string
+          p_idempotency_key?: string | null
+          p_target_id: string
+          p_target_kind: string
+        }
+        Returns: Json
+      }
+      schedule_unit_command: {
+        Args: {
+          p_command_type?: string
+          p_corp_id: string
+          p_hangar_slot_id?: string | null
+          p_idempotency_key?: string | null
+          p_repeat_interval_sec?: number | null
+          p_replace_active?: boolean
+          p_scheduled_at?: string | null
+          p_target_building_id?: string | null
+          p_unit_id?: string | null
+          p_waypoints?: Json
+        }
+        Returns: Json
+      }
+      sync_pipeline_logistics: {
+        Args: { p_corp_id: string; p_idempotency_key?: string | null }
+        Returns: Json
+      }
+      check_email_domain_allowed: {
+        Args: { p_email_domain: string }
+        Returns: Json
+      }
+      donate_to_corporation: {
+        Args: {
+          p_alloys?: number
+          p_chips?: number
+          p_corp_id: string
+          p_ec?: number
+          p_fuel?: number
+        }
+        Returns: Json
+      }
+      leave_corporation: {
+        Args: never
+        Returns: Json
+      }
+      evaluate_multiaccount_risk: {
+        Args: { p_user_id: string }
+        Returns: Json
+      }
+      log_auth_telemetry: {
+        Args: {
+          p_asn?: number | null
+          p_canvas_webgl?: string | null
+          p_client_fp?: string | null
+          p_country_code?: string | null
+          p_event_type: string
+          p_metadata?: Json
+          p_raw_ip?: string
+          p_tz_screen?: string | null
+        }
+        Returns: Json
+      }
+      purge_expired_auth_telemetry: {
+        Args: never
+        Returns: Json
+      }
       acquire_industrial_plot: { Args: { p_plot_index: number }; Returns: Json }
       apply_season_trophy_reset: { Args: never; Returns: Json }
       award_match_rewards: {
@@ -4602,6 +5573,83 @@ export type Database = {
         Returns: Json
       }
       transmute_tech_scrap: { Args: { p_batches?: number }; Returns: Json }
+      create_corporation: { Args: { p_name: string; p_tag: string }; Returns: Json }
+      join_corporation: { Args: { p_corp_id: string }; Returns: Json }
+      update_member_permissions: {
+        Args: { p_corp_id: string; p_permissions: Json; p_role: string; p_target_user_id: string }
+        Returns: Json
+      }
+      construct_building: {
+        Args: {
+          p_building_type: string
+          p_corp_id: string
+          p_h3_index: number
+          p_idempotency_key?: string
+          p_municipality_id: string
+          p_use_personal_topup?: boolean
+        }
+        Returns: Json
+      }
+      claim_or_capture_building: {
+        Args: { p_building_id: string; p_corp_id: string; p_idempotency_key?: string }
+        Returns: Json
+      }
+      remodel_building: {
+        Args: {
+          p_building_id: string
+          p_corp_id: string
+          p_idempotency_key?: string
+          p_target_type?: string
+          p_upgrade_level?: boolean
+          p_use_personal_topup?: boolean
+        }
+        Returns: Json
+      }
+      collect_building_resources: {
+        Args: { p_building_id: string; p_corp_id: string; p_idempotency_key?: string }
+        Returns: Json
+      }
+      purchase_unit_from_barracks: {
+        Args: {
+          p_building_id: string
+          p_corp_id: string
+          p_idempotency_key?: string
+          p_personal_contribution?: Json
+          p_tier?: number
+          p_unit_code: string
+        }
+        Returns: Json
+      }
+      scrap_unit_from_hangar: {
+        Args: { p_hangar_slot_id: string; p_idempotency_key?: string }
+        Returns: Json
+      }
+      deploy_operational_unit: {
+        Args: {
+          p_corp_id: string
+          p_h3_index: number
+          p_hangar_slot_id: string
+          p_idempotency_key?: string
+          p_municipality_id?: string
+        }
+        Returns: Json
+      }
+      move_operational_unit: {
+        Args: {
+          p_idempotency_key?: string
+          p_target_h3: number
+          p_unit_id: string
+        }
+        Returns: Json
+      }
+      recall_operational_unit: {
+        Args: { p_idempotency_key?: string; p_unit_id: string }
+        Returns: Json
+      }
+      settle_territorial_combat_losses: {
+        Args: { p_losses: Json; p_match_id?: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

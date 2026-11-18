@@ -78,10 +78,10 @@ export function useTerritoryMap(userClanId?: string | null) {
     }
 
     try {
-      const db = supabase as any;
+      if (!supabase) return;
       const [regionsRes, sovereigntyRes] = await Promise.all([
-        db.from('regions').select('*'),
-        db.from('region_sovereignty').select('*'),
+        supabase.from('regions').select('*'),
+        supabase.from('region_sovereignty').select('*'),
       ]);
 
       if (!regionsRes.error && regionsRes.data && regionsRes.data.length > 0 && !sovereigntyRes.error && sovereigntyRes.data) {

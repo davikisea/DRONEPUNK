@@ -42,7 +42,7 @@ import {
   Scale
 } from 'lucide-react';
 import { GAME_DOCUMENTS, DocItem } from './docsData';
-import { CosmeticSkin } from '@shared';
+import { CosmeticSkin, useModalStack } from '@shared';
 
 // Dominio: Game Feel (Audio, Bark, Háptica)
 import {
@@ -61,6 +61,9 @@ import {
   UserProfileIdentity,
   TerritorySiegeModal,
   useSiegeRealtime,
+  CorporationHubModule,
+  fetchMyCorporation,
+  type MyCorporationContext,
 } from '@domains/world';
 
 // Dominio: Economy (Hangar, Industria, Mercado, Ticker)
@@ -114,6 +117,7 @@ import {
   CANONICAL_RESERVE_CATALOG,
   calculateBuildingAuras,
   GeotacticsLoadingScreen,
+  TacticalPathfindingEngine,
 } from '@domains/tactics';
 
 // Shared: Primitivas, Auth, Servicios y Tipos
@@ -155,17 +159,7 @@ export function TacticalLoadingFallback() {
   );
 }
 
-// --- Tipos de Terreno para el Simulador Interactivo ---
-type TerrainType = 'plains' | 'forest' | 'mountain' | 'road' | 'city' | 'hq';
-
-interface SimTile {
-  x: number;
-  y: number;
-  type: TerrainType;
-  stars: number;
-  owner?: 'p1' | 'p2' | null;
-}
-
+// --- Tipos de Unidad para el Simulador Interactivo ---
 interface SimUnit {
   id: string;
   name: string;
@@ -183,89 +177,6 @@ interface SimUnit {
   hasActed?: boolean;
 }
 
-const INITIAL_GRID: SimTile[][] = [
-  [
-    { x: 0, y: 0, type: 'hq', stars: 4, owner: 'p1' },
-    { x: 1, y: 0, type: 'city', stars: 3, owner: 'p1' },
-    { x: 2, y: 0, type: 'road', stars: 0 },
-    { x: 3, y: 0, type: 'forest', stars: 2 },
-    { x: 4, y: 0, type: 'plains', stars: 1 },
-    { x: 5, y: 0, type: 'plains', stars: 1 },
-    { x: 6, y: 0, type: 'city', stars: 3, owner: null },
-    { x: 7, y: 0, type: 'forest', stars: 2 },
-  ],
-  [
-    { x: 0, y: 1, type: 'road', stars: 0 },
-    { x: 1, y: 1, type: 'road', stars: 0 },
-    { x: 2, y: 1, type: 'road', stars: 0 },
-    { x: 3, y: 1, type: 'mountain', stars: 4 },
-    { x: 4, y: 1, type: 'forest', stars: 2 },
-    { x: 5, y: 1, type: 'plains', stars: 1 },
-    { x: 6, y: 1, type: 'road', stars: 0 },
-    { x: 7, y: 1, type: 'city', stars: 3, owner: 'p2' },
-  ],
-  [
-    { x: 0, y: 2, type: 'plains', stars: 1 },
-    { x: 1, y: 2, type: 'mountain', stars: 4 },
-    { x: 2, y: 2, type: 'forest', stars: 2 },
-    { x: 3, y: 2, type: 'mountain', stars: 4 },
-    { x: 4, y: 2, type: 'plains', stars: 1 },
-    { x: 5, y: 2, type: 'forest', stars: 2 },
-    { x: 6, y: 2, type: 'road', stars: 0 },
-    { x: 7, y: 2, type: 'hq', stars: 4, owner: 'p2' },
-  ],
-  [
-    { x: 0, y: 3, type: 'forest', stars: 2 },
-    { x: 1, y: 3, type: 'plains', stars: 1 },
-    { x: 2, y: 3, type: 'road', stars: 0 },
-    { x: 3, y: 3, type: 'road', stars: 0 },
-    { x: 4, y: 3, type: 'road', stars: 0 },
-    { x: 5, y: 3, type: 'plains', stars: 1 },
-    { x: 6, y: 3, type: 'plains', stars: 1 },
-    { x: 7, y: 3, type: 'mountain', stars: 4 },
-  ],
-  [
-    { x: 0, y: 4, type: 'city', stars: 3, owner: 'p1' },
-    { x: 1, y: 4, type: 'forest', stars: 2 },
-    { x: 2, y: 4, type: 'plains', stars: 1 },
-    { x: 3, y: 4, type: 'mountain', stars: 4 },
-    { x: 4, y: 4, type: 'plains', stars: 1 },
-    { x: 5, y: 4, type: 'road', stars: 0 },
-    { x: 6, y: 4, type: 'forest', stars: 2 },
-    { x: 7, y: 4, type: 'city', stars: 3, owner: 'p2' },
-  ],
-  [
-    { x: 0, y: 5, type: 'plains', stars: 1 },
-    { x: 1, y: 5, type: 'road', stars: 0 },
-    { x: 2, y: 5, type: 'road', stars: 0 },
-    { x: 3, y: 5, type: 'plains', stars: 1 },
-    { x: 4, y: 5, type: 'forest', stars: 2 },
-    { x: 5, y: 5, type: 'mountain', stars: 4 },
-    { x: 6, y: 5, type: 'plains', stars: 1 },
-    { x: 7, y: 5, type: 'plains', stars: 1 },
-  ],
-  [
-    { x: 0, y: 6, type: 'forest', stars: 2 },
-    { x: 1, y: 6, type: 'plains', stars: 1 },
-    { x: 2, y: 6, type: 'mountain', stars: 4 },
-    { x: 3, y: 6, type: 'forest', stars: 2 },
-    { x: 4, y: 6, type: 'city', stars: 3, owner: null },
-    { x: 5, y: 6, type: 'plains', stars: 1 },
-    { x: 6, y: 6, type: 'road', stars: 0 },
-    { x: 7, y: 6, type: 'road', stars: 0 },
-  ],
-  [
-    { x: 0, y: 7, type: 'plains', stars: 1 },
-    { x: 1, y: 7, type: 'city', stars: 3, owner: 'p1' },
-    { x: 2, y: 7, type: 'plains', stars: 1 },
-    { x: 3, y: 7, type: 'plains', stars: 1 },
-    { x: 4, y: 7, type: 'road', stars: 0 },
-    { x: 5, y: 7, type: 'forest', stars: 2 },
-    { x: 6, y: 7, type: 'plains', stars: 1 },
-    { x: 7, y: 7, type: 'city', stars: 3, owner: 'p2' },
-  ],
-];
-
 const INITIAL_UNITS: SimUnit[] = [
   { id: 'u1', name: 'Infantería Aliada', code: 'infantry', owner: 'p1', x: 1, y: 0, hp: 100, movePoints: 3, moveType: 'foot', minRange: 1, maxRange: 1, baseAtk: 55 },
   { id: 'u2', name: 'Tanque Ligero Aliado', code: 'tank_light', owner: 'p1', x: 2, y: 1, hp: 100, movePoints: 6, moveType: 'treads', minRange: 1, maxRange: 1, baseAtk: 75 },
@@ -280,12 +191,78 @@ export default function App() {
     profile,
     isLoading: isAuthLoading,
     error: authError,
+    isEmailVerified,
+    pendingEmail,
+    pkceStatus,
+    pkceError,
+    resendCooldownSec,
     signInWithEmail,
     signUpWithEmail,
+    resendVerificationEmail,
+    checkVerificationStatus,
     signOut,
+    refreshProfile,
   } = useAuth();
 
-  const activeUserId = user?.id ?? 'a0000000-0000-0000-0000-000000000001';
+  const isVerifiedCommander = Boolean(user && isEmailVerified);
+  const activeUserId: string | null = isVerifiedCommander ? (user?.id ?? null) : null;
+
+  const modalStack = useModalStack(undefined, () => audioManager.playCue('ui_cancel_rollback'));
+  const isAuthModalOpen = modalStack.isOpen('auth');
+  const isImportModalOpen = modalStack.isOpen('import');
+  const isProductionModalOpen = modalStack.isOpen('production');
+  const isSummaryModalOpen = modalStack.isOpen('summary');
+  const isDevStudioOpen = modalStack.isOpen('devStudio');
+  const isPreBattleModalOpen = modalStack.isOpen('preBattle');
+  const isReinforcementModalOpen = modalStack.isOpen('reinforcement');
+  const isProfileModalOpen = modalStack.isOpen('profile');
+  const isSiegeModalOpen = modalStack.isOpen('siege');
+
+  const setIsAuthModalOpen = useCallback((open: boolean) => {
+    if (open) modalStack.pushModal('auth');
+    else modalStack.removeModal('auth');
+  }, [modalStack]);
+
+  const setIsImportModalOpen = useCallback((open: boolean) => {
+    if (open) modalStack.pushModal('import');
+    else modalStack.removeModal('import');
+  }, [modalStack]);
+
+  const setIsProductionModalOpen = useCallback((open: boolean) => {
+    if (open) modalStack.pushModal('production');
+    else modalStack.removeModal('production');
+  }, [modalStack]);
+
+  const setIsSummaryModalOpen = useCallback((open: boolean) => {
+    if (open) modalStack.pushModal('summary');
+    else modalStack.removeModal('summary');
+  }, [modalStack]);
+
+  const setIsDevStudioOpen = useCallback((open: boolean | ((prev: boolean) => boolean)) => {
+    const next = typeof open === 'function' ? open(modalStack.isOpen('devStudio')) : open;
+    if (next) modalStack.pushModal('devStudio');
+    else modalStack.removeModal('devStudio');
+  }, [modalStack]);
+
+  const setIsPreBattleModalOpen = useCallback((open: boolean) => {
+    if (open) modalStack.pushModal('preBattle');
+    else modalStack.removeModal('preBattle');
+  }, [modalStack]);
+
+  const setIsReinforcementModalOpen = useCallback((open: boolean) => {
+    if (open) modalStack.pushModal('reinforcement');
+    else modalStack.removeModal('reinforcement');
+  }, [modalStack]);
+
+  const setIsProfileModalOpen = useCallback((open: boolean) => {
+    if (open) modalStack.pushModal('profile');
+    else modalStack.removeModal('profile');
+  }, [modalStack]);
+
+  const setIsSiegeModalOpen = useCallback((open: boolean) => {
+    if (open) modalStack.pushModal('siege');
+    else modalStack.removeModal('siege');
+  }, [modalStack]);
 
   const {
     inventory: liveIndustryInv,
@@ -303,21 +280,20 @@ export default function App() {
     return map;
   }, [hangarUnits]);
 
-  // Estados de Autenticación Flotante (Modo Observador Público SSOT)
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  // Estados de Autenticación Flotante
   const [authCustomNotice, setAuthCustomNotice] = useState<string | null>(null);
 
   const handleOpenAuthModal = useCallback((notice?: string) => {
     setAuthCustomNotice(notice || null);
     setIsAuthModalOpen(true);
-  }, []);
+  }, [setIsAuthModalOpen]);
 
   useEffect(() => {
-    if (user) {
+    if (isVerifiedCommander) {
       setIsAuthModalOpen(false);
       setAuthCustomNotice(null);
     }
-  }, [user]);
+  }, [isVerifiedCommander, setIsAuthModalOpen]);
 
   const [activeTab, setActiveTab] = useState<string>('01_gdd');
   const [searchQuery, setSearchQuery] = useState('');
@@ -327,7 +303,6 @@ export default function App() {
   const predefinedMapsMeta = useMemo(() => getAllPredefinedMapsMeta(), []);
   const [selectedMapId, setSelectedMapId] = useState<string>('caustic_finale');
   const [customMaps, setCustomMaps] = useState<AWBWMapData[]>([]);
-  const [isImportModalOpen, setIsImportModalOpen] = useState<boolean>(false);
   const [importMapName, setImportMapName] = useState<string>('');
   const [importRawTiles, setImportRawTiles] = useState<string>('');
   const [importError, setImportError] = useState<string | null>(null);
@@ -368,7 +343,6 @@ export default function App() {
   );
   const [playerFunds, setPlayerFunds] = useState<Record<'p1' | 'p2', number>>({ p1: 6000, p2: 6000 });
   const [turnNumber, setTurnNumber] = useState<number>(1);
-  const [isProductionModalOpen, setIsProductionModalOpen] = useState<boolean>(false);
   const [selectedFactoryCoord, setSelectedFactoryCoord] = useState<GridPosition | null>(null);
 
   // Estados de Comandantes (COs), Medidores de Energía y Superpoderes (CAPA 3 MVP: Sujeto de Prueba Único 'stella')
@@ -491,8 +465,8 @@ export default function App() {
   const [sonjaSensorActive, setSonjaSensorActive] = useState<boolean>(false);
 
   // Estados de la Calculadora de XP y Progresión
-  const [simLevel, setSimLevel] = useState<number>(5);
-  const [userXp, setUserXp] = useState<number>(850);
+  const [simLevel, setSimLevel] = useState<number>(0);
+  const [userXp, setUserXp] = useState<number>(0);
   const [matchCities, setMatchCities] = useState<number>(3);
   const [matchKills, setMatchKills] = useState<number>(4);
   const [matchTurns, setMatchTurns] = useState<number>(14);
@@ -506,8 +480,6 @@ export default function App() {
     return true;
   });
   const [lazyStatus, setLazyStatus] = useState<string | null>(null);
-  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState<boolean>(false);
-  const [isDevStudioOpen, setIsDevStudioOpen] = useState<boolean>(false);
 
   // Atajo de teclado global: Alt+E o Ctrl+Shift+E abre el Tactical Studio Editor
   useEffect(() => {
@@ -519,23 +491,39 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [setIsDevStudioOpen]);
 
-  // Sincronización del perfil en vivo y telemetría de intendencia
+  // Sincronización del perfil en vivo y telemetría de intendencia (100% DB)
   useEffect(() => {
     if (profile) {
-      if (profile.battle_credits !== undefined) setUserGold(profile.battle_credits);
-      if (profile.command_gems !== undefined) setUserGems(profile.command_gems);
-      if (profile.account_level !== undefined) setSimLevel(profile.account_level);
-      if (profile.current_xp !== undefined) setUserXp(profile.current_xp);
+      setUserGold(profile.battle_credits ?? 0);
+      setUserGems(profile.command_gems ?? 0);
+      setSimLevel(profile.account_level ?? 0);
+      setUserXp(profile.current_xp ?? 0);
+      setUserTrophies(profile.trophies_count ?? 0);
       setUserProfileIdentity((prev) => ({
         ...prev,
         userId: profile.id,
-        displayName: profile.username || 'COMANDANTE',
-        eloRating: profile.elo_rating || 1500,
+        displayName: profile.username || '',
+        eloRating: profile.elo_rating ?? 0,
+        commanderBondLevel: profile.account_level ?? 0,
+        favoriteCommanderId: (profile.selected_commander_id as COId) || prev.favoriteCommanderId,
+      }));
+    } else if (!user) {
+      setUserGold(0);
+      setUserGems(0);
+      setSimLevel(0);
+      setUserXp(0);
+      setUserTrophies(0);
+      setUserProfileIdentity((prev) => ({
+        ...prev,
+        userId: '',
+        displayName: '',
+        eloRating: 0,
+        commanderBondLevel: 0,
       }));
     }
-  }, [profile]);
+  }, [profile, user]);
 
   useEffect(() => {
     if (liveIndustryInv) {
@@ -543,13 +531,56 @@ export default function App() {
     }
   }, [liveIndustryInv]);
 
+  // Estado Corporativo obligatorio (100% DB: sin corp_id no se puede operar en el mapa)
+  const [corpContext, setCorpContext] = useState<MyCorporationContext | null>(null);
+  const [isLoadingCorp, setIsLoadingCorp] = useState<boolean>(false);
+
+  const refreshCorporation = useCallback(async () => {
+    if (!user?.id) {
+      setCorpContext(null);
+      setClan(null);
+      setClanMembers([]);
+      return;
+    }
+    setIsLoadingCorp(true);
+    try {
+      const ctx = await fetchMyCorporation(user.id);
+      setCorpContext(ctx);
+      if (ctx) {
+        setClan({
+          id: ctx.corporation.id,
+          name: ctx.corporation.name,
+          tag: ctx.corporation.tag,
+          emblemIcon: '🛡️',
+          tier: ctx.corporation.tech_level >= 3 ? 'tier_3' : ctx.corporation.tech_level === 2 ? 'tier_2' : 'tier_1',
+          treasuryGold: ctx.corporation.treasury_ec,
+          treasurySteel: ctx.corporation.treasury_alloys,
+          warScore: ctx.corporation.controlled_municipalities_count * 100 + ctx.corporation.controlled_states_count * 500,
+          activeMembersCount: 1,
+          maxMembers: 30,
+        });
+      } else {
+        setClan(null);
+        setClanMembers([]);
+      }
+    } catch (err) {
+      console.error('[App] Error cargando Corporación desde DB:', err);
+      setCorpContext(null);
+      setClan(null);
+    } finally {
+      setIsLoadingCorp(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    void refreshCorporation();
+  }, [refreshCorporation]);
+
   // Modo de Navegación Principal Diegético (Lobby Bélico, Despliegue de Combate y Módulos Logísticos)
   const [mainNav, setMainNav] = useState<'lobby' | 'combat' | 'docs' | 'shop' | 'armory' | 'industry' | 'marketplace' | 'clans' | 'qa'>('lobby');
   const [isTacticalDrawerOpen, setIsTacticalDrawerOpen] = useState<boolean>(false);
 
   // Estados de Gran Estrategia & Despliegue Pre-Batalla (Total War + Stellaris)
-  const [isPreBattleModalOpen, setIsPreBattleModalOpen] = useState<boolean>(false);
-  const [isReinforcementModalOpen, setIsReinforcementModalOpen] = useState<boolean>(false);
   const [reinforcementsEngine, setReinforcementsEngine] = useState<ReinforcementsEngineState>(() => initializeReinforcementsEngine());
   const [pendingLaunchFormat, setPendingLaunchFormat] = useState<MatchFormat>('grand_campaign');
 
@@ -565,6 +596,13 @@ export default function App() {
       isSiege?: boolean;
     }
   ) => {
+    if (!user) {
+      handleOpenAuthModal('Inicia sesión para desplegar en el teatro táctico.');
+      return;
+    }
+    if (!profile?.corp_id || !corpContext) {
+      return;
+    }
     audioManager.playDeployHorn();
     const targetFormat: MatchFormat = format === 'campaign' ? 'grand_campaign' : format;
     setPendingLaunchFormat(targetFormat);
@@ -723,7 +761,7 @@ export default function App() {
       networkMode: gameMode,
       mapId: proceduralMap.id,
       mapSeed: config.seed,
-      p1UserId: playerDb.getUserId(),
+      p1UserId: playerDb.getUserId() ?? activeUserId ?? '',
       p1CommanderId: playerCOs.p1.coId,
       p2UserId: gameMode === 'vs_bot' ? 'bot_blue_moon' : 'user_rival_p2',
       p2CommanderId: playerCOs.p2.coId,
@@ -784,154 +822,55 @@ export default function App() {
 
   // Estados del Complejo Industrial Militar (Fase 5)
   const [industrialInventory, setIndustrialInventory] = useState<IndustrialInventory>({
-    userId: activeUserId,
-    rawIron: 350,
-    rawStone: 240,
-    rawRareEarth: 110,
-    refinedSteel: 45,
-    refinedConcrete: 30,
-    refinedMicrochip: 15,
-    campaignFuel: 5,
+    userId: activeUserId ?? '',
+    rawIron: 0,
+    rawStone: 0,
+    rawRareEarth: 0,
+    refinedSteel: 0,
+    refinedConcrete: 0,
+    refinedMicrochip: 0,
+    campaignFuel: 0,
     specialization: 'vulcan',
-    lastHarvestAt: Date.now() - 4 * 3600 * 1000, // 4 horas acumuladas de producción
+    lastHarvestAt: 0,
   });
   const [activeRefiningJobs, setActiveRefiningJobs] = useState<ActiveRefiningJob[]>([]);
 
-  // Estados de Corporaciones Militares y Salvaguarda Táctica (Fase 6)
-  const [clan, setClan] = useState<Clan>({
-    id: 'clan-ferro',
-    name: 'Iron Vanguard Syndicate',
-    tag: '[IVS]',
-    emblemIcon: '🛡️',
-    tier: 'tier_2',
-    treasuryGold: 50000,
-    treasurySteel: 320,
-    warScore: 18450,
-    activeMembersCount: 6,
-    maxMembers: 30,
-  });
-
-  const [clanMembers, setClanMembers] = useState<ClanMember[]>([
-    {
-      userId: activeUserId,
-      userName: 'Comandante en Jefe (Tú)',
-      role: 'commander_in_chief',
-      contributionPoints: 12500,
-      warBattlesCount: 5,
-      isEmbargoed: false,
-      embargoFeeGold: 0,
-      embargoFeeSteel: 0,
-      isImmuneNewRecruit: false,
-      joinedAt: Date.now() - 30 * 86400000,
-    },
-    {
-      userId: 'user_officer_02',
-      userName: 'Mayor Valkiria (XO)',
-      role: 'executive_officer',
-      contributionPoints: 9800,
-      warBattlesCount: 4,
-      isEmbargoed: false,
-      embargoFeeGold: 0,
-      embargoFeeSteel: 0,
-      isImmuneNewRecruit: false,
-      joinedAt: Date.now() - 20 * 86400000,
-    },
-    {
-      userId: 'user_officer_03',
-      userName: 'Capitán Tormenta',
-      role: 'field_officer',
-      contributionPoints: 7400,
-      warBattlesCount: 3,
-      isEmbargoed: false,
-      embargoFeeGold: 0,
-      embargoFeeSteel: 0,
-      isImmuneNewRecruit: false,
-      joinedAt: Date.now() - 15 * 86400000,
-    },
-    {
-      userId: 'user_cadet_04',
-      userName: 'Sargento Blindado',
-      role: 'cadet',
-      contributionPoints: 4200,
-      warBattlesCount: 2,
-      isEmbargoed: false,
-      embargoFeeGold: 0,
-      embargoFeeSteel: 0,
-      isImmuneNewRecruit: false,
-      joinedAt: Date.now() - 10 * 86400000,
-    },
-    {
-      userId: 'user_cadet_05',
-      userName: 'Cabo Centinela',
-      role: 'cadet',
-      contributionPoints: 3100,
-      warBattlesCount: 1,
-      isEmbargoed: false,
-      embargoFeeGold: 0,
-      embargoFeeSteel: 0,
-      isImmuneNewRecruit: false,
-      joinedAt: Date.now() - 8 * 86400000,
-    },
-    {
-      userId: 'user_cadet_06',
-      userName: 'Operador Radar',
-      role: 'cadet',
-      contributionPoints: 2100,
-      warBattlesCount: 1,
-      isEmbargoed: false,
-      embargoFeeGold: 0,
-      embargoFeeSteel: 0,
-      isImmuneNewRecruit: false,
-      joinedAt: Date.now() - 5 * 86400000,
-    },
-    {
-      userId: 'user_cadet_07',
-      userName: 'Recluta Desertor',
-      role: 'cadet',
-      contributionPoints: 400,
-      warBattlesCount: 0,
-      isEmbargoed: true,
-      embargoFeeGold: 1500,
-      embargoFeeSteel: 30,
-      isImmuneNewRecruit: false,
-      joinedAt: Date.now() - 12 * 86400000,
-    },
-  ]);
+  // Estados de Corporaciones Militares y Salvaguarda Táctica (100% DB)
+  const [clan, setClan] = useState<Clan | null>(null);
+  const [clanMembers, setClanMembers] = useState<ClanMember[]>([]);
 
   const [safeguardInventory, setSafeguardInventory] = useState<SafeguardInventory>({
     isEquipped: false,
-    stock: 2,
-    currentStreak: 4,
+    stock: 0,
+    currentStreak: 0,
     isCrafting: false,
   });
 
   // Estados de Identidad de Comandante y Expediente Retro-Futurista (Fase 8)
   const [userProfileIdentity, setUserProfileIdentity] = useState<UserProfileIdentity>({
-    userId: activeUserId,
-    displayName: 'VANGUARD_01',
-    tagId: '#8492',
-    countryCode: 'PMC_TITAN',
-    customBio: 'El acero no negocia con proyectiles. Victoria o chatarra.',
-    militaryTitle: 'Coronel de Brigada',
+    userId: activeUserId ?? '',
+    displayName: '',
+    tagId: '',
+    countryCode: '',
+    customBio: '',
+    militaryTitle: '',
     activeAvatarFrameId: 'frame_cyber_neon',
     activeBannerId: 'banner_bunker_mesh',
     activeLobbyVfxId: 'vfx_standard_alert',
     uiPaletteId: 'palette_olive_retro',
-    militaryFurloughsLeft: 2,
-    pinnedMedals: ['medal_recruit', 'medal_first_blood', null],
-    winrate1v1: 64.2,
-    winrate2v2: 71.8,
-    eloRating: 4850,
-    favoriteCommanderId: 'stella',
-    commanderBondLevel: 8,
+    militaryFurloughsLeft: 0,
+    pinnedMedals: [null, null, null],
+    winrate1v1: 0,
+    winrate2v2: 0,
+    eloRating: 0,
+    favoriteCommanderId: 'andy',
+    commanderBondLevel: 0,
   });
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [lastMatchResult, setLastMatchResult] = useState<'victory' | 'defeat' | null>(null);
 
   // Estados de Asedio Territorial Realtime & Handshake 120s (Fase 2)
   const [activeSiegeRegionId, setActiveSiegeRegionId] = useState<string | null>(null);
   const [activeSiegeRegionName, setActiveSiegeRegionName] = useState<string>('Sector Operacional');
-  const [isSiegeModalOpen, setIsSiegeModalOpen] = useState<boolean>(false);
 
   const siegeRealtime = useSiegeRealtime(
     activeSiegeRegionId,
@@ -941,14 +880,10 @@ export default function App() {
 
   // Estados de Ladder Asimétrico, Near-Miss y Tilt (Fase 7)
   const [isTournamentMode, setIsTournamentMode] = useState<boolean>(false);
-  const [defeatStreak, setDefeatStreak] = useState<number>(1);
-  const [playerBlueprints, setPlayerBlueprints] = useState<Record<string, number>>({
-    tank_light: 250,
-    infantry: 120,
-    artillery: 80,
-  });
-  const [userTrophies, setUserTrophies] = useState<number>(2450);
-  const [shieldCharges, setShieldCharges] = useState<number>(3);
+  const [defeatStreak, setDefeatStreak] = useState<number>(0);
+  const [playerBlueprints, setPlayerBlueprints] = useState<Record<string, number>>({});
+  const [userTrophies, setUserTrophies] = useState<number>(0);
+  const [shieldCharges, setShieldCharges] = useState<number>(0);
 
   const handleConcludeMatch = (won: boolean) => {
     setIsVictory(won);
@@ -1000,17 +935,11 @@ export default function App() {
     }
   };
 
-  // Estados del Jugador (Economía & Progresión)
-  const [userGold, setUserGold] = useState<number>(2400);
-  const [userGems, setUserGems] = useState<number>(650);
-  const [unlockedSkinIds, setUnlockedSkinIds] = useState<string[]>([
-    'skin_tank_desert',
-    'skin_infantry_urban',
-  ]);
-  const [equippedCosmetics, setEquippedCosmetics] = useState<Record<string, string>>({
-    tank_light: 'skin_tank_desert',
-    infantry: 'skin_infantry_urban',
-  });
+  // Estados del Jugador (Economía & Progresión: hidratados 100% desde DB)
+  const [userGold, setUserGold] = useState<number>(0);
+  const [userGems, setUserGems] = useState<number>(0);
+  const [unlockedSkinIds, setUnlockedSkinIds] = useState<string[]>([]);
+  const [equippedCosmetics, setEquippedCosmetics] = useState<Record<string, string>>({});
   const [activeLoadoutUnits, setActiveLoadoutUnits] = useState<string[]>([
     'infantry',
     'mech',
@@ -1027,37 +956,42 @@ export default function App() {
       console.warn('Precarga de sprites en segundo plano:', err);
     });
 
-    // Carga de Datos Persistentes Locales / Fallback si no hay sesión iniciada
-    playerDb.loadPlayerData().then(dbData => {
-      if (!user) {
-        setUserGold(dbData.gold);
-        setUserGems(dbData.gems);
-        setUserTrophies(dbData.trophies);
-        setSimLevel(dbData.level);
-        setIndustrialInventory(dbData.industrialInventory);
-        setClan(dbData.clan);
-        if (dbData.clanMembers && dbData.clanMembers.length > 0) {
-          setClanMembers(dbData.clanMembers);
-        }
-        setUserProfileIdentity(prev => ({
-          ...prev,
-          displayName: dbData.username,
-          eloRating: dbData.eloRating,
-          favoriteCommanderId: dbData.activeCommanderId as any,
-          commanderBondLevel: dbData.commanderBondLevel,
-        }));
-        setReinforcementsEngine(prev => ({
-          ...prev,
-          stocks: {
-            ...prev.stocks,
-            p1: dbData.reserveStock || prev.stocks.p1,
-          },
-        }));
+    if (!user?.id) {
+      playerDb.setUserId(null);
+      return;
+    }
+
+    playerDb.setUserId(user.id);
+    playerDb.tryLoadPlayerData(user.id).then(({ data: dbData, error: dbErr }) => {
+      if (dbErr || !dbData) {
+        if (dbErr) console.warn('[App] Error hidratando jugador desde Supabase:', dbErr);
+        return;
       }
-    }).catch(err => {
-      console.warn('Carga de base de datos:', err);
+      setUserGold(dbData.gold);
+      setUserGems(dbData.gems);
+      setUserTrophies(dbData.trophies);
+      setSimLevel(dbData.level);
+      setUserXp(dbData.xp);
+      setIndustrialInventory(dbData.industrialInventory);
+      setClan(dbData.clan);
+      setClanMembers(dbData.clanMembers);
+      setUserProfileIdentity(prev => ({
+        ...prev,
+        userId: dbData.userId,
+        displayName: dbData.username,
+        eloRating: dbData.eloRating,
+        favoriteCommanderId: dbData.activeCommanderId as COId,
+        commanderBondLevel: dbData.commanderBondLevel,
+      }));
+      setReinforcementsEngine(prev => ({
+        ...prev,
+        stocks: {
+          ...prev.stocks,
+          p1: dbData.reserveStock || prev.stocks.p1,
+        },
+      }));
     });
-  }, [user]);
+  }, [user?.id]);
 
   const handlePurchaseSuccess = (skin: CosmeticSkin, newGold: number, newGems: number) => {
     setUserGold(newGold);
@@ -1754,31 +1688,39 @@ export default function App() {
     );
   }, [searchQuery]);
 
-  // Cálculo de casillas alcanzables (Manhattan / Terreno con límites dinámicos de mapa)
+  // Cálculo de casillas alcanzables canónico (Dijkstra / TacticalPathfindingEngine)
   const reachableCells = useMemo(() => {
     if (!selectedUnit) return [];
-    const list: { x: number; y: number }[] = [];
-    const maxDist = selectedUnit.movePoints;
-    const h = matchTiles.length;
-    const w = matchTiles[0]?.length || 0;
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const dist = Math.abs(selectedUnit.x - x) + Math.abs(selectedUnit.y - y);
-        if (dist > 0 && dist <= maxDist) {
-          const tile = matchTiles[y]?.[x];
-          if (!tile) continue;
-          if (tile.type === 'mountain' && (selectedUnit.moveType === 'treads' || selectedUnit.moveType === 'wheels')) {
-            continue;
-          }
-          if (tile.type === 'sea' && selectedUnit.moveType !== 'air') {
-            continue;
-          }
-          list.push({ x, y });
-        }
-      }
+    const gridHeight = matchTiles.length;
+    const gridWidth = matchTiles[0]?.length || 0;
+    if (gridHeight === 0 || gridWidth === 0) return [];
+
+    const tacticalUnit = convertedUnits.find(u => u.id === selectedUnit.id);
+    if (!tacticalUnit) return [];
+
+    const unitsMap = new Map<string, TacticalUnit>();
+    for (const u of convertedUnits) {
+      unitsMap.set(u.id, u);
     }
-    return list;
-  }, [selectedUnit, matchTiles]);
+
+    const fogActive = isFogOfWarEnabled && viewerPerspective !== 'spectator';
+    const visibleTiles = fogActive
+      ? Array.from({ length: gridHeight }, (_, y) =>
+          Array.from({ length: gridWidth }, (_, x) => currentVision.visibleTileKeys.has(`${x},${y}`))
+        )
+      : undefined;
+
+    return TacticalPathfindingEngine.getReachableTiles({
+      unit: tacticalUnit,
+      tiles: matchTiles,
+      unitsMap,
+      gridWidth,
+      gridHeight,
+      fogOfWarEnabled: fogActive,
+      visibleTiles,
+      weather: fowWeather,
+    }).filter(t => !(t.x === selectedUnit.x && t.y === selectedUnit.y));
+  }, [selectedUnit, convertedUnits, matchTiles, isFogOfWarEnabled, viewerPerspective, currentVision, fowWeather]);
 
   // Cálculo de Combate Canónico
   const combatResult = useMemo(() => {
@@ -2511,20 +2453,20 @@ export default function App() {
       </div>
       <div className={mainNav !== 'combat' ? 'relative w-full h-full flex flex-col' : 'hidden'}>
         <WarLobbyHub
-          userId={user?.id}
-          isGuestMode={!user}
+          userId={activeUserId ?? undefined}
+          isGuestMode={!isVerifiedCommander}
           onOpenAuthModal={handleOpenAuthModal}
           onOpenLoadingScreen={() => setShowBootScreen(true)}
           userGold={userGold}
           userGems={userGems}
           userSteel={industrialInventory.refinedSteel}
-          userLevel={userProfileIdentity.commanderBondLevel ?? simLevel ?? 5}
+          userLevel={userProfileIdentity.commanderBondLevel || simLevel}
           userXp={userXp}
           nextLevelXp={requiredXpForLevel}
-          clanName={clan.name}
-          clanTag={clan.tag}
-          clanEmblem={clan.emblemIcon}
-          clan={clan}
+          clanName={clan?.name}
+          clanTag={clan?.tag}
+          clanEmblem={clan?.emblemIcon}
+          clan={clan ?? undefined}
           industrialInventory={industrialInventory}
           safeguardInventory={safeguardInventory}
           winStreak={safeguardInventory.currentStreak}
@@ -2550,14 +2492,14 @@ export default function App() {
           lastMatchResult={lastMatchResult}
           onStartMatch={handleStartMatchFromLobby}
           onDeployCombat={handleStartMatchFromLobby}
-          onOpenShop={() => setMainNav('shop')}
-          onOpenArmory={() => setMainNav('armory')}
-          onOpenIndustry={() => setMainNav('industry')}
-          onOpenMarketplace={() => setMainNav('marketplace')}
+          onOpenShop={() => { if (!isVerifiedCommander) { handleOpenAuthModal('Inicia sesión para acceder.'); return; } if (!corpContext) { setMainNav('clans'); return; } setMainNav('shop'); }}
+          onOpenArmory={() => { if (!isVerifiedCommander) { handleOpenAuthModal('Inicia sesión para acceder.'); return; } if (!corpContext) { setMainNav('clans'); return; } setMainNav('armory'); }}
+          onOpenIndustry={() => { if (!isVerifiedCommander) { handleOpenAuthModal('Inicia sesión para acceder.'); return; } if (!corpContext) { setMainNav('clans'); return; } setMainNav('industry'); }}
+          onOpenMarketplace={() => { if (!isVerifiedCommander) { handleOpenAuthModal('Inicia sesión para acceder.'); return; } if (!corpContext) { setMainNav('clans'); return; } setMainNav('marketplace'); }}
           onOpenClans={() => setMainNav('clans')}
           onOpenDocs={() => setMainNav('docs')}
-          onOpenEditor={() => setIsDevStudioOpen(true)}
-          onOpenProfile={() => setIsProfileModalOpen(true)}
+          onOpenEditor={() => { if (!isVerifiedCommander) { handleOpenAuthModal('Inicia sesión para acceder.'); return; } if (!corpContext) { setMainNav('clans'); return; } setIsDevStudioOpen(true); }}
+          onOpenProfile={() => { if (!isVerifiedCommander) { handleOpenAuthModal('Inicia sesión para acceder.'); return; } setIsProfileModalOpen(true); }}
           activeStation={mainNav === 'lobby' || mainNav === 'combat' ? null : mainNav}
           onCloseStation={() => setMainNav('lobby')}
           onGainGold={(delta) => setUserGold((g) => g + delta)}
@@ -2617,7 +2559,7 @@ export default function App() {
             <React.Suspense fallback={<TacticalLoadingFallback />}>
               <div className="flex-1 overflow-y-auto w-full flex flex-col">
                 <P2PMarketplaceView
-                  currentUserId={activeUserId}
+                  currentUserId={activeUserId ?? ''}
                   currentUserName={userProfileIdentity.displayName}
                   userGold={userGold}
                   onUpdateUserGold={setUserGold}
@@ -2633,26 +2575,45 @@ export default function App() {
           ) : mainNav === 'clans' ? (
             <React.Suspense fallback={<TacticalLoadingFallback />}>
               <div className="flex-1 overflow-y-auto w-full flex flex-col">
-                <ClanHeadquartersView
-                  clan={clan}
-                  onUpdateClan={setClan}
-                  members={clanMembers}
-                  onUpdateMembers={setClanMembers}
+                <CorporationHubModule
+                  isVerifiedCommander={isVerifiedCommander}
                   currentUserId={activeUserId}
-                  userGold={userGold}
-                  onUpdateUserGold={setUserGold}
-                  userSteel={industrialInventory.refinedSteel}
-                  onUpdateUserSteel={(newSteel) => {
-                    setIndustrialInventory((prev) => ({ ...prev, refinedSteel: newSteel }));
-                    updateIndustryInDb({ refinedSteel: newSteel });
+                  corpContext={corpContext}
+                  userBalances={{
+                    ec: userGold,
+                    alloys: industrialInventory.refinedSteel,
+                    fuel: industrialInventory.campaignFuel,
+                    chips: industrialInventory.refinedMicrochip,
                   }}
-                  userChips={industrialInventory.refinedMicrochip}
-                  onUpdateUserChips={(newChips) => {
-                    setIndustrialInventory((prev) => ({ ...prev, refinedMicrochip: newChips }));
-                    updateIndustryInDb({ refinedMicrochip: newChips });
+                  onOpenAuthModal={handleOpenAuthModal}
+                  onCorporationChanged={async () => {
+                    await Promise.all([refreshCorporation(), refreshProfile()]);
                   }}
-                  safeguardInventory={safeguardInventory}
-                  onUpdateSafeguardInventory={setSafeguardInventory}
+                  extraHeadquartersContent={
+                    clan ? (
+                      <ClanHeadquartersView
+                        clan={clan}
+                        onUpdateClan={(updated) => setClan(updated)}
+                        members={clanMembers}
+                        onUpdateMembers={setClanMembers}
+                        currentUserId={activeUserId ?? ''}
+                        userGold={userGold}
+                        onUpdateUserGold={setUserGold}
+                        userSteel={industrialInventory.refinedSteel}
+                        onUpdateUserSteel={(newSteel) => {
+                          setIndustrialInventory((prev) => ({ ...prev, refinedSteel: newSteel }));
+                          updateIndustryInDb({ refinedSteel: newSteel });
+                        }}
+                        userChips={industrialInventory.refinedMicrochip}
+                        onUpdateUserChips={(newChips) => {
+                          setIndustrialInventory((prev) => ({ ...prev, refinedMicrochip: newChips }));
+                          updateIndustryInDb({ refinedMicrochip: newChips });
+                        }}
+                        safeguardInventory={safeguardInventory}
+                        onUpdateSafeguardInventory={setSafeguardInventory}
+                      />
+                    ) : undefined
+                  }
                 />
               </div>
             </React.Suspense>
@@ -2796,13 +2757,25 @@ export default function App() {
         </WarLobbyHub>
       </div>
 
+      {/* Backdrop único compartido del stack de modales LIFO */}
+      {modalStack.hasOpenModals && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px]"
+          onClick={() => {
+            audioManager.playCue('ui_cancel_rollback');
+            modalStack.popModal();
+          }}
+        />
+      )}
+
       {/* Modal Importador de Mapas de la Comunidad (AWBW) */}
       {isImportModalOpen && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200"
+          style={{ zIndex: modalStack.getZIndex('import') }}
+          className="fixed inset-0 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
-              audioManager.playSFX('button_click');
+              audioManager.playCue('ui_cancel_rollback');
               setIsImportModalOpen(false);
             }
           }}
@@ -2963,127 +2936,174 @@ export default function App() {
       )}
 
       {/* Modal de Ensamblaje Militar / Producción con Doble Llave ($G + Hangar) */}
-      <ProductionModal
-        isOpen={isProductionModalOpen}
-        onClose={() => {
-          setIsProductionModalOpen(false);
-          setSelectedFactoryCoord(null);
-        }}
-        currentFunds={playerFunds[turn]}
-        player={turn}
-        facilityCoord={selectedFactoryCoord}
-        facilityTile={selectedFactoryCoord ? matchTiles[selectedFactoryCoord.y]?.[selectedFactoryCoord.x] || null : null}
-        onProduce={handleProduceUnit}
-        coId={playerCOs[turn].coId}
-        hangarStock={hangarStockMap}
-        currentUnitCount={units.filter(u => u.owner === turn).length}
-      />
+      {isProductionModalOpen && (
+        <div className="relative" style={{ zIndex: modalStack.getZIndex('production') }}>
+          <ProductionModal
+            isOpen={isProductionModalOpen}
+            onClose={() => {
+              setIsProductionModalOpen(false);
+              setSelectedFactoryCoord(null);
+            }}
+            currentFunds={playerFunds[turn]}
+            player={turn}
+            facilityCoord={selectedFactoryCoord}
+            facilityTile={selectedFactoryCoord ? matchTiles[selectedFactoryCoord.y]?.[selectedFactoryCoord.x] || null : null}
+            onProduce={handleProduceUnit}
+            coId={playerCOs[turn].coId}
+            hangarStock={hangarStockMap}
+            currentUnitCount={units.filter(u => u.owner === turn).length}
+          />
+        </div>
+      )}
 
       {/* Modal de Fin de Partida (Lazy Loaded) */}
-      <React.Suspense fallback={null}>
-        <MatchSummaryModal
-          isOpen={isSummaryModalOpen}
-          onClose={() => setIsSummaryModalOpen(false)}
-          isMirrorDuel={matchFormat === 'mirror_duel'}
-          onInstantRequeue={() => {
-            setIsSummaryModalOpen(false);
-            resetMatchState('mirror_duel');
-            audioManager.playSFX('co_power');
-          }}
-          onRematch={() => {
-            setIsSummaryModalOpen(false);
-            resetMatchState();
-          }}
-          data={{
-            isVictory,
-            matchId: 'match_preview_01',
-            turnsPlayed: matchTurns,
-            citiesCaptured: matchCities,
-            unitsDestroyed: matchKills,
-            xpGained: matchResultXp,
-            goldGained: matchResultCredits,
-            eloDelta: isVictory ? 20 : -15,
-            currentLevel: simLevel,
-            currentXp: 850,
-            nextLevelXp: requiredXpForLevel,
-            leveledUp: matchResultXp + 850 >= requiredXpForLevel,
-            newLevel: matchResultXp + 850 >= requiredXpForLevel ? simLevel + 1 : undefined,
-          }}
-        />
-      </React.Suspense>
+      {isSummaryModalOpen && (
+        <div className="relative" style={{ zIndex: modalStack.getZIndex('summary') }}>
+          <React.Suspense fallback={null}>
+            <MatchSummaryModal
+              isOpen={isSummaryModalOpen}
+              onClose={() => setIsSummaryModalOpen(false)}
+              isMirrorDuel={matchFormat === 'mirror_duel'}
+              onInstantRequeue={() => {
+                setIsSummaryModalOpen(false);
+                resetMatchState('mirror_duel');
+                audioManager.playSFX('co_power');
+              }}
+              onRematch={() => {
+                setIsSummaryModalOpen(false);
+                resetMatchState();
+              }}
+              data={{
+                isVictory,
+                matchId: 'match_preview_01',
+                turnsPlayed: matchTurns,
+                citiesCaptured: matchCities,
+                unitsDestroyed: matchKills,
+                xpGained: matchResultXp,
+                goldGained: matchResultCredits,
+                eloDelta: isVictory ? 20 : -15,
+                currentLevel: simLevel,
+                currentXp: userXp,
+                nextLevelXp: requiredXpForLevel,
+                leveledUp: matchResultXp + userXp >= requiredXpForLevel,
+                newLevel: matchResultXp + userXp >= requiredXpForLevel ? simLevel + 1 : undefined,
+              }}
+            />
+          </React.Suspense>
+        </div>
+      )}
 
       {/* Modal de Expediente Militar e Identidad del Comandante (Fase 8) */}
-      <React.Suspense fallback={null}>
-        <CommanderProfileModal
-          isOpen={isProfileModalOpen}
-          onClose={() => setIsProfileModalOpen(false)}
-          profile={userProfileIdentity}
-          onUpdateProfile={setUserProfileIdentity}
-          userGems={userGems}
-          onUpdateUserGems={setUserGems}
-          onSignOut={signOut}
-        />
-      </React.Suspense>
+      {isProfileModalOpen && (
+        <div className="relative" style={{ zIndex: modalStack.getZIndex('profile') }}>
+          <React.Suspense fallback={null}>
+            <CommanderProfileModal
+              isOpen={isProfileModalOpen}
+              onClose={() => setIsProfileModalOpen(false)}
+              profile={userProfileIdentity}
+              onUpdateProfile={setUserProfileIdentity}
+              userGems={userGems}
+              onUpdateUserGems={setUserGems}
+              onSignOut={signOut}
+              onPlaySfx={(cue) => {
+                if (cue === 'hover_tick') audioManager.playHoverTick();
+                else if (cue === 'button_click') audioManager.playSFX('button_click');
+                else audioManager.play(cue);
+              }}
+            />
+          </React.Suspense>
+        </div>
+      )}
 
       {/* Overlay Flotante del Bark Engine (solo Combate Táctico; en Lobby Map-First se canaliza en CommanderBarkWidget) */}
       {mainNav === 'combat' && <ComicVignetteOverlay />}
 
       {/* Modal de Despliegue Pre-Batalla (Vanguardia & Escala Continental Total War) */}
-      <PreBattleDeploymentModal
-        isOpen={isPreBattleModalOpen}
-        onClose={() => setIsPreBattleModalOpen(false)}
-        onConfirmDeployment={handleConfirmDeployment}
-        reserveStock={reinforcementsEngine.stocks.p1}
-      />
+      {isPreBattleModalOpen && (
+        <div className="relative" style={{ zIndex: modalStack.getZIndex('preBattle') }}>
+          <PreBattleDeploymentModal
+            isOpen={isPreBattleModalOpen}
+            onClose={() => setIsPreBattleModalOpen(false)}
+            onConfirmDeployment={handleConfirmDeployment}
+            reserveStock={reinforcementsEngine.stocks.p1}
+          />
+        </div>
+      )}
 
       {/* Modal de Asedio Territorial y Alerta de Handshake C4ISR (120s) */}
-      <TerritorySiegeModal
-        isOpen={isSiegeModalOpen}
-        onClose={() => setIsSiegeModalOpen(false)}
-        session={siegeRealtime.activeSession}
-        sovereignty={siegeRealtime.sovereignty}
-        regionName={activeSiegeRegionName}
-        isCapital={activeSiegeRegionId === 'REG_VE_01'}
-        handshakeSecondsRemaining={siegeRealtime.handshakeSecondsRemaining}
-        isDefendingClan={siegeRealtime.isDefendingClan}
-        onClaimHandshake={() => {
-          if (user?.id) {
-            siegeRealtime.claimHandshake(user.id);
-          }
-        }}
-        onEnterBattle={() => {
-          setIsSiegeModalOpen(false);
-          setIsPreBattleModalOpen(true);
-        }}
-      />
+      {isSiegeModalOpen && (
+        <div className="relative" style={{ zIndex: modalStack.getZIndex('siege') }}>
+          <TerritorySiegeModal
+            isOpen={isSiegeModalOpen}
+            onClose={() => setIsSiegeModalOpen(false)}
+            session={siegeRealtime.activeSession}
+            sovereignty={siegeRealtime.sovereignty}
+            regionName={activeSiegeRegionName}
+            isCapital={activeSiegeRegionId === 'REG_VE_01'}
+            handshakeSecondsRemaining={siegeRealtime.handshakeSecondsRemaining}
+            isDefendingClan={siegeRealtime.isDefendingClan}
+            onClaimHandshake={() => {
+              if (user?.id) {
+                siegeRealtime.claimHandshake(user.id);
+              }
+            }}
+            onEnterBattle={() => {
+              setIsSiegeModalOpen(false);
+              setIsPreBattleModalOpen(true);
+            }}
+          />
+        </div>
+      )}
 
       {/* Modal de Refuerzos en Combate (Delay 4T / 3T con fábrica) */}
-      <ReinforcementRequestModal
-        isOpen={isReinforcementModalOpen}
-        onClose={() => setIsReinforcementModalOpen(false)}
-        onConfirmRequest={handleRequestReinforcements}
-        stock={reinforcementsEngine.stocks[turn]}
-        hasFactoryBuff={calculateBuildingAuras(matchTiles, turn).factoryCount > 0}
-        currentPendingCount={reinforcementsEngine.pendingRequests.filter(r => r.playerId === turn).length}
-      />
+      {isReinforcementModalOpen && (
+        <div className="relative" style={{ zIndex: modalStack.getZIndex('reinforcement') }}>
+          <ReinforcementRequestModal
+            isOpen={isReinforcementModalOpen}
+            onClose={() => setIsReinforcementModalOpen(false)}
+            onConfirmRequest={handleRequestReinforcements}
+            stock={reinforcementsEngine.stocks[turn]}
+            hasFactoryBuff={calculateBuildingAuras(matchTiles, turn).factoryCount > 0}
+            currentPendingCount={reinforcementsEngine.pendingRequests.filter(r => r.playerId === turn).length}
+          />
+        </div>
+      )}
 
       {/* Herramienta Interna de Desarrollo: Tactical Studio Editor (Desacoplado) */}
       {isDevStudioOpen && (
         <React.Suspense fallback={<TacticalLoadingFallback />}>
-          <div className="fixed inset-0 z-50 flex flex-col bg-[#2B2C24]">
+          <div
+            style={{ zIndex: modalStack.getZIndex('devStudio') }}
+            className="fixed inset-0 flex flex-col bg-[#2B2C24]"
+          >
             <TacticalStudioEditor onClose={() => setIsDevStudioOpen(false)} />
           </div>
         </React.Suspense>
       )}
-      {/* Terminal Modal de Autenticación Flotante (Auth Gate) */}
-      {isAuthModalOpen && (
-        <AuthTerminalModal
-          onSignIn={signInWithEmail}
-          onSignUp={signUpWithEmail}
-          error={authError}
-          onClose={() => setIsAuthModalOpen(false)}
-          customNotice={authCustomNotice}
-        />
+
+      {/* Terminal Modal de Autenticación (permite explorar mapa en modo observador; exige verificación si hay registro/sesión pendiente) */}
+      {(!isAuthLoading &&
+        (isAuthModalOpen ||
+          (Boolean(user) && !isVerifiedCommander) ||
+          Boolean(pendingEmail) ||
+          pkceStatus === 'verifying' ||
+          pkceStatus === 'error')) && (
+        <div className="relative" style={{ zIndex: modalStack.getZIndex('auth') }}>
+          <AuthTerminalModal
+            onSignIn={signInWithEmail}
+            onSignUp={signUpWithEmail}
+            onResendVerification={resendVerificationEmail}
+            onCheckVerification={checkVerificationStatus}
+            onResetPending={() => signOut('local')}
+            error={authError}
+            pendingEmail={pendingEmail}
+            pkceStatus={pkceStatus}
+            pkceError={pkceError}
+            resendCooldownSec={resendCooldownSec}
+            onClose={!user || isVerifiedCommander ? () => setIsAuthModalOpen(false) : undefined}
+            customNotice={authCustomNotice}
+          />
+        </div>
       )}
       </div>
     </TacticalErrorBoundary>

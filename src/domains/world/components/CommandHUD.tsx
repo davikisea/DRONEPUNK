@@ -24,7 +24,7 @@ import {
   resolveCanonicalCOId,
 } from '@domains/tactics';
 import { LobbyBarkIntent } from '@domains/game-feel';
-import { TacticalGhostBar } from './TacticalGhostBar';
+import { TacticalGhostBar } from '@shared';
 
 export interface CommandHUDProps {
   resolvedLevel: number;

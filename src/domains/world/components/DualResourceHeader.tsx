@@ -21,7 +21,7 @@ import {
   Clock,
   Crosshair,
 } from 'lucide-react';
-import { TacticalGhostBar } from './TacticalGhostBar';
+import { TacticalGhostBar } from '@shared';
 import { audioManager } from '@domains/game-feel';
 
 export interface DualResourceHeaderProps {

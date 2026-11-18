@@ -344,6 +344,26 @@ export interface UnitMoveIntent {
   msPerStep: number;
 }
 
+export type ScheduledDroneCommandType =
+  | 'move'
+  | 'patrol'
+  | 'auto_collect'
+  | 'skirmish'
+  | 'scheduled_deploy';
+
+export interface ScheduledDroneOrderState {
+  scheduleId: string;
+  unitId: string;
+  unitCode: string;
+  ownerId: string;
+  commandType: ScheduledDroneCommandType;
+  waypoints: Array<{ x: number; y: number; h3?: number }>;
+  waypointCursor: number;
+  scheduledAtMs: number;
+  repeatIntervalSec: number | null;
+  isActivated: boolean;
+}
+
 export interface TacticalRtsUnitState extends TacticalUnit {
   reloadRemainingMs: number;
   lastFiredTimestamp: number;
@@ -431,6 +451,7 @@ const BASE_TERRAIN_MOVEMENT_COSTS: Record<TerrainType, Record<MovementType, numb
 
 export class TacticalRtsEngine {
   private units: Map<string, TacticalRtsUnitState> = new Map();
+  private scheduledOrders: Map<string, ScheduledDroneOrderState> = new Map();
   private terrainMap: Map<string, TerrainTile> = new Map();
   private activeTracers: BallisticTracer[] = [];
   private tickIntervalMs: number;
@@ -597,6 +618,30 @@ export class TacticalRtsEngine {
       stateChanged = true;
     }
 
+    // 1.5 Activar órdenes programadas por hora (unit_command_schedules) cuya hora UTC ya venció
+    for (const order of this.scheduledOrders.values()) {
+      if (!order.isActivated && now >= order.scheduledAtMs) {
+        const unit = this.units.get(order.unitId);
+        if (unit && !unit.isDestroyed && order.waypoints.length >= 2) {
+          const profile = CANONICAL_RTS_PROFILES[unit.unitCode] || CANONICAL_RTS_PROFILES.infantry;
+          const msPerStep = Math.round(1000 / Math.max(0.5, profile.moveSpeedCellsPerSec));
+          const loopPath =
+            order.commandType === 'patrol' || order.commandType === 'auto_collect'
+              ? [...order.waypoints, order.waypoints[0]]
+              : order.waypoints;
+          unit.currentMoveIntent = {
+            unitId: order.unitId,
+            path: loopPath.map((wp) => ({ x: wp.x, y: wp.y })),
+            currentWaypointIndex: Math.min(order.waypointCursor, Math.max(0, loopPath.length - 2)),
+            stepProgressMs: 0,
+            msPerStep,
+          };
+          order.isActivated = true;
+          stateChanged = true;
+        }
+      }
+    }
+
     // 2. Decrementar cooldowns de recarga y avanzar movimiento
     for (const unit of this.units.values()) {
       if (unit.isDestroyed) continue;
@@ -624,7 +669,16 @@ export class TacticalRtsEngine {
             unit.x = nextCoord.x;
             unit.y = nextCoord.y;
             if (intent.currentWaypointIndex >= intent.path.length - 1) {
-              unit.currentMoveIntent = null;
+              const sched = this.scheduledOrders.get(unit.id);
+              if (
+                sched &&
+                (sched.commandType === 'patrol' || sched.commandType === 'auto_collect') &&
+                intent.path.length >= 2
+              ) {
+                intent.currentWaypointIndex = 0;
+              } else {
+                unit.currentMoveIntent = null;
+              }
             }
           } else {
             // Llegada al destino final
@@ -639,6 +693,136 @@ export class TacticalRtsEngine {
     }
 
     return { stateChanged, expiredTracers: [] };
+  }
+
+  /**
+   * Sincroniza una orden programada de unit_command_schedules para interpolación visual continua.
+   */
+  public syncScheduledCommand(
+    order: {
+      scheduleId: string;
+      unitId: string;
+      unitCode: string;
+      ownerId: string;
+      commandType: ScheduledDroneCommandType;
+      waypoints: Array<{ x: number; y: number; h3?: number }>;
+      waypointCursor: number;
+      scheduledAtMs: number;
+      repeatIntervalSec?: number | null;
+    },
+    nowMs: number = Date.now()
+  ): boolean {
+    if (!order.unitId || order.waypoints.length === 0) return false;
+
+    let unit = this.units.get(order.unitId);
+    if (!unit) {
+      const start = order.waypoints[0];
+      unit = this.registerUnit(
+        {
+          id: order.unitId,
+          unitCode: order.unitCode,
+          displayName: order.unitCode,
+          ownerId: order.ownerId,
+          x: start.x,
+          y: start.y,
+          hp: 100,
+          maxHp: 100,
+          movementPoints: 6,
+          movementType: 'treads',
+          visionRange: 3,
+          minRange: 1,
+          maxRange: 1,
+          ammo: 9,
+          fuel: 99,
+          baseAttack: 50,
+          productionCost: 1000,
+          hasMoved: false,
+          hasActed: false,
+        } as unknown as TacticalUnit,
+        1
+      );
+    }
+
+    const existing = this.scheduledOrders.get(order.unitId);
+    if (
+      existing &&
+      existing.scheduleId === order.scheduleId &&
+      existing.waypoints.length === order.waypoints.length &&
+      existing.isActivated
+    ) {
+      return true;
+    }
+
+    const isDue = nowMs >= order.scheduledAtMs;
+    const orderState: ScheduledDroneOrderState = {
+      scheduleId: order.scheduleId,
+      unitId: order.unitId,
+      unitCode: order.unitCode,
+      ownerId: order.ownerId,
+      commandType: order.commandType,
+      waypoints: order.waypoints,
+      waypointCursor: order.waypointCursor,
+      scheduledAtMs: order.scheduledAtMs,
+      repeatIntervalSec: order.repeatIntervalSec ?? null,
+      isActivated: isDue && order.waypoints.length >= 2,
+    };
+
+    this.scheduledOrders.set(order.unitId, orderState);
+
+    if (orderState.isActivated) {
+      const profile = CANONICAL_RTS_PROFILES[unit.unitCode] || CANONICAL_RTS_PROFILES.infantry;
+      const msPerStep = Math.round(1000 / Math.max(0.5, profile.moveSpeedCellsPerSec));
+      const loopPath =
+        order.commandType === 'patrol' || order.commandType === 'auto_collect'
+          ? [...order.waypoints, order.waypoints[0]]
+          : order.waypoints;
+      unit.currentMoveIntent = {
+        unitId: order.unitId,
+        path: loopPath.map((wp) => ({ x: wp.x, y: wp.y })),
+        currentWaypointIndex: Math.min(order.waypointCursor, Math.max(0, loopPath.length - 2)),
+        stepProgressMs: 0,
+        msPerStep,
+      };
+      this.isDirty = true;
+    }
+
+    return true;
+  }
+
+  public clearScheduledCommand(unitId: string): void {
+    this.scheduledOrders.delete(unitId);
+    const unit = this.units.get(unitId);
+    if (unit) {
+      unit.currentMoveIntent = null;
+    }
+  }
+
+  public getScheduledCommand(unitId: string): ScheduledDroneOrderState | undefined {
+    return this.scheduledOrders.get(unitId);
+  }
+
+  /**
+   * Retorna la coordenada continua interpolada de una unidad en tránsito o su posición actual.
+   */
+  public getInterpolatedUnitCoords(unitId: string): { x: number; y: number; progress: number } | null {
+    const unit = this.units.get(unitId);
+    if (!unit || unit.isDestroyed) return null;
+
+    const intent = unit.currentMoveIntent;
+    if (intent && intent.path.length >= 2) {
+      const p0 = intent.path[intent.currentWaypointIndex];
+      const p1 = intent.path[intent.currentWaypointIndex + 1];
+      if (p0 && p1) {
+        const progress = Math.min(1, Math.max(0, intent.stepProgressMs / Math.max(1, intent.msPerStep)));
+        return {
+          x: p0.x + (p1.x - p0.x) * progress,
+          y: p0.y + (p1.y - p0.y) * progress,
+          progress,
+        };
+      }
+    }
+
+    return { x: unit.x, y: unit.y, progress: 0 };
   }
 
   /**

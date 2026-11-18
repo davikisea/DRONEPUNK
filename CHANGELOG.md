@@ -7,6 +7,25 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ---
 
+## [0.0.1] - Sistema MMO 2D en Vivo, Logística Dual, Devastación y Programación de Drones (2026-11-18)
+
+### Cierre del Bucle MMO 2D en Mapa WebGL (`TacticalWorldMap.tsx` + Migración `20261118000004`)
+
+#### Added
+- **Migración `20261118000004_mmo_dual_logistics_devastation_and_city_bases_seed.sql` (39 migraciones consolidadas)**:
+  - Proyección analítica `lat_lng_to_h3_res9` SafeInteger IEEE-754 (`0x0009000000000000n`) alineada 1:1 con `src/domains/world/core/coordinates.ts`.
+  - RPCs atómicas `create_infra_edge`, `execute_collector_haul`, `trigger_vulnerability_handshake` (Handshake 120s), `damage_infrastructure` (estados `DAMAGED` / `RUINED` / `severed` con saqueo del 35% `tech_scrap` sin borrado permanente) y `seed_historical_city_bases()` (28 enclaves históricos conquistables en `theatre_cities.json`).
+  - Actualización de `sync_pipeline_logistics` para manejar flujo continuo por tuberías operacionales y detención por almacén finito (`storage_cap`, `is_production_halted = true`) en extractores aislados.
+- **Renderizado en Vivo e Interacción Directa en Mapa WebGL (`TacticalWorldMap.tsx`)**:
+  - Capas GPU `db-mmo-infra-edges` (`pipeline`, `road`, `bridge`, estado `operational`/`severed`) y `db-mmo-buildings` (bases históricas, viviendas, extractores, depósitos, alerta `ALMACÉN LLENO`, estados `OPERATIONAL`/`DAMAGED`/`RUINED`) sincronizadas vía Supabase Realtime CDC.
+  - Panel contextual in-situ (`map-infra-action-panel`) para capturar enclaves, abrir producción Advance Wars (`BaseProductionModal`), recolectar ciudadanos, sincronizar tuberías, acarrear con unidades `collector`, trazar aristas entre hexágonos H3, iniciar Handshake 120s, atacar infraestructura y reparar ruinas (~35% costo).
+- **Interpolación en Tiempo Real de Drones Programados (`TacticalRtsEngine` + `DroneSchedulerDrawer.tsx`)**:
+  - Interpolación continua de `unit_command_schedules` (`move`, `patrol`, `auto_collect`, `skirmish`, `scheduled_deploy`) y suscripción Realtime CDC en bitácora.
+- **Pruebas Deterministas y E2E**:
+  - Nueva suite `src/domains/economy/__tests__/dualLogisticsAndInfraDevastation.test.ts` (4/4 pruebas deterministas superadas) y cobertura en `tests/e2e/game-playtester.spec.ts`.
+
+---
+
 ## [0.0.1] - Consolidación Modular, Zoom Continuo & Soberanía Territorial (2026-11-06)
 
 ### Arquitectura de 3 Vistas de Zoom Continuo & Soberanía Territorial C4ISR

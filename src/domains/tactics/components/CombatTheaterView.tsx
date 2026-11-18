@@ -21,7 +21,7 @@ import {
   Radio,
 } from 'lucide-react';
 import { GameCanvas, AmbushAlert, InSituTargetBadgeData, TileContextMenuData } from './GameCanvas';
-import { TacticalUnit, TerrainTile } from '@shared';
+import { GridPosition, TacticalUnit, TerrainTile } from '@shared';
 import { PredefinedMapMeta, COPowerType, PlayerCOState, CANONICAL_CO_REGISTRY } from '@domains/tactics';
 import { COCommandBar } from './COCommandBar';
 import { BotDifficulty } from '@domains/tactics';
@@ -64,7 +64,7 @@ export interface CombatTheaterViewProps {
   setSelectedUnitId: (id: any) => void;
   targetEnemy: any | null;
   setTargetEnemyId: (id: any) => void;
-  reachableCells: { x: number; y: number }[];
+  reachableCells: Array<{ x: number; y: number; path?: GridPosition[] }>;
   handleMoveUnit: (coord: { x: number; y: number }, path?: { x: number; y: number }[]) => void;
   combatResult: any;
   handleExecuteCombat: () => void;
@@ -295,6 +295,7 @@ export const CombatTheaterView: React.FC<CombatTheaterViewProps> = ({
       {/* CABECERA BÉLICA SUPERIOR */}
       <header className="border-b-2 border-[#0A0B08] bg-[#2B2C24] px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 shadow-[0_3px_0px_#0A0B08] ben-day-dark shrink-0 z-30">
         <div className="flex items-center gap-2">
+          <img src="/favicon.svg" alt="DRONEPUNK" className="w-4 h-4 object-contain shrink-0" />
           <button
             onMouseEnter={() => audioManager.playHoverTick()}
             onClick={onRetreatToLobby}
@@ -435,7 +436,7 @@ export const CombatTheaterView: React.FC<CombatTheaterViewProps> = ({
             onClick={handleEndTurn}
             onMouseEnter={() => audioManager.playHoverTick()}
             disabled={isBotThinking || (gameMode === 'vs_bot' && turn === 'p2')}
-            className="px-3 py-1 rounded-[6px_2px_6px_2px] font-black text-xs bg-emerald-600 hover:bg-emerald-500 text-slate-950 border-2 border-[#0A0B08] shadow-[2px_2px_0px_#0A0B08] flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 active:translate-x-0.5 active:translate-y-0.5"
+            className="tactical-btn-heavy px-3 py-1 text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
             title="Ceder Turno [Ctrl+Enter]"
           >
             <RotateCcw className={`w-3.5 h-3.5 ${isBotThinking ? 'animate-spin' : ''}`} />
@@ -646,7 +647,7 @@ export const CombatTheaterView: React.FC<CombatTheaterViewProps> = ({
                   const isTargetValid = targetingState.validTargets.some(t => t.x === coord.x && t.y === coord.y);
                   if (enemyOnTile && isTargetValid && selectedUnit) {
                     const dest = pendingMove?.destination || { x: selectedUnit.x, y: selectedUnit.y };
-                    const reachable = reachableCells.find(c => c.x === dest.x && c.y === dest.y) as any;
+                    const reachable = reachableCells.find(c => c.x === dest.x && c.y === dest.y);
                     const path = reachable?.path || [{ x: selectedUnit.x, y: selectedUnit.y }, dest];
 
                     if (handleAtomicMoveAndAttack) {
@@ -719,7 +720,7 @@ export const CombatTheaterView: React.FC<CombatTheaterViewProps> = ({
                               setTargetingState({ actionType: 'attack', validTargets: act.validTargets || [] });
                               setTileContextMenu(null);
                             } else if (act.type === 'capture') {
-                              const reachable = reachableCells.find(c => c.x === coord.x && c.y === coord.y) as any;
+                              const reachable = reachableCells.find(c => c.x === coord.x && c.y === coord.y);
                               handleMoveUnit(coord, reachable?.path);
                               handleExecuteCapture();
                               setTileContextMenu(null);
@@ -837,7 +838,7 @@ export const CombatTheaterView: React.FC<CombatTheaterViewProps> = ({
 
       {/* CONSOLA TÁCTICA LATERAL DESPLEGABLE (SLIDE-OVER DRAWER) - PURGADA DE DEBUG */}
       {isTacticalDrawerOpen && (
-        <div className="absolute right-0 top-0 bottom-0 w-full sm:w-[420px] bg-[#2B2C24]/95 backdrop-blur-md border-l-2 border-[#181914] shadow-2xl z-40 flex flex-col p-4 overflow-y-auto font-mono text-slate-200">
+        <div className="absolute right-0 top-0 bottom-0 w-full sm:w-[420px] bg-[#2B2C24]/95 backdrop-blur-md border-l-3 border-[#0A0B08] shadow-[-4px_0px_0px_#0A0B08] rounded-[14px_0px_0px_4px] z-40 flex flex-col p-4 overflow-y-auto font-mono text-slate-200">
           <div className="flex items-center justify-between pb-3 border-b-2 border-[#181914] mb-3">
             <span className="text-xs font-black uppercase text-[#F2E8D5] flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4 text-[#C46A3A]" />

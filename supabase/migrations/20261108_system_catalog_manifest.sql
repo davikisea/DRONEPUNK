@@ -69,7 +69,7 @@ CREATE OR REPLACE FUNCTION public.refresh_catalog_manifest(p_version_tag TEXT DE
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
     v_units JSONB;
@@ -97,7 +97,7 @@ BEGIN
     FROM public.commanders_catalog c;
 
     -- 4. Extraer matriz de daño balístico
-    SELECT jsonb_agg(d ORDER BY d.id) INTO v_damage_matrix
+    SELECT jsonb_agg(d ORDER BY d.attacker_unit_id, d.defender_unit_id) INTO v_damage_matrix
     FROM public.unit_weapon_damage_matrix d;
 
     -- 5. Extraer países

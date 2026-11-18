@@ -52,6 +52,16 @@ import {
   StrandedCargo
 } from '@domains/economy';
 import { audioManager } from '@domains/game-feel';
+import {
+  fetchCorpBuildings,
+  constructBuildingDb,
+  claimOrCaptureBuildingDb,
+  remodelBuildingDb,
+  collectBuildingResourcesDb,
+  calculateBuildingPendingYield,
+  resolveActiveUserCorpId,
+  type DbBuildingRecord,
+} from '../services/buildingDbService';
 
 interface IndustrialComplexViewProps {
   inventory: IndustrialInventory;
@@ -64,6 +74,7 @@ interface IndustrialComplexViewProps {
   userCredits?: number;
   onUpdateUserCredits?: (newCredits: number) => void;
   accountLevel?: number;
+  corpId?: string | null;
 }
 
 export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
@@ -77,8 +88,13 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
   userCredits = 25000,
   onUpdateUserCredits,
   accountLevel = 10,
+  corpId = null,
 }) => {
   const [activeTab, setActiveTab] = useState<'radar' | 'territory' | 'refinery' | 'specialization'>('radar');
+  const [activeCorpId, setActiveCorpId] = useState<string | null>(corpId ?? null);
+  const [dbBuildings, setDbBuildings] = useState<DbBuildingRecord[]>([]);
+  const [isDbBusy, setIsDbBusy] = useState<boolean>(false);
+  const [claimBuildingIdInput, setClaimBuildingIdInput] = useState<string>('');
   const [selectedRecipe, setSelectedRecipe] = useState<RefinedResourceType>('refined_steel');
   const [selectedBatchCount, setSelectedBatchCount] = useState<number>(1);
   const [useFuelBoost, setUseFuelBoost] = useState<boolean>(false);
@@ -127,6 +143,130 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
     const timer = setInterval(() => setNow(Date.now()), 5000);
     return () => clearInterval(timer);
   }, []);
+
+  // Resolver corpId y sincronizar edificios reales desde Supabase (buildingDbService)
+  useEffect(() => {
+    if (corpId) {
+      setActiveCorpId(corpId);
+      return;
+    }
+    resolveActiveUserCorpId()
+      .then((cid) => {
+        if (cid) setActiveCorpId(cid);
+      })
+      .catch(() => {});
+  }, [corpId]);
+
+  const refreshCorpBuildings = async (targetCorpId: string | null = activeCorpId) => {
+    if (!targetCorpId) {
+      setDbBuildings([]);
+      return;
+    }
+    try {
+      const list = await fetchCorpBuildings(targetCorpId);
+      setDbBuildings(list);
+    } catch {
+      setDbBuildings([]);
+    }
+  };
+
+  useEffect(() => {
+    void refreshCorpBuildings(activeCorpId);
+  }, [activeCorpId]);
+
+  const handleCollectBuildingDb = async (buildingId: string) => {
+    if (!activeCorpId) {
+      showNotification('Corporación requerida para cosechar edificios en DB.', 'error');
+      return;
+    }
+    setIsDbBusy(true);
+    try {
+      const res = (await collectBuildingResourcesDb(buildingId, activeCorpId)) as {
+        collected?: { ec?: number; alloys?: number; fuel?: number; chips?: number };
+      } | null;
+      audioManager.playSFX('capture');
+      const c = res?.collected;
+      showNotification(
+        `Cosecha DB completada: +${c?.ec ?? 0} EC, +${c?.alloys ?? 0} Aleaciones, +${c?.fuel ?? 0} Fuel, +${c?.chips ?? 0} Chips.`
+      );
+      await refreshCorpBuildings(activeCorpId);
+    } catch (err: unknown) {
+      audioManager.playSFX('combat_hit');
+      showNotification(err instanceof Error ? err.message : 'Error cosechando edificio.', 'error');
+    } finally {
+      setIsDbBusy(false);
+    }
+  };
+
+  const handleRemodelBuildingDb = async (buildingId: string, targetType?: string, upgradeLevel = true) => {
+    if (!activeCorpId) {
+      showNotification('Corporación requerida para remodelar edificios en DB.', 'error');
+      return;
+    }
+    setIsDbBusy(true);
+    try {
+      await remodelBuildingDb({
+        buildingId,
+        corpId: activeCorpId,
+        targetType,
+        upgradeLevel,
+        usePersonalTopup: true,
+      });
+      audioManager.playSFX('victory');
+      showNotification('Edificio remodelado/mejorado en Supabase exitosamente.');
+      await refreshCorpBuildings(activeCorpId);
+    } catch (err: unknown) {
+      audioManager.playSFX('combat_hit');
+      showNotification(err instanceof Error ? err.message : 'Error remodelando edificio.', 'error');
+    } finally {
+      setIsDbBusy(false);
+    }
+  };
+
+  const handleConstructBuildingDb = async (buildingType: string) => {
+    if (!activeCorpId) {
+      showNotification('Corporación requerida para construir edificios en DB.', 'error');
+      return;
+    }
+    setIsDbBusy(true);
+    try {
+      await constructBuildingDb({
+        h3Index: Math.floor(Date.now() % 1000000) + 1,
+        municipalityId: 'MUN_CORP_BASE',
+        corpId: activeCorpId,
+        buildingType,
+        usePersonalTopup: true,
+      });
+      audioManager.playSFX('victory');
+      showNotification(`Edificio ${buildingType.toUpperCase()} construido en DB.`);
+      await refreshCorpBuildings(activeCorpId);
+    } catch (err: unknown) {
+      audioManager.playSFX('combat_hit');
+      showNotification(err instanceof Error ? err.message : 'Error construyendo edificio en DB.', 'error');
+    } finally {
+      setIsDbBusy(false);
+    }
+  };
+
+  const handleClaimBuildingDb = async () => {
+    if (!activeCorpId || !claimBuildingIdInput.trim()) {
+      showNotification('Ingresa un ID de edificio válido y asegúrate de tener Corporación.', 'error');
+      return;
+    }
+    setIsDbBusy(true);
+    try {
+      await claimOrCaptureBuildingDb(claimBuildingIdInput.trim(), activeCorpId);
+      audioManager.playSFX('capture');
+      showNotification('Edificio reclamado/capturado para tu Corporación en DB.');
+      setClaimBuildingIdInput('');
+      await refreshCorpBuildings(activeCorpId);
+    } catch (err: unknown) {
+      audioManager.playSFX('combat_hit');
+      showNotification(err instanceof Error ? err.message : 'Error reclamando edificio.', 'error');
+    } finally {
+      setIsDbBusy(false);
+    }
+  };
 
   // Efecto para el interruptor abatible de demolición (2 segundos de hold)
   useEffect(() => {
@@ -323,10 +463,11 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
   return (
     <div className="flex-1 flex flex-col bg-[#2B2C24] text-[#F2E8D5] font-mono p-4 sm:p-6 overflow-y-auto select-none">
       {/* Cabecera Atompunk del Complejo Industrial */}
-      <div className="bg-[#46521F] border-2 border-[#2B2C24] rounded-[24px_6px_24px_6px] p-4 shadow-[6px_6px_0px_#2B2C24] mb-4 flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-[#46521F] border-2 border-[#0A0B08] rounded-[14px_4px_14px_4px] p-4 shadow-[4px_4px_0px_#0A0B08] mb-4 flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-[8px_2px_8px_2px] bg-[#C46A3A] text-[#F2E8D5] font-black text-xs uppercase tracking-wider border border-[#2B2C24]">
+            <img src="/favicon.svg" alt="DRONEPUNK" className="w-5 h-5 object-contain shrink-0" />
+            <span className="px-2.5 py-0.5 rounded-[8px_2px_8px_2px] bg-[#C46A3A] text-[#F2E8D5] font-black text-xs uppercase tracking-wider border border-[#0A0B08]">
               FASE BIFÁSICA CALIBRADA
             </span>
             <h1 className="text-lg font-black tracking-wide text-[#F2E8D5] flex items-center gap-2">
@@ -363,7 +504,7 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
       {/* Alerta de Notificación Temporal */}
       {statusMessage && (
         <div
-          className={`p-3 rounded-[12px_3px_12px_3px] border-2 shadow-[4px_4px_0px_#2B2C24] mb-4 text-xs font-bold flex items-center gap-2 animate-bounce ${
+          className={`p-3 rounded-[12px_3px_12px_3px] border-2 shadow-[4px_4px_0px_#0A0B08] mb-4 text-xs font-bold flex items-center gap-2 animate-bounce ${
             statusMessage.type === 'success'
               ? 'bg-[#7B8A4A] border-[#2B2C24] text-white'
               : 'bg-[#C46A3A] border-[#2B2C24] text-white'
@@ -376,7 +517,7 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
 
       {/* Banner de Cargamento Varado Rescatable (si existe merma) */}
       {(strandedCargo.strandedIron > 0 || strandedCargo.strandedStone > 0 || strandedCargo.strandedRareEarth > 0) && (
-        <div className="bg-[#C46A3A]/20 border-2 border-[#C46A3A] rounded-[16px_4px_16px_4px] p-3.5 mb-4 flex flex-wrap items-center justify-between gap-3 shadow-[4px_4px_0px_#2B2C24]">
+        <div className="bg-[#C46A3A]/20 border-2 border-[#C46A3A] rounded-[16px_4px_16px_4px] p-3.5 mb-4 flex flex-wrap items-center justify-between gap-3 shadow-[4px_4px_0px_#0A0B08]">
           <div className="flex items-center gap-2.5">
             <PackageCheck className="w-5 h-5 text-[#C46A3A]" />
             <div>
@@ -390,7 +531,7 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
           </div>
           <button
             onClick={handleRecoverStranded}
-            className="px-4 py-1.5 bg-[#C46A3A] hover:bg-[#b05c2e] text-[#F2E8D5] font-black text-xs uppercase tracking-wider rounded-[10px_2px_10px_2px] border border-[#2B2C24] shadow-[2px_2px_0px_#2B2C24] cursor-pointer"
+            className="tactical-btn-heavy px-4 py-1.5 text-xs uppercase tracking-wider cursor-pointer"
           >
             Reclamar Salvamento
           </button>
@@ -403,7 +544,7 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
           onClick={() => setActiveTab('radar')}
           className={`px-4 py-2 rounded-[12px_3px_12px_3px] font-bold text-xs uppercase tracking-wider border-2 transition-all flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'radar'
-              ? 'bg-[#C46A3A] border-[#2B2C24] text-[#F2E8D5] shadow-[4px_4px_0px_#2B2C24]'
+              ? 'bg-[#C46A3A] border-[#2B2C24] text-[#F2E8D5] shadow-[4px_4px_0px_#0A0B08]'
               : 'bg-[#46521F] border-[#2B2C24] text-[#F2E8D5]/75 hover:bg-[#3d481b]'
           }`}
         >
@@ -415,7 +556,7 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
           onClick={() => setActiveTab('territory')}
           className={`px-4 py-2 rounded-[12px_3px_12px_3px] font-bold text-xs uppercase tracking-wider border-2 transition-all flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'territory'
-              ? 'bg-[#C46A3A] border-[#2B2C24] text-[#F2E8D5] shadow-[4px_4px_0px_#2B2C24]'
+              ? 'bg-[#C46A3A] border-[#2B2C24] text-[#F2E8D5] shadow-[4px_4px_0px_#0A0B08]'
               : 'bg-[#46521F] border-[#2B2C24] text-[#F2E8D5]/75 hover:bg-[#3d481b]'
           }`}
         >
@@ -427,7 +568,7 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
           onClick={() => setActiveTab('refinery')}
           className={`px-4 py-2 rounded-[12px_3px_12px_3px] font-bold text-xs uppercase tracking-wider border-2 transition-all flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'refinery'
-              ? 'bg-[#C46A3A] border-[#2B2C24] text-[#F2E8D5] shadow-[4px_4px_0px_#2B2C24]'
+              ? 'bg-[#C46A3A] border-[#2B2C24] text-[#F2E8D5] shadow-[4px_4px_0px_#0A0B08]'
               : 'bg-[#46521F] border-[#2B2C24] text-[#F2E8D5]/75 hover:bg-[#3d481b]'
           }`}
         >
@@ -439,7 +580,7 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
           onClick={() => setActiveTab('specialization')}
           className={`px-4 py-2 rounded-[12px_3px_12px_3px] font-bold text-xs uppercase tracking-wider border-2 transition-all flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'specialization'
-              ? 'bg-[#C46A3A] border-[#2B2C24] text-[#F2E8D5] shadow-[4px_4px_0px_#2B2C24]'
+              ? 'bg-[#C46A3A] border-[#2B2C24] text-[#F2E8D5] shadow-[4px_4px_0px_#0A0B08]'
               : 'bg-[#46521F] border-[#2B2C24] text-[#F2E8D5]/75 hover:bg-[#3d481b]'
           }`}
         >
@@ -450,7 +591,7 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
         {onNavigateToMarket && (
           <button
             onClick={onNavigateToMarket}
-            className="ml-auto px-4 py-2 rounded-[12px_3px_12px_3px] font-bold text-xs uppercase tracking-wider bg-[#7B8A4A] border-2 border-[#2B2C24] text-[#F2E8D5] shadow-[4px_4px_0px_#2B2C24] hover:bg-[#68763d] flex items-center gap-1.5 cursor-pointer transition-all"
+            className="ml-auto px-4 py-2 rounded-[12px_3px_12px_3px] font-bold text-xs uppercase tracking-wider bg-[#7B8A4A] border-2 border-[#2B2C24] text-[#F2E8D5] shadow-[4px_4px_0px_#0A0B08] hover:bg-[#68763d] flex items-center gap-1.5 cursor-pointer transition-all"
           >
             <span>Ir al Mercado Libre P2P</span>
             <ArrowRight className="w-4 h-4" />
@@ -463,7 +604,7 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
         <div className="flex flex-col gap-4">
           {/* Banner de Monitoreo Circadiano 12h + 4h de Gracia */}
           <div
-            className={`p-4 rounded-[18px_4px_18px_4px] border-2 shadow-[4px_4px_0px_#2B2C24] flex flex-wrap items-center justify-between gap-3 ${
+            className={`p-4 rounded-[14px_4px_14px_4px] border-2 shadow-[4px_4px_0px_#0A0B08] flex flex-wrap items-center justify-between gap-3 ${
               territoryStatus.hasDecay
                 ? 'bg-red-950/90 border-red-500 text-red-200'
                 : territoryStatus.graceHoursRemaining > 0 && territoryStatus.isSaturated
@@ -497,7 +638,7 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
             <button
               onClick={handleHarvest}
               disabled={territoryStatus.accumulatedIron === 0 && territoryStatus.accumulatedStone === 0}
-              className="px-5 py-2.5 bg-[#C46A3A] hover:bg-[#b05c2e] disabled:opacity-40 disabled:cursor-not-allowed text-[#F2E8D5] font-black text-xs uppercase tracking-wider rounded-[14px_4px_14px_4px] border-2 border-[#2B2C24] shadow-[4px_4px_0px_#2B2C24] active:translate-x-[2px] active:translate-y-[2px] flex items-center gap-2 cursor-pointer transition-all"
+              className="tactical-btn-heavy px-5 py-2.5 disabled:opacity-40 disabled:cursor-not-allowed text-xs uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all"
             >
               <RefreshCw className="w-4 h-4" />
               <span>Recolectar a Inventario</span>
@@ -507,7 +648,7 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
           {/* Manómetros Analógicos Estilo Años 50 (Diales CRT) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Dial Hierro */}
-            <div className="bg-[#46521F] border-2 border-[#2B2C24] rounded-[18px_4px_18px_4px] p-4 shadow-[4px_4px_0px_#2B2C24] flex flex-col justify-between">
+            <div className="bg-[#46521F] border-2 border-[#2B2C24] rounded-[14px_4px_14px_4px] p-4 shadow-[4px_4px_0px_#0A0B08] flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between pb-2 border-b border-[#7B8A4A]">
                   <span className="font-bold text-xs uppercase text-[#F2E8D5] flex items-center gap-1.5">
@@ -537,7 +678,7 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
             </div>
 
             {/* Dial Piedra */}
-            <div className="bg-[#46521F] border-2 border-[#2B2C24] rounded-[18px_4px_18px_4px] p-4 shadow-[4px_4px_0px_#2B2C24] flex flex-col justify-between">
+            <div className="bg-[#46521F] border-2 border-[#2B2C24] rounded-[14px_4px_14px_4px] p-4 shadow-[4px_4px_0px_#0A0B08] flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between pb-2 border-b border-[#7B8A4A]">
                   <span className="font-bold text-xs uppercase text-[#F2E8D5] flex items-center gap-1.5">
@@ -567,7 +708,7 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
             </div>
 
             {/* Dial Tierras Raras */}
-            <div className="bg-[#46521F] border-2 border-[#2B2C24] rounded-[18px_4px_18px_4px] p-4 shadow-[4px_4px_0px_#2B2C24] flex flex-col justify-between">
+            <div className="bg-[#46521F] border-2 border-[#2B2C24] rounded-[14px_4px_14px_4px] p-4 shadow-[4px_4px_0px_#0A0B08] flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between pb-2 border-b border-[#7B8A4A]">
                   <span className="font-bold text-xs uppercase text-[#F2E8D5] flex items-center gap-1.5">
@@ -602,7 +743,7 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
       {/* PESTAÑA 2: CUADRÍCULA DE 10 PARCELAS TERRITORIALES */}
       {activeTab === 'territory' && (
         <div className="flex flex-col gap-4">
-          <div className="bg-[#46521F] border-2 border-[#2B2C24] rounded-[18px_4px_18px_4px] p-4 shadow-[4px_4px_0px_#2B2C24] flex items-center justify-between">
+          <div className="bg-[#46521F] border-2 border-[#2B2C24] rounded-[14px_4px_14px_4px] p-4 shadow-[4px_4px_0px_#0A0B08] flex items-center justify-between">
             <div>
               <h3 className="font-black text-sm uppercase tracking-wider text-white">
                 Cuadrícula Territorial de Operaciones (10 Parcelas)
@@ -679,6 +820,118 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
               );
             })}
           </div>
+
+          {/* Edificios Corporativos Conectados a Supabase (buildingDbService) */}
+          <div className="bg-[#46521F] border-2 border-[#2B2C24] rounded-[14px_4px_14px_4px] p-4 shadow-[4px_4px_0px_#0A0B08] space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h4 className="font-black text-xs uppercase tracking-wider text-white">
+                  Infraestructura Corporativa en DB ({dbBuildings.length})
+                </h4>
+                <p className="text-[11px] text-[#F2E8D5]/75">
+                  Rendimiento horario calculado desde <code>last_collected_at</code> vs <code>NOW()</code> (máx. 16h).
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isDbBusy || !activeCorpId}
+                  onClick={() => handleConstructBuildingDb('refinery')}
+                  className="px-2.5 py-1 bg-[#C46A3A] hover:bg-[#b05c2e] disabled:opacity-40 text-white text-[10px] font-black uppercase rounded border border-[#2B2C24] cursor-pointer"
+                >
+                  + Refinería (DB)
+                </button>
+                <button
+                  type="button"
+                  disabled={isDbBusy || !activeCorpId}
+                  onClick={() => handleConstructBuildingDb('barracks')}
+                  className="px-2.5 py-1 bg-[#7B8A4A] hover:bg-[#68763d] disabled:opacity-40 text-white text-[10px] font-black uppercase rounded border border-[#2B2C24] cursor-pointer"
+                >
+                  + Barracón (DB)
+                </button>
+                <button
+                  type="button"
+                  disabled={isDbBusy || !activeCorpId}
+                  onClick={() => handleConstructBuildingDb('radar')}
+                  className="px-2.5 py-1 bg-[#2B2C24] hover:bg-[#3a3c30] disabled:opacity-40 text-amber-300 text-[10px] font-black uppercase rounded border border-[#7B8A4A] cursor-pointer"
+                >
+                  + Radar (DB)
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                value={claimBuildingIdInput}
+                onChange={(e) => setClaimBuildingIdInput(e.target.value)}
+                placeholder="UUID de edificio neutral/capturable..."
+                className="flex-1 min-w-[200px] px-2.5 py-1 bg-[#2B2C24] border border-[#7B8A4A] rounded text-[11px] text-[#F2E8D5]"
+              />
+              <button
+                type="button"
+                disabled={isDbBusy || !activeCorpId || !claimBuildingIdInput.trim()}
+                onClick={handleClaimBuildingDb}
+                className="px-3 py-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black text-[10px] font-black uppercase rounded border border-[#2B2C24] cursor-pointer"
+              >
+                Reclamar / Capturar (DB)
+              </button>
+            </div>
+
+            {dbBuildings.length === 0 ? (
+              <div className="p-3 bg-[#2B2C24] rounded border border-[#7B8A4A]/50 text-[11px] text-[#F2E8D5]/70">
+                {activeCorpId
+                  ? 'Tu corporación aún no tiene edificios registrados en Supabase.'
+                  : 'Inicia sesión con una Corporación para gestionar edificios en DB.'}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                {dbBuildings.map((bld) => {
+                  const yieldInfo = calculateBuildingPendingYield(bld, now);
+                  return (
+                    <div
+                      key={bld.id}
+                      className="p-3 bg-[#2B2C24] border border-[#7B8A4A] rounded-[12px_3px_12px_3px] flex flex-col justify-between gap-2 text-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-black uppercase text-white">
+                          {bld.building_type} • Nv.{bld.level}
+                        </span>
+                        <span className="text-[10px] text-amber-300 font-bold">
+                          H3 #{bld.h3_index} • HP {bld.hp}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-[#F2E8D5]/80 flex flex-wrap gap-2">
+                        <span>+{yieldInfo.pendingEc} EC</span>
+                        <span>+{yieldInfo.pendingAlloys} Acero</span>
+                        <span>+{yieldInfo.pendingFuel} Fuel</span>
+                        <span>+{yieldInfo.pendingChips} Chips</span>
+                        <span className="text-[#F2E8D5]/50">({yieldInfo.elapsedHours.toFixed(2)}h)</span>
+                      </div>
+                      <div className="flex items-center gap-2 pt-1 border-t border-[#7B8A4A]/40">
+                        <button
+                          type="button"
+                          disabled={isDbBusy || bld.is_disabled}
+                          onClick={() => handleCollectBuildingDb(bld.id)}
+                          className="flex-1 py-1 px-2 bg-[#7B8A4A] hover:bg-[#68763d] disabled:opacity-40 text-white text-[10px] font-black uppercase rounded cursor-pointer"
+                        >
+                          Cosechar (DB)
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isDbBusy || bld.is_disabled || bld.level >= 5}
+                          onClick={() => handleRemodelBuildingDb(bld.id, undefined, true)}
+                          className="py-1 px-2 bg-[#C46A3A] hover:bg-[#b05c2e] disabled:opacity-40 text-white text-[10px] font-black uppercase rounded cursor-pointer"
+                        >
+                          Mejorar Nv.{Math.min(5, bld.level + 1)}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -686,7 +939,7 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
       {activeTab === 'refinery' && (
         <div className="flex flex-col gap-4">
           {/* Panel Superior: Selección de Receta de Fundición */}
-          <div className="bg-[#46521F] border-2 border-[#2B2C24] rounded-[18px_4px_18px_4px] p-4 shadow-[4px_4px_0px_#2B2C24]">
+          <div className="bg-[#46521F] border-2 border-[#2B2C24] rounded-[14px_4px_14px_4px] p-4 shadow-[4px_4px_0px_#0A0B08]">
             <h3 className="font-bold text-xs uppercase tracking-wider text-[#F2E8D5] mb-3 flex items-center gap-2">
               <Flame className="w-4 h-4 text-[#C46A3A]" /> Encender Nueva Fundición (Cola Multi-Batch)
             </h3>
@@ -763,7 +1016,7 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
           </div>
 
           {/* Lista de Hornos Activos */}
-          <div className="bg-[#46521F] border-2 border-[#2B2C24] rounded-[18px_4px_18px_4px] p-4 shadow-[4px_4px_0px_#2B2C24]">
+          <div className="bg-[#46521F] border-2 border-[#2B2C24] rounded-[14px_4px_14px_4px] p-4 shadow-[4px_4px_0px_#0A0B08]">
             <h3 className="font-bold text-xs uppercase tracking-wider text-[#F2E8D5] mb-3 flex items-center gap-2">
               <Clock className="w-4 h-4 text-[#7B8A4A]" /> Hornos en Operación ({activeJobs.filter(j => !j.isCollected).length})
             </h3>
@@ -837,9 +1090,9 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
               audioManager.playSFX('button_click');
               showNotification('Consorcio Vulcano seleccionado.');
             }}
-            className={`p-4 rounded-[18px_4px_18px_4px] border-2 cursor-pointer flex flex-col justify-between ${
+            className={`p-4 rounded-[14px_4px_14px_4px] border-2 cursor-pointer flex flex-col justify-between ${
               inventory.specialization === 'vulcan'
-                ? 'bg-[#C46A3A] border-[#2B2C24] shadow-[4px_4px_0px_#2B2C24]'
+                ? 'bg-[#C46A3A] border-[#2B2C24] shadow-[4px_4px_0px_#0A0B08]'
                 : 'bg-[#46521F] border-[#2B2C24]'
             }`}
           >
@@ -861,9 +1114,9 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
               audioManager.playSFX('button_click');
               showNotification('División Aegis seleccionada.');
             }}
-            className={`p-4 rounded-[18px_4px_18px_4px] border-2 cursor-pointer flex flex-col justify-between ${
+            className={`p-4 rounded-[14px_4px_14px_4px] border-2 cursor-pointer flex flex-col justify-between ${
               inventory.specialization === 'aegis'
-                ? 'bg-[#C46A3A] border-[#2B2C24] shadow-[4px_4px_0px_#2B2C24]'
+                ? 'bg-[#C46A3A] border-[#2B2C24] shadow-[4px_4px_0px_#0A0B08]'
                 : 'bg-[#46521F] border-[#2B2C24]'
             }`}
           >
@@ -885,9 +1138,9 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
               audioManager.playSFX('button_click');
               showNotification('Ingeniería Titán seleccionada.');
             }}
-            className={`p-4 rounded-[18px_4px_18px_4px] border-2 cursor-pointer flex flex-col justify-between ${
+            className={`p-4 rounded-[14px_4px_14px_4px] border-2 cursor-pointer flex flex-col justify-between ${
               inventory.specialization === 'titan'
-                ? 'bg-[#C46A3A] border-[#2B2C24] shadow-[4px_4px_0px_#2B2C24]'
+                ? 'bg-[#C46A3A] border-[#2B2C24] shadow-[4px_4px_0px_#0A0B08]'
                 : 'bg-[#46521F] border-[#2B2C24]'
             }`}
           >
@@ -907,7 +1160,7 @@ export const IndustrialComplexView: React.FC<IndustrialComplexViewProps> = ({
       {/* MODAL DE GESTIÓN DE PARCELA TERRITORIAL CON INTERRUPTOR ABATIBLE */}
       {selectedPlotForManage && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#46521F] border-4 border-[#2B2C24] rounded-[24px_8px_24px_8px] p-6 max-w-md w-full shadow-[8px_8px_0px_#2B2C24] flex flex-col gap-4">
+          <div className="bg-[#46521F] border-4 border-[#0A0B08] rounded-[14px_4px_14px_4px] p-6 max-w-md w-full shadow-[4px_4px_0px_#0A0B08] flex flex-col gap-4">
             <div className="flex justify-between items-center pb-2 border-b-2 border-[#2B2C24]">
               <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
                 <Sliders className="w-5 h-5 text-[#C46A3A]" />

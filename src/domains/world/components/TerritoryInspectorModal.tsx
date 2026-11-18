@@ -55,23 +55,21 @@ export const TerritoryInspectorModal: React.FC<TerritoryInspectorModalProps> = (
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-2xl bg-[#161712] border-2 border-[#7B8A4A] rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] overflow-hidden text-[#F2E8D5]"
-          style={{
-            boxShadow: '8px 8px 0px #0A0B08, 0 0 30px rgba(70,82,31,0.5)',
-          }}
+          className="relative w-full max-w-2xl bg-[#161712] border-2 border-[#0A0B08] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] overflow-hidden text-[#F2E8D5]"
         >
           {/* Cabecera Blindada */}
           <div
-            className="px-6 py-4 border-b border-[#46521F] flex items-center justify-between"
+            className="px-6 py-4 border-b-2 border-[#0A0B08] flex items-center justify-between"
             style={{ backgroundColor: `${province.ownerColor}33` }}
           >
             <div className="flex items-center gap-3">
+              <img src="/favicon.svg" alt="DRONEPUNK" className="w-5 h-5 shrink-0" />
               {province.isCapital ? (
-                <div className="p-2 bg-yellow-500/20 border border-yellow-500 rounded-lg">
+                <div className="p-2 bg-yellow-500/20 border-2 border-[#0A0B08] rounded-[14px_4px_14px_4px] shadow-[2px_2px_0px_#0A0B08]">
                   <Crown className="w-6 h-6 text-yellow-400" />
                 </div>
               ) : (
-                <div className="p-2 bg-[#46521F]/40 border border-[#7B8A4A] rounded-lg">
+                <div className="p-2 bg-[#46521F]/40 border-2 border-[#0A0B08] rounded-[14px_4px_14px_4px] shadow-[2px_2px_0px_#0A0B08]">
                   <Shield className="w-6 h-6 text-[#7B8A4A]" />
                 </div>
               )}
@@ -90,7 +88,7 @@ export const TerritoryInspectorModal: React.FC<TerritoryInspectorModalProps> = (
 
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg bg-[#2B2C24] hover:bg-[#C46A3A] text-[#F2E8D5] transition-colors"
+              className="p-1.5 rounded-[14px_4px_14px_4px] border-2 border-[#0A0B08] shadow-[2px_2px_0px_#0A0B08] bg-[#2B2C24] hover:bg-[#C46A3A] text-[#F2E8D5] transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -100,7 +98,7 @@ export const TerritoryInspectorModal: React.FC<TerritoryInspectorModalProps> = (
           <div className="p-6 space-y-6">
             {/* Aviso de Capital de Alto Rendimiento */}
             {province.isCapital && (
-              <div className="flex items-center gap-3 p-3 bg-yellow-950/40 border border-yellow-500/50 rounded-xl text-yellow-300 text-xs font-mono">
+              <div className="flex items-center gap-3 p-3 bg-yellow-950/40 border-2 border-[#0A0B08] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] text-yellow-300 text-xs font-mono">
                 <Crown className="w-5 h-5 flex-shrink-0 text-yellow-400" />
                 <span>
                   <strong>CAPITAL HISTÓRICA DE ALTO RENDIMIENTO (CAPTURABLE):</strong> Super-nodo con la mayor capacidad
@@ -111,7 +109,7 @@ export const TerritoryInspectorModal: React.FC<TerritoryInspectorModalProps> = (
 
             {/* Aviso de Cooldown Post-Conquista */}
             {province.status === 'cooldown_priority' && (
-              <div className="flex items-center gap-3 p-3 bg-cyan-950/40 border border-cyan-500/50 rounded-xl text-cyan-300 text-xs font-mono">
+              <div className="flex items-center gap-3 p-3 bg-cyan-950/40 border-2 border-[#0A0B08] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] text-cyan-300 text-xs font-mono">
                 <Clock className="w-5 h-5 flex-shrink-0" />
                 <span>
                   <strong>ESCUDO TEMPORAL DE 4 HORAS ACTIVO:</strong> Provincia en periodo de
@@ -122,12 +120,12 @@ export const TerritoryInspectorModal: React.FC<TerritoryInspectorModalProps> = (
 
             {/* Fila de Métricas: Soberano, TCP y Flujo de Recursos */}
             <div className="grid grid-cols-3 gap-4">
-              <div className="p-3 bg-[#2B2C24] border border-[#46521F] rounded-xl font-mono text-center">
+              <div className="p-3 bg-[#2B2C24] border-2 border-[#0A0B08] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] font-mono text-center">
                 <span className="text-[10px] text-[#F2E8D5]/60 uppercase">Corporación Soberana</span>
                 <p className="text-lg font-black text-amber-400 mt-1">[{province.ownerTag}]</p>
               </div>
 
-              <div className="p-3 bg-[#2B2C24] border border-[#46521F] rounded-xl font-mono text-center">
+              <div className="p-3 bg-[#2B2C24] border-2 border-[#0A0B08] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] font-mono text-center">
                 <span className="text-[10px] text-[#F2E8D5]/60 uppercase">Puntos de Control (TCP)</span>
                 <p
                   className={`text-lg font-black mt-1 ${
@@ -142,7 +140,7 @@ export const TerritoryInspectorModal: React.FC<TerritoryInspectorModalProps> = (
                 </p>
               </div>
 
-              <div className="p-3 bg-[#2B2C24] border border-[#46521F] rounded-xl font-mono text-center">
+              <div className="p-3 bg-[#2B2C24] border-2 border-[#0A0B08] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] font-mono text-center">
                 <span className="text-[10px] text-[#F2E8D5]/60 uppercase">Flujo por Minuto</span>
                 <p className="text-sm font-black text-emerald-400 mt-1 truncate">
                   {province.resourcePerMin}
@@ -172,7 +170,7 @@ export const TerritoryInspectorModal: React.FC<TerritoryInspectorModalProps> = (
 
             {/* Módulos Industriales y Guarnición */}
             <div className="grid grid-cols-2 gap-4 text-xs font-mono">
-              <div className="p-3 bg-[#2B2C24]/60 border border-[#46521F] rounded-xl flex items-center gap-3">
+              <div className="p-3 bg-[#2B2C24]/60 border-2 border-[#0A0B08] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] flex items-center gap-3">
                 <Factory className="w-5 h-5 text-amber-400 flex-shrink-0" />
                 <div>
                   <span className="font-bold text-[#F2E8D5]">Complejo Industrial:</span>
@@ -180,7 +178,7 @@ export const TerritoryInspectorModal: React.FC<TerritoryInspectorModalProps> = (
                 </div>
               </div>
 
-              <div className="p-3 bg-[#2B2C24]/60 border border-[#46521F] rounded-xl flex items-center gap-3">
+              <div className="p-3 bg-[#2B2C24]/60 border-2 border-[#0A0B08] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] flex items-center gap-3">
                 <Radio className="w-5 h-5 text-cyan-400 flex-shrink-0" />
                 <div>
                   <span className="font-bold text-[#F2E8D5]">Búnker de Guarnición:</span>
@@ -191,7 +189,7 @@ export const TerritoryInspectorModal: React.FC<TerritoryInspectorModalProps> = (
           </div>
 
           {/* Barra de Acciones */}
-          <div className="px-6 py-4 bg-[#12130e] border-t border-[#46521F] flex items-center justify-between">
+          <div className="px-6 py-4 bg-[#12130e] border-t-2 border-[#0A0B08] flex items-center justify-between">
             <span className="text-xs font-mono text-[#F2E8D5]/50">
               {isOwner ? 'Territorio propio bajo tu coalición.' : 'Territorio hostil o neutral.'}
             </span>
@@ -202,7 +200,7 @@ export const TerritoryInspectorModal: React.FC<TerritoryInspectorModalProps> = (
                   onClick={() => {
                     if (onDeployReinforcements) onDeployReinforcements(province.id);
                   }}
-                  className="px-4 py-2 bg-[#46521F] hover:bg-[#7B8A4A] text-[#F2E8D5] font-black text-xs uppercase tracking-wider rounded-lg transition-colors flex items-center gap-2"
+                  className="px-4 py-2 bg-[#46521F] hover:bg-[#7B8A4A] text-[#F2E8D5] font-black text-xs uppercase tracking-wider rounded-[14px_4px_14px_4px] border-2 border-[#0A0B08] shadow-[4px_4px_0px_#0A0B08] transition-colors flex items-center gap-2 cursor-pointer"
                 >
                   <Shield className="w-4 h-4" />
                   <span>Reforzar Guarnición</span>
@@ -213,10 +211,10 @@ export const TerritoryInspectorModal: React.FC<TerritoryInspectorModalProps> = (
                   onClick={() => {
                     if (onInitiateAssault) onInitiateAssault(province.id);
                   }}
-                  className={`px-5 py-2 font-black text-xs uppercase tracking-wider rounded-lg transition-all flex items-center gap-2 ${
+                  className={`px-5 py-2 text-xs flex items-center gap-2 ${
                     province.status === 'cooldown_priority'
-                      ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed border border-neutral-700'
-                      : 'bg-[#C46A3A] hover:bg-red-600 text-white shadow-[0_0_15px_rgba(196,106,58,0.5)]'
+                      ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed border-2 border-[#0A0B08] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] font-black uppercase tracking-wider'
+                      : 'tactical-btn-heavy'
                   }`}
                 >
                   <Swords className="w-4 h-4" />

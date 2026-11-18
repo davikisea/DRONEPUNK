@@ -87,6 +87,7 @@ export {
 // Hooks
 export {
   useUserHangar,
+  type UseUserHangarReturn,
 } from './hooks/useUserHangar';
 export {
   useUserIndustry,
@@ -100,7 +101,49 @@ export {
 // Components
 export { IndustrialComplexView } from './components/IndustrialComplexView';
 export { P2PMarketplaceView } from './components/P2PMarketplaceView';
-export { UnitHangarModal } from './components/UnitHangarModal';
+export { UnitHangarModal, type UnitHangarModalProps } from './components/UnitHangarModal';
 export { LoadoutCustomizer } from './components/LoadoutCustomizer';
 export { ShopCatalog } from './components/ShopCatalog';
-export { TacticalConstructionDrawer } from './components/TacticalConstructionDrawer';
+export {
+  TacticalConstructionDrawer,
+  type TacticalConstructionDrawerProps,
+} from './components/TacticalConstructionDrawer';
+export {
+  fetchCorpBuildings,
+  fetchWorldMapBuildings,
+  constructBuildingDb,
+  claimOrCaptureBuildingDb,
+  remodelBuildingDb,
+  collectBuildingResourcesDb,
+  calculateBuildingPendingYield,
+  resolveActiveUserCorpId,
+  HISTORICAL_CITY_BASES_SEED,
+  type DbBuildingRecord,
+  type BuildingPendingYield,
+} from './services/buildingDbService';
+export {
+  fetchOperationalUnits,
+  deployOperationalUnitDb,
+  recallOperationalUnitDb,
+  type DbOperationalUnitRecord,
+} from './services/hangarDbService';
+export {
+  collectHousingCitizens,
+  recruitAndDeployUnit,
+  syncPipelineLogistics,
+  repairInfrastructure,
+  createInfraEdge,
+  executeCollectorHaul,
+  triggerVulnerabilityHandshake,
+  damageInfrastructure,
+  fetchInfraEdges,
+  fetchVulnerabilityWindows,
+  simulateDualLogisticsTick,
+  simulateInfrastructureDamageAndRepair,
+  type DbInfraEdgeRecord,
+  type DbVulnerabilityWindowRecord,
+  type DualSimBuilding,
+  type DualSimEdge,
+  type DualSimCollector,
+  type DualLogisticsTickResult,
+} from './services/logisticsService';

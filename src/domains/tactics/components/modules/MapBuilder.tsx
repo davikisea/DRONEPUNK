@@ -205,7 +205,7 @@ export const MapBuilder: React.FC = () => {
     setSectorStatusMsg(
       `GBA [${targetSectorX}, ${targetSectorY}] (${selectedProfileId}): Score ${scoreText} • Arquetipo: ${archetypeText} • Conflictos Viales: ${conflictsText} • BFS ${bfsPct}% • Puentes: ${v.riverBridgeCount} • Sedes: ${v.strategicPropertiesCount}`
     );
-    audioManager.playCue('action_confirmed');
+    audioManager.playCue('ui_tile_confirm');
   }, [targetSectorX, targetSectorY, selectedProfileId, pushSnapshot]);
 
   const saveSectorToPersistentMap = useCallback(() => {
@@ -232,7 +232,7 @@ export const MapBuilder: React.FC = () => {
     setSectorStatusMsg(
       `Delta guardado en [${targetSectorX}, ${targetSectorY}] (${overridesCount} celdas modificadas sobre base O(1)).`
     );
-    audioManager.playCue('action_confirmed');
+    audioManager.playCue('ui_tile_confirm');
   }, [grid, targetSectorX, targetSectorY]);
 
   const resetSectorToProcedural = useCallback(() => {

@@ -33,6 +33,11 @@ ALTER TABLE public.state_sovereignty ENABLE ROW LEVEL SECURITY;
 CREATE INDEX IF NOT EXISTS idx_state_sovereignty_faction ON public.state_sovereignty(controlling_faction_id);
 CREATE INDEX IF NOT EXISTS idx_state_sovereignty_country ON public.state_sovereignty(country_id);
 
+-- Garantizar columnas técnicas en profiles si 20261106 corre antes de 20261111
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+
 -- Política 1: Lectura libre para todos los comandantes y observadores en el mapa
 CREATE POLICY "state_sovereignty_public_read"
   ON public.state_sovereignty
@@ -49,7 +54,7 @@ AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.clan_members cm
     WHERE cm.user_id = auth.uid()
-      AND (cm.clan_id = target_clan_id OR cm.role IN ('leader', 'officer'))
+      AND (cm.clan_id::text = target_clan_id OR cm.role IN ('leader', 'officer'))
   )
   OR EXISTS (
     SELECT 1 FROM public.profiles pp

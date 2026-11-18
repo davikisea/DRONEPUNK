@@ -107,6 +107,8 @@ export {
   CANONICAL_RTS_PROFILES,
   type TacticalRtsUnitState,
   type BallisticTracer,
+  type ScheduledDroneCommandType,
+  type ScheduledDroneOrderState,
 } from './core/tacticalRtsEngine';
 export {
   OperationalUnitsEngine,
@@ -226,3 +228,4 @@ export { ComicVignetteOverlay } from './components/ComicVignetteOverlay';
 export { CombatTheaterView } from './components/CombatTheaterView';
 export { ReinforcementRequestModal } from './components/ReinforcementRequestModal';
 export { GeotacticsLoadingScreen, DronepunkLoadingScreen } from './components/GeotacticsLoadingScreen';
+export { BaseProductionModal, type BaseProductionModalProps } from './components/BaseProductionModal';

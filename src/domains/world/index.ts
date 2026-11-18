@@ -193,3 +193,32 @@ export { ParadoxCommandDrawer } from './components/ParadoxCommandDrawer';
 export { TacticalC4ISRBaseDiorama } from './components/TacticalC4ISRBaseDiorama';
 export { TacticalDock, type LobbyStationView } from './components/TacticalDock';
 export { TacticalMapControls } from './components/TacticalMapControls';
+export { CorporationGateModal } from './components/CorporationGateModal';
+export { CorporationHubModule } from './components/CorporationHubModule';
+export { DroneSchedulerDrawer, type DroneSchedulerDrawerProps } from './components/DroneSchedulerDrawer';
+export {
+  scheduleUnitCommand,
+  cancelUnitCommand,
+  processDueUnitSchedules,
+  fetchUnitSchedules,
+  fetchUnitActionLogs,
+  type UnitCommandType,
+  type UnitScheduleRow,
+  type UnitActionLogRow,
+} from './services/droneScheduleService';
+export {
+  fetchMyCorporation,
+  fetchCorporationMembers,
+  listCorporations,
+  createCorporation,
+  joinCorporation,
+  updateMemberPermissions,
+  donateToCorporation,
+  leaveCorporation,
+  hasCorpPermission,
+  type CorporationRole,
+  type DelegatedPermissions,
+  type CorporationRecord,
+  type CorporationMemberRecord,
+  type MyCorporationContext,
+} from './services/corporationService';

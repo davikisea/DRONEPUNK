@@ -222,14 +222,22 @@ export const UnitHangarModal: React.FC<UnitHangarModalProps> = ({
   // Hangar y Patentes conectadas al 100% con Supabase (useUserHangar)
   const {
     hangarUnits,
+    operationalUnits,
     unlockedPatents,
     battlegroup,
     isLoading: isHangarLoading,
     craftUnit,
     unlockPatent,
     scrapUnit,
+    deployUnitToField,
+    recallUnitToHangar,
     toggleBattlegroupUnit,
   } = useUserHangar();
+
+  const totalChassisCount = hangarUnits.reduce((sum, u) => sum + Math.max(1, u.quantity), 0);
+  const vanguardCount = Math.min(4, battlegroup.length);
+  const reserveCount = Math.max(0, Math.min(12, totalChassisCount - vanguardCount));
+  const [hangarFeedback, setHangarFeedback] = useState<{ text: string; isError?: boolean } | null>(null);
 
   // Crafting state
   const [selectedBlueprintCode, setSelectedBlueprintCode] = useState<string>('TANK_T80');
@@ -325,6 +333,21 @@ export const UnitHangarModal: React.FC<UnitHangarModalProps> = ({
     onDeployToReinforcements?.([...battlegroup, unit]);
   };
 
+  const handleDeployToFieldDb = async (unit: UnitHangarEntry) => {
+    setHangarFeedback(null);
+    const res = await deployUnitToField({ hangarSlotId: unit.id });
+    setHangarFeedback({ text: res.message, isError: !res.success });
+    if (res.success) {
+      onDeployToReinforcements?.([unit]);
+    }
+  };
+
+  const handleRecallToHangarDb = async (operationalUnitId: string) => {
+    setHangarFeedback(null);
+    const res = await recallUnitToHangar(operationalUnitId);
+    setHangarFeedback({ text: res.message, isError: !res.success });
+  };
+
   const handleRemoveFromBattlegroup = (id: string) => {
     const unit = battlegroup.find((u) => u.id === id);
     if (unit) {
@@ -352,11 +375,12 @@ export const UnitHangarModal: React.FC<UnitHangarModalProps> = ({
         initial={{ scale: 0.94, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.94, opacity: 0 }}
-        className="relative w-full max-w-6xl max-h-[92vh] flex flex-col rounded-[12px_2px_12px_2px] bg-[#161712] border-3 border-[#0A0B08] shadow-[10px_10px_0px_#0A0B08] text-[#F2E8D5] overflow-hidden"
+        className="relative w-full max-w-6xl max-h-[92vh] flex flex-col rounded-[14px_4px_14px_4px] bg-[#161712] border-3 border-[#0A0B08] shadow-[4px_4px_0px_#0A0B08] text-[#F2E8D5] overflow-hidden"
       >
         {/* ENCABEZADO C4ISR */}
         <header className="px-5 py-3.5 bg-[#2B2C24] border-b-2 border-[#0A0B08] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
+            <img src="/favicon.svg" alt="DRONEPUNK" className="w-5 h-5 object-contain shrink-0" />
             <div className="w-10 h-10 rounded-[8px_2px_8px_2px] bg-[#161712] border-2 border-[#E65100] flex items-center justify-center text-[#E65100]">
               <Layers className="w-5 h-5" />
             </div>
@@ -443,7 +467,7 @@ export const UnitHangarModal: React.FC<UnitHangarModalProps> = ({
                 : 'bg-[#2B2C24] text-[#F2E8D5]/80 border-[#0A0B08] hover:text-[#F2E8D5]'
             }`}
           >
-            🎖️ Grupo de Combate ({battlegroup.length}/6)
+            🎖️ Vanguardia ({vanguardCount}/4) • En Campo ({operationalUnits.length})
           </button>
           <button
             onClick={() => {
@@ -468,6 +492,35 @@ export const UnitHangarModal: React.FC<UnitHangarModalProps> = ({
               {craftSuccessMessage}
             </div>
           )}
+
+          {hangarFeedback && (
+            <div
+              className={`p-3 border-2 rounded text-xs font-mono font-bold flex items-center gap-2 ${
+                hangarFeedback.isError
+                  ? 'bg-rose-950/80 border-rose-500 text-rose-200'
+                  : 'bg-emerald-950/80 border-emerald-500 text-emerald-200'
+              }`}
+            >
+              {hangarFeedback.isError ? (
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              )}
+              <span>{hangarFeedback.text}</span>
+            </div>
+          )}
+
+          {/* Barra Canónica del Hangar Físico: 16 Chasis (4 Vanguardia + 12 Reserva, CERO cartas) */}
+          <div className="p-2.5 bg-[#1C1D17] border border-[#2E3323] rounded flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
+            <span className="text-amber-300 font-bold uppercase">
+              HANGAR FÍSICO CANÓNICO: {totalChassisCount}/16 CHASIS (CERO CARTAS)
+            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-[#00FF66]">Vanguardia: {vanguardCount}/4</span>
+              <span className="text-sky-300">Reserva: {reserveCount}/12</span>
+              <span className="text-amber-400">Desplegados (DB): {operationalUnits.length}</span>
+            </div>
+          </div>
 
           {/* TAB 1: INVENTARIO DE TROPAS EN HANGAR */}
           {activeTab === 'inventory' && (
@@ -538,14 +591,21 @@ export const UnitHangarModal: React.FC<UnitHangarModalProps> = ({
                         <div className="flex items-center gap-2 pt-2 border-t border-[#161712]">
                           <button
                             onClick={() => handleAddToBattlegroup(unit)}
-                            className="flex-1 py-1.5 px-2 bg-[#46521F] hover:bg-[#586827] text-[#F2E8D5] text-[10px] font-display font-extrabold uppercase rounded border border-[#0A0B08] flex items-center justify-center gap-1"
+                            className="flex-1 py-1.5 px-2 bg-[#46521F] hover:bg-[#586827] text-[#F2E8D5] text-[10px] font-display font-extrabold uppercase rounded border border-[#0A0B08] flex items-center justify-center gap-1 cursor-pointer"
                           >
                             <Plus className="w-3 h-3" />
-                            Al Frente
+                            Vanguardia
+                          </button>
+                          <button
+                            onClick={() => handleDeployToFieldDb(unit)}
+                            className="py-1.5 px-2 bg-[#E65100] hover:bg-amber-400 text-black text-[10px] font-display font-extrabold uppercase rounded border border-[#0A0B08] cursor-pointer"
+                            title="Desplegar unidad operativa en DB (deploy_operational_unit)"
+                          >
+                            Desplegar (DB)
                           </button>
                           <button
                             onClick={() => handleSalvageScrap(unit.id)}
-                            className="py-1.5 px-2 bg-[#161712] hover:bg-rose-950 text-rose-400 hover:text-rose-200 text-[10px] font-mono font-bold rounded border border-[#0A0B08] flex items-center gap-1"
+                            className="py-1.5 px-2 bg-[#161712] hover:bg-rose-950 text-rose-400 hover:text-rose-200 text-[10px] font-mono font-bold rounded border border-[#0A0B08] flex items-center gap-1 cursor-pointer"
                             title="Desguazar por chatarra (+35% recursos)"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -721,10 +781,10 @@ export const UnitHangarModal: React.FC<UnitHangarModalProps> = ({
                 <button
                   disabled={!canAfford || !isPatentUnlocked}
                   onClick={handleCraft}
-                  className={`w-full py-3 rounded-[6px_2px_6px_2px] font-display font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 border-2 border-[#0A0B08] ${
+                  className={`w-full py-3 font-display font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 ${
                     canAfford && isPatentUnlocked
-                      ? 'bg-[#E65100] hover:bg-[#FF6D00] text-black shadow-[4px_4px_0px_#0A0B08] cursor-pointer'
-                      : 'bg-zinc-800 text-zinc-500 cursor-not-allowed opacity-60'
+                      ? 'tactical-btn-heavy cursor-pointer'
+                      : 'rounded-[6px_2px_6px_2px] border-2 border-[#0A0B08] bg-zinc-800 text-zinc-500 cursor-not-allowed opacity-60'
                   }`}
                 >
                   <Hammer className="w-4 h-4" />
@@ -954,6 +1014,48 @@ export const UnitHangarModal: React.FC<UnitHangarModalProps> = ({
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Unidades Operativas Desplegadas en DB (recall_operational_unit) */}
+              <div className="p-3 bg-[#1C1D17] border border-[#2E3323] rounded space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-mono font-bold text-amber-300 uppercase">
+                    CHASIS DESPLEGADOS EN CAMPO (DB: {operationalUnits.length})
+                  </span>
+                  <span className="text-[10px] font-mono text-[#F2E8D5]/60">
+                    Retirar devuelve el chasis a la Reserva (12 slots)
+                  </span>
+                </div>
+                {operationalUnits.length === 0 ? (
+                  <p className="text-[11px] font-mono text-[#F2E8D5]/60">
+                    No hay chasis desplegados actualmente en operational_units.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {operationalUnits.map((op) => (
+                      <div
+                        key={op.id}
+                        className="p-2.5 bg-[#2B2C24] border border-[#0A0B08] rounded flex items-center justify-between gap-2 text-xs font-mono"
+                      >
+                        <div>
+                          <div className="font-bold text-white uppercase">
+                            {op.unit_code} • T{op.tier}
+                          </div>
+                          <div className="text-[10px] text-emerald-400">
+                            HP {op.hp}/100 • H3 #{op.h3_index}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRecallToHangarDb(op.id)}
+                          className="px-2.5 py-1 bg-[#161712] hover:bg-[#46521F] text-amber-300 border border-[#0A0B08] rounded text-[10px] font-bold uppercase cursor-pointer"
+                        >
+                          Retirar a Reserva (DB)
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {battlegroup.length === 0 ? (

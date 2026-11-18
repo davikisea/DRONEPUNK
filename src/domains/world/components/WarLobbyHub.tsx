@@ -28,6 +28,11 @@ import { IndustrialInventory, UnitHangarModal, useTerritoryEconomyTicker } from 
 import type { Clan, SafeguardInventory, UserRoleContext } from '@domains/world';
 import { politicalAliceEngine } from '../core/politicalAliceEngine';
 import { spatialDeploymentService } from '../services/spatialDeploymentService';
+import {
+  fetchMyCorporation,
+  hasCorpPermission,
+  type MyCorporationContext,
+} from '../services/corporationService';
 import { useTerritoryMap } from '../hooks/useTerritoryMap';
 import { DualResourceHeader } from './DualResourceHeader';
 import { LobbyStationView } from './TacticalDock';
@@ -195,9 +200,35 @@ export const WarLobbyHub: React.FC<WarLobbyHubProps> = ({
   const [isHangarModalOpen, setIsHangarModalOpen] = useState(false);
   const [isGarrisonDrawerOpen, setIsGarrisonDrawerOpen] = useState(false);
   const [aliceLogs, setAliceLogs] = useState(() => politicalAliceEngine.getState().operationLogs);
-  const [userEc, setUserEc] = useState(4850);
-  const [userRareEarth, setUserRareEarth] = useState(140);
-  const [userComposites, setUserComposites] = useState(95);
+  const [corpContext, setCorpContext] = useState<MyCorporationContext | null>(null);
+  const [userEc, setUserEc] = useState(0);
+  const [userRareEarth, setUserRareEarth] = useState(0);
+  const [userComposites, setUserComposites] = useState(0);
+
+  useEffect(() => {
+    if (!userId || isGuestMode) {
+      setCorpContext(null);
+      return;
+    }
+    let cancelled = false;
+    fetchMyCorporation(userId)
+      .then((ctx) => {
+        if (cancelled) return;
+        setCorpContext(ctx);
+        if (ctx) {
+          setUserEc(ctx.corporation.treasury_ec ?? 0);
+          setLocalSteel(ctx.corporation.treasury_alloys ?? userSteel ?? 0);
+          setUserRareEarth(ctx.corporation.treasury_rare_earth ?? 0);
+          setUserComposites(ctx.corporation.treasury_composites ?? 0);
+        }
+      })
+      .catch((err) => {
+        console.warn('[WarLobbyHub] No se pudo cargar contexto corporativo:', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, isGuestMode, userSteel]);
 
   const selectedProvinceId =
     selectionTarget && 'stateId' in selectionTarget
@@ -211,15 +242,30 @@ export const WarLobbyHub: React.FC<WarLobbyHubProps> = ({
     return () => unsub();
   }, []);
 
-  const userRoleContext: UserRoleContext = useMemo(() => ({
-    userId: userId || 'a0000000-0000-0000-0000-000000000001',
-    userName: clan?.name || 'Comandante en Jefe',
-    clanId: clan?.id || 'clan-ferro',
-    clanTag: clan?.tag || 'FERR',
-    clanRole: (clan as any)?.userRole || 'leader',
-    factionId: 'blue_moon',
-    isFactionManager: true,
-  }), [userId, clan]);
+  const resolvedClanId = corpContext?.corporation.id ?? clan?.id ?? '';
+  const resolvedClanName = corpContext?.corporation.name ?? clan?.name ?? clanName ?? 'Sin Corporación';
+  const resolvedClanTag = corpContext?.corporation.tag
+    ? `[${corpContext.corporation.tag}]`
+    : clan?.tag ?? clanTag ?? '[---]';
+
+  const userRoleContext: UserRoleContext = useMemo(() => {
+    const corpRole = corpContext?.membership.role;
+    const mappedRole: UserRoleContext['clanRole'] =
+      corpRole === 'majority_shareholder'
+        ? 'leader'
+        : corpRole === 'shareholder'
+        ? 'officer'
+        : ((clan as any)?.userRole || 'recruit');
+    return {
+      userId: userId || '',
+      userName: corpContext?.corporation.name || clan?.name || 'Comandante',
+      clanId: resolvedClanId,
+      clanTag: corpContext?.corporation.tag || clan?.tag || '',
+      clanRole: mappedRole,
+      factionId: 'blue_moon',
+      isFactionManager: corpRole === 'majority_shareholder' || corpRole === 'shareholder',
+    };
+  }, [userId, clan, corpContext, resolvedClanId]);
 
   // Bark Widget Interactivo en esquina inferior izquierda
   const [barkWidgetMessage, setBarkWidgetMessage] = useState<BarkMessage | null>(null);
@@ -231,7 +277,7 @@ export const WarLobbyHub: React.FC<WarLobbyHubProps> = ({
     controlMap,
     declareAttack,
     syncTerritoryData,
-  } = useTerritoryMap(clan?.id ?? 'clan-ferro');
+  } = useTerritoryMap(resolvedClanId);
 
   const selectedProvince =
     (selectedProvinceId ? provinces.find((p) => p.id === selectedProvinceId) : null) ||
@@ -256,7 +302,7 @@ export const WarLobbyHub: React.FC<WarLobbyHubProps> = ({
 
   // Ticker de Generación Continua Wplace & Upkeep Territorial (Victoria 3 Pipeline)
   const territoryTicker = useTerritoryEconomyTicker({
-    clanId: clan?.id ?? 'clan-ferro',
+    clanId: resolvedClanId,
     provinces,
     nodes,
     controlMap,
@@ -269,10 +315,19 @@ export const WarLobbyHub: React.FC<WarLobbyHubProps> = ({
     },
   });
 
-  const resolvedClanName = clan?.name ?? clanName ?? 'Legión de Hierro';
-  const resolvedClanTag = clan?.tag ?? clanTag ?? '[FERRO]';
+  const controlledProvinces = useMemo(() => {
+    if (!resolvedClanId) return [];
+    return provinces
+      .filter((p) => controlMap[p.id]?.controllingClanId === resolvedClanId)
+      .map((p) => ({ id: p.id, name: p.name }));
+  }, [provinces, controlMap, resolvedClanId]);
+
+  const canUseTreasury = !corpContext || hasCorpPermission(corpContext.membership, 'can_use_treasury');
+  const canControlUnits = !corpContext || hasCorpPermission(corpContext.membership, 'can_control_units');
+  const canPurchaseUnits = !corpContext || hasCorpPermission(corpContext.membership, 'can_purchase_units');
+
   const streak = safeguardInventory?.currentStreak ?? winStreak;
-  const resolvedLevel = userLevel ?? simLevel ?? 5;
+  const resolvedLevel = corpContext?.corporation.tech_level ?? userLevel ?? 1;
 
   useEffect(() => {
     setSelectedCOId('stella');
@@ -332,10 +387,13 @@ export const WarLobbyHub: React.FC<WarLobbyHubProps> = ({
         countryId: 'COUNTRY_VEN',
         stateId: targetId,
       });
+      if (!canControlUnits) {
+        return;
+      }
       setIsInspectorOpen(true);
-      declareAttack(selectedProvince?.id || 'REG_VE_01', targetId, clan?.id ?? 'clan-ferro');
+      declareAttack(selectedProvince?.id || 'REG_VE_01', targetId, resolvedClanId);
     },
-    [clan?.id, declareAttack, selectedProvince]
+    [resolvedClanId, canControlUnits, declareAttack, selectedProvince]
   );
 
   const handleNavigate = useCallback(
@@ -809,7 +867,7 @@ export const WarLobbyHub: React.FC<WarLobbyHubProps> = ({
         clanTag={resolvedClanTag}
         clanName={resolvedClanName}
         clanColor={clan?.color ?? '#3B82F6'}
-        clanVaultEc={48500}
+        clanVaultEc={corpContext?.corporation.treasury_ec ?? 0}
         clanSharedStockCount={14}
         factionTcpControl={7200}
         isGuestMode={isGuestMode}
@@ -826,7 +884,7 @@ export const WarLobbyHub: React.FC<WarLobbyHubProps> = ({
           <TacticalWorldMap
             className="w-full h-full"
             activeProvinceId={selectedProvince?.id}
-            userClanId={clan?.id ?? 'clan-ferro'}
+            userClanId={resolvedClanId}
             onSelectCountry={handleSelectCountryFromMap}
             onSelectProvince={handleSelectProvinceFromMap}
             onSelectMunicipality={handleSelectMunicipalityFromMap}
@@ -859,7 +917,7 @@ export const WarLobbyHub: React.FC<WarLobbyHubProps> = ({
         {/* C4ISR THEATER STRIP */}
         <div
           data-testid="c4isr-theater-strip"
-          className="fixed top-[80px] left-1/2 -translate-x-1/2 z-20 pointer-events-none flex items-center gap-2 px-3 py-1 bg-[#0E100C]/90 border border-[#46521F] rounded-[6px_2px_6px_2px] shadow-[2px_2px_0px_#0A0B08] text-[10px] font-mono font-bold text-[#F2E8D5] tracking-wider uppercase whitespace-nowrap"
+          className="fixed top-[80px] left-1/2 -translate-x-1/2 z-20 pointer-events-none flex items-center gap-2 px-3 py-1 bg-[#0E100C]/90 border-2 border-[#0A0B08] rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] text-[10px] font-mono font-bold text-[#F2E8D5] tracking-wider uppercase whitespace-nowrap"
         >
           <img src="/icon.svg" alt="DRONEPUNK" className="w-4 h-4 object-contain" />
           <span>DRONEPUNK • MAPA TERRITORIAL GLOBAL</span>
@@ -939,17 +997,21 @@ export const WarLobbyHub: React.FC<WarLobbyHubProps> = ({
           provinces={provinces}
           nodes={nodes}
           controlMap={controlMap}
-          userClanId={clan?.id ?? 'clan-ferro'}
+          userClanId={resolvedClanId}
           userClanTag={resolvedClanTag}
           userEc={userEc}
           userSteel={localSteel}
+          corpContext={corpContext}
           currentZoom={currentMapZoom}
           onDeclareAttack={async (targetProvinceId) => {
+            if (!canControlUnits) {
+              return { success: false, error: 'Permiso can_control_units requerido para declarar ofensivas.' };
+            }
             const originId = selectedProvince?.id || 'REG_VE_01';
             const res = await declareAttack(
               originId,
               targetProvinceId,
-              clan?.id ?? 'clan-ferro'
+              resolvedClanId
             );
             if (res.success) {
               audioManager.playComboAction(8);
@@ -961,8 +1023,13 @@ export const WarLobbyHub: React.FC<WarLobbyHubProps> = ({
           }}
           onOpenDeployModal={() => setDeployTrigger((n) => n + 1)}
           onOpenBuildDrawer={() => setBuildTrigger((n) => n + 1)}
-          onOpenFullHangar={() => setIsHangarModalOpen(true)}
+          onOpenFullHangar={() => {
+            if (canPurchaseUnits) {
+              setIsHangarModalOpen(true);
+            }
+          }}
           onRebalanceGarrison={(targetLevel) => {
+            if (!canUseTreasury) return;
             const upkeep = targetLevel * 150;
             setUserEc((prev) => Math.max(0, prev - upkeep));
           }}
@@ -1014,6 +1081,7 @@ export const WarLobbyHub: React.FC<WarLobbyHubProps> = ({
                   </button>
 
                   <div className="flex items-center gap-2">
+                    <img src="/favicon.svg" alt="DRONEPUNK" className="w-4 h-4 shrink-0" />
                     <span className="hidden sm:inline-block px-2 py-0.5 rounded-[4px_1px_4px_1px] bg-[#E65100] text-[#F2E8D5] font-mono font-extrabold text-[10px] uppercase border border-[#0A0B08]">
                       {STATION_TITLES[activeStation]?.badge}
                     </span>
@@ -1088,14 +1156,11 @@ export const WarLobbyHub: React.FC<WarLobbyHubProps> = ({
         onClose={() => setIsGarrisonDrawerOpen(false)}
         userEc={userEc}
         clanTag={resolvedClanTag}
-        controlledProvinces={[
-          { id: 'REG_VE_01', name: 'Distrito Capital - Caracas (Hegemonía)' },
-          { id: 'REG_VE_05', name: 'Carabobo - Valencia/Pto. Cabello' },
-          { id: 'REG_VE_06', name: 'Miranda - Valles del Tuy' },
-          { id: 'REG_VE_08', name: 'Aragua - Maracay' },
-          { id: 'REG_VE_17', name: 'Guárico - Calabozo/San Juan' },
-        ]}
-        onSpendEc={(amount) => setUserEc((e) => Math.max(0, e - amount))}
+        controlledProvinces={controlledProvinces}
+        onSpendEc={(amount) => {
+          if (!canUseTreasury) return;
+          setUserEc((e) => Math.max(0, e - amount));
+        }}
       />
 
       {/* 7. COMANDANTE REACTIVO PRESERVADO (BARK ENGINE - ESQUINA INFERIOR IZQUIERDA) */}

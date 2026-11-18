@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { audioManager } from '@domains/game-feel';
 import { barkEngine } from '@domains/game-feel';
-import { TacticalGhostBar } from './TacticalGhostBar';
+import { TacticalGhostBar } from '@shared';
 
 export interface FactionBannerProps {
   resolvedClanTag: string;

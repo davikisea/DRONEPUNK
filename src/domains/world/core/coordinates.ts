@@ -211,106 +211,12 @@ export function lngLatToMunicipalMicroCell(
 // ==============================================================================
 // INDEXACIÓN HEXAGONAL H3 RESOLUCIÓN 9 (~174m) Y RESOLUCIÓN 4 (AGRUPACIÓN REGIONAL)
 // ==============================================================================
-
-export const H3_RES9_EDGE_METERS = 174;
-const H3_RES9_PREFIX = 0x0890000000000000n;
-const H3_RES4_PREFIX = 0x0840000000000000n;
-const H3_AXIAL_BIAS = 8_388_608n;
-const H3_AXIAL_MASK = 0xFFFFFFn;
-const H3_MERCATOR_R = 6_378_137;
-
-function packH3Axial(prefix: bigint, q: number, r: number): bigint {
-  const pq = (BigInt(q) + H3_AXIAL_BIAS) & H3_AXIAL_MASK;
-  const pr = (BigInt(r) + H3_AXIAL_BIAS) & H3_AXIAL_MASK;
-  return prefix | (pq << 24n) | pr;
-}
-
-function unpackH3Axial(h3Index: bigint): { q: number; r: number } {
-  const q = Number(((h3Index >> 24n) & H3_AXIAL_MASK) - H3_AXIAL_BIAS);
-  const r = Number((h3Index & H3_AXIAL_MASK) - H3_AXIAL_BIAS);
-  return { q, r };
-}
-
-function axialRound(qf: number, rf: number): { q: number; r: number } {
-  const sf = -qf - rf;
-  let q = Math.round(qf);
-  let r = Math.round(rf);
-  const s = Math.round(sf);
-  const qDiff = Math.abs(q - qf);
-  const rDiff = Math.abs(r - rf);
-  const sDiff = Math.abs(s - sf);
-
-  if (qDiff > rDiff && qDiff > sDiff) {
-    q = -r - s;
-  } else if (rDiff > sDiff) {
-    r = -q - s;
-  }
-  return { q, r };
-}
-
-export function latLngToH3Res9(lat: number, lng: number): bigint {
-  const clampedLat = Math.max(-85.05112878, Math.min(85.05112878, lat));
-  const xM = ((lng * Math.PI) / 180) * H3_MERCATOR_R;
-  const yM =
-    Math.log(Math.tan(Math.PI / 4 + (clampedLat * Math.PI) / 360)) * H3_MERCATOR_R;
-
-  const qf = ((Math.sqrt(3) / 3) * xM - (1 / 3) * yM) / H3_RES9_EDGE_METERS;
-  const rf = ((2 / 3) * yM) / H3_RES9_EDGE_METERS;
-  const { q, r } = axialRound(qf, rf);
-  return packH3Axial(H3_RES9_PREFIX, q, r);
-}
-
-export function h3Res9ToLatLng(h3Index: bigint): [number, number] {
-  const { q, r } = unpackH3Axial(h3Index);
-  const xM = H3_RES9_EDGE_METERS * Math.sqrt(3) * (q + r / 2);
-  const yM = H3_RES9_EDGE_METERS * 1.5 * r;
-  const lng = (xM / H3_MERCATOR_R) * (180 / Math.PI);
-  const lat = (2 * Math.atan(Math.exp(yM / H3_MERCATOR_R)) - Math.PI / 2) * (180 / Math.PI);
-  return [Number(lat.toFixed(6)), Number(lng.toFixed(6))];
-}
-
-export function h3Res9ToParentRes4(h3Index: bigint): bigint {
-  const { q, r } = unpackH3Axial(h3Index);
-  return packH3Axial(H3_RES4_PREFIX, Math.floor(q / 32), Math.floor(r / 32));
-}
-
-export function h3GridDistance(h3A: bigint, h3B: bigint): number {
-  const a = unpackH3Axial(h3A);
-  const b = unpackH3Axial(h3B);
-  const dq = a.q - b.q;
-  const dr = a.r - b.r;
-  return Math.round((Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2);
-}
-
-export function h3GridDisk(originH3: bigint, radiusRings: number): bigint[] {
-  const k = Math.max(0, Math.floor(radiusRings));
-  const { q, r } = unpackH3Axial(originH3);
-  const result: bigint[] = [];
-  for (let dq = -k; dq <= k; dq++) {
-    const rMin = Math.max(-k, -dq - k);
-    const rMax = Math.min(k, -dq + k);
-    for (let dr = rMin; dr <= rMax; dr++) {
-      result.push(packH3Axial(H3_RES9_PREFIX, q + dq, r + dr));
-    }
-  }
-  return result;
-}
-
-export function h3GridPathCells(startH3: bigint, endH3: bigint): bigint[] {
-  const dist = h3GridDistance(startH3, endH3);
-  if (dist === 0) return [startH3];
-  const a = unpackH3Axial(startH3);
-  const b = unpackH3Axial(endH3);
-  const path: bigint[] = [];
-  for (let i = 0; i <= dist; i++) {
-    const t = i / dist;
-    const qf = a.q + (b.q - a.q) * t + 1e-6;
-    const rf = a.r + (b.r - a.r) * t + 1e-6;
-    const { q, r } = axialRound(qf, rf);
-    const cell = packH3Axial(H3_RES9_PREFIX, q, r);
-    if (path.length === 0 || path[path.length - 1] !== cell) {
-      path.push(cell);
-    }
-  }
-  return path;
-}
+export {
+  H3_RES9_EDGE_METERS,
+  latLngToH3Res9,
+  h3Res9ToLatLng,
+  h3Res9ToParentRes4,
+  h3GridDistance,
+  h3GridDisk,
+  h3GridPathCells,
+} from '@shared';

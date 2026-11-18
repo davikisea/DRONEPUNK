@@ -1,25 +1,34 @@
 /**
  * ==============================================================================
- * MODAL DE DESPLIEGUE ESPACIAL DE TROPAS EN COORDENADAS C4ISR (SPRINT 3)
+ * MODAL DE DESPLIEGUE ESPACIAL DE TROPAS EN COORDENADAS C4ISR (100% DB)
  * ==============================================================================
- * Especificación Canónica: docs/00_GEOTACTICS_ONLINE_MASTER_SPEC.md §3.3
- * Conforme a @tactical-command-intel y @indie-game-ui-architect
- * Posiciona tropas del Hangar en coordenadas exactas a Zoom x15.
+ * - Lee stock real de `user_unit_hangar` vía `useUserHangar` (@domains/economy).
+ * - Valida corporación activa (`corp_id`) y permisos `can_control_units` / `can_purchase_units`.
+ * - Permite comprar chasis en barracones/fábricas vía `purchase_unit_from_barracks`.
+ * - Despliega al mapa operacional vía `deployOperationalUnitDb` (`deploy_operational_unit`).
  * ==============================================================================
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Crosshair,
-  Shield,
   Radio,
   Swords,
   X,
   AlertTriangle,
-  CheckCircle2,
   Sparkles,
+  Box,
+  Factory,
+  Lock,
+  ShoppingCart,
 } from 'lucide-react';
-import { spatialDeploymentService } from '@domains/world';
+import { supabase, isSupabaseConfigured } from '@shared';
+import {
+  CANONICAL_UNIT_PRODUCTION_CATALOG,
+  deployOperationalUnitDb,
+  useUserHangar,
+} from '@domains/economy';
+import { latLngToH3Res9 } from '@domains/world';
 import { audioManager } from '@domains/game-feel';
 
 export interface TacticalUnitDeployModalProps {
@@ -31,223 +40,22 @@ export interface TacticalUnitDeployModalProps {
   userClanId?: string;
   userClanTag?: string;
   userFactionId?: string;
+  corpId?: string | null;
+  h3Index?: number;
   onDeploySuccess?: (unitCode: string) => void;
 }
 
-interface UnitDeployOption {
-  code: string;
-  name: string;
-  tier: number;
-  costGold: number;
-  role: string;
-  specs: string;
+interface CorpPermissions {
+  canControlUnits: boolean;
+  canPurchaseUnits: boolean;
 }
 
-const DEPLOY_UNITS_CATALOG: UnitDeployOption[] = [
-  // --- Compatibilidad / Chasis Tácticos (16 Chasis Canónicos) ---
-  {
-    code: 'infantry',
-    name: 'Infantería Ligera',
-    tier: 1,
-    costGold: 1000,
-    role: 'Captura de Sedes',
-    specs: 'Mov 3 • Infinita en Hangar • Captura Búnkeres',
-  },
-  {
-    code: 'mech',
-    name: 'Infantería Mecanizada (Bazooka)',
-    tier: 1,
-    costGold: 3000,
-    role: 'Captura y Emboscada',
-    specs: 'Mov 2 • Lanzacohetes Antitanque • Captura',
-  },
-  {
-    code: 'recon',
-    name: 'Vehículo Ligero de Reconocimiento',
-    tier: 1,
-    costGold: 4000,
-    role: 'Exploración y Vigilancia',
-    specs: 'Mov 8 • Visión 5 Casillas • Infinita en Hangar',
-  },
-  {
-    code: 'apc',
-    name: 'Transporte Blindado (APC)',
-    tier: 1,
-    costGold: 5000,
-    role: 'Transporte y Suministro',
-    specs: 'Mov 6 • Embarca 1 Inf/Mech • Reabastece Adyacentes',
-  },
-  {
-    code: 'tank_light',
-    name: 'Tanque Ligero',
-    tier: 1,
-    costGold: 7000,
-    role: 'Vanguardia Blindada',
-    specs: 'Mov 6 • 100 HP • Cañón Rápido 75mm',
-  },
-  {
-    code: 'tank_medium',
-    name: 'Tanque Mediano (Heavy)',
-    tier: 2,
-    costGold: 16000,
-    role: 'Ofensiva y Ruptura',
-    specs: 'Mov 5 • 100 HP • Cañón Pesado 105%',
-  },
-  {
-    code: 'md_tank',
-    name: 'Tanque Medio Blindado',
-    tier: 2,
-    costGold: 1200,
-    role: 'Ofensiva y Ruptura',
-    specs: 'Blindaje Pesado • 100 HP • Cañón de 90mm',
-  },
-  {
-    code: 'neotank',
-    name: 'Neotanque Pesado',
-    tier: 3,
-    costGold: 22000,
-    role: 'Ruptura Suprema',
-    specs: 'Mov 6 • 100 HP • Cañón Hiper-Velocidad 115%',
-  },
-  {
-    code: 'anti_air',
-    name: 'Blindado Antiaéreo (Vulcan)',
-    tier: 2,
-    costGold: 8000,
-    role: 'Defensa Aérea',
-    specs: 'Mov 6 • Doble Cañón Rotativo • Letal vs Aire',
-  },
-  {
-    code: 'artillery',
-    name: 'Artillería de Asedio',
-    tier: 2,
-    costGold: 6000,
-    role: 'Fuego Indirecto',
-    specs: 'Mov 5 • Alcance 2-3 Casillas • Sin Contraataque',
-  },
-  {
-    code: 'rocket',
-    name: 'Lanzacohetes Múltiple',
-    tier: 2,
-    costGold: 15000,
-    role: 'Bombardeo de Área',
-    specs: 'Mov 5 • Alcance 3-5 Casillas • Fuego Masivo',
-  },
-  {
-    code: 'missiles',
-    name: 'Batería de Misiles AA',
-    tier: 2,
-    costGold: 12000,
-    role: 'Interdicción Aérea',
-    specs: 'Mov 4 • Alcance 3-5 Casillas • Superficie-Aire',
-  },
-  {
-    code: 'b_copter',
-    name: 'Helicóptero de Batalla',
-    tier: 2,
-    costGold: 9000,
-    role: 'Asalto Aéreo Táctico',
-    specs: 'Mov 6 • Misiles Antitanque • Vuelo Táctico',
-  },
-  {
-    code: 't_copter',
-    name: 'Helicóptero de Transporte',
-    tier: 1,
-    costGold: 5000,
-    role: 'Transporte Aeromóvil',
-    specs: 'Mov 6 • Ignora Terreno • Embarca 1 Inf/Mech',
-  },
-  {
-    code: 'fighter',
-    name: 'Caza Interceptor',
-    tier: 3,
-    costGold: 20000,
-    role: 'Supremacía Aérea',
-    specs: 'Mov 9 • Misiles Aire-Aire • Caza Bombarderos',
-  },
-  {
-    code: 'bomber',
-    name: 'Bombardero Pesado',
-    tier: 3,
-    costGold: 22000,
-    role: 'Bombardeo Estratégico',
-    specs: 'Mov 7 • Destructor Tierra/Naval',
-  },
-  {
-    code: 'battleship',
-    name: 'Acorazado Naval',
-    tier: 3,
-    costGold: 28000,
-    role: 'Bombardeo Costero',
-    specs: 'Mov 5 • Alcance 2-6 Casillas • Fortaleza Flotante',
-  },
-
-  // --- Los 9 Drones Autónomos H3 (CANONICAL_H3_DRONE_CATALOG) ---
-  {
-    code: 'infantry_swarm',
-    name: 'Dron Infantería (Swarm H3)',
-    tier: 1,
-    costGold: 500,
-    role: 'Dron Nv.1 Capturador',
-    specs: 'Conquista +15/h • Captura Edificios • 1 CB/h',
-  },
-  {
-    code: 'recon_explorer',
-    name: 'Dron Recon Explorador H3',
-    tier: 1,
-    costGold: 1200,
-    role: 'Dron Nv.1 Pintor de Mapa',
-    specs: 'Conquista +25/h • Visión 5 Hex • 4 CB/h',
-  },
-  {
-    code: 'light_artillery',
-    name: 'Dron Artillería Ligera H3',
-    tier: 1,
-    costGold: 1800,
-    role: 'Dron Nv.1 Fuego Indirecto',
-    specs: 'Alcance 2-3 Hex • Conquista +2/h • 3 CB/h',
-  },
-  {
-    code: 'medium_tank',
-    name: 'Dron Tanque Medio H3',
-    tier: 2,
-    costGold: 3000,
-    role: 'Dron Nv.2 Blindado',
-    specs: 'Conquista +10/h • 100 HP • 8 CB/h',
-  },
-  {
-    code: 'logistics_apc',
-    name: 'Dron Logístico (APC H3)',
-    tier: 2,
-    costGold: 1500,
-    role: 'Dron Nv.2 Suministro Móvil',
-    specs: 'Repara +15% HP/h • Recarga CB Adyacente',
-  },
-  {
-    code: 'bomber_drone',
-    name: 'Dron Bombardero H3',
-    tier: 3,
-    costGold: 6000,
-    role: 'Dron Nv.3 Aéreo',
-    specs: 'Ignora Bono Terreno (0★) • Asesino Blindados',
-  },
-  {
-    code: 'neo_tank',
-    name: 'Dron Neo-Tanque (Coloso H3)',
-    tier: 3,
-    costGold: 8000,
-    role: 'Dron Nv.3 Ruptura',
-    specs: 'Conquista +12/h • Blindaje Supremo • 30 CB/h',
-  },
-  {
-    code: 'tactical_missile',
-    name: 'Dron Lanzamisiles Táctico H3',
-    tier: 3,
-    costGold: 5000,
-    role: 'Dron Nv.3 Asedio Remoto',
-    specs: 'Alcance 4-5 Hex • Sabotea Estructuras',
-  },
-];
+interface ProductionBuildingRow {
+  id: string;
+  building_type: string;
+  h3_index: number;
+  hp: number;
+}
 
 export const TacticalUnitDeployModal: React.FC<TacticalUnitDeployModalProps> = ({
   isOpen,
@@ -255,55 +63,230 @@ export const TacticalUnitDeployModal: React.FC<TacticalUnitDeployModalProps> = (
   sector,
   cell,
   lngLat,
-  userClanId = 'clan-ferro',
-  userClanTag = 'FERR',
-  userFactionId = 'blue_moon',
+  corpId: propCorpId,
+  h3Index: propH3Index,
   onDeploySuccess,
 }) => {
-  const [selectedCode, setSelectedCode] = useState<string>('md_tank');
+  const {
+    hangarUnits,
+    activeCorpId,
+    isLoading: isHangarLoading,
+    refreshHangar,
+  } = useUserHangar();
+
+  const resolvedCorpId = propCorpId ?? activeCorpId ?? null;
+
+  const [activeTab, setActiveTab] = useState<'deploy' | 'barracks'>('deploy');
+  const [selectedSlotId, setSelectedSlotId] = useState<string>('');
+  const [purchaseCode, setPurchaseCode] = useState<string>('infantry');
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string>('');
+  const [personalEcContribution, setPersonalEcContribution] = useState<number>(0);
   const [callsign, setCallsign] = useState<string>('VANGUARDIA-ALFA');
-  const [isDeploying, setIsDeploying] = useState<boolean>(false);
+
+  const [permissions, setPermissions] = useState<CorpPermissions>({
+    canControlUnits: false,
+    canPurchaseUnits: false,
+  });
+  const [buildings, setBuildings] = useState<ProductionBuildingRow[]>([]);
+  const [isCheckingAccess, setIsCheckingAccess] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  const resolvedH3Index = useMemo(() => {
+    if (typeof propH3Index === 'number' && Number.isFinite(propH3Index) && propH3Index > 0) {
+      return Math.trunc(propH3Index);
+    }
+    const [lng, lat] = lngLat;
+    return Number(latLngToH3Res9(lat, lng));
+  }, [propH3Index, lngLat]);
 
-  const selectedUnit = DEPLOY_UNITS_CATALOG.find((u) => u.code === selectedCode)!;
+  const availableCatalogUnits = useMemo(
+    () =>
+      Object.entries(CANONICAL_UNIT_PRODUCTION_CATALOG).filter(
+        ([code]) => code !== 'missile'
+      ),
+    []
+  );
 
-  const handleExecuteDeploy = () => {
+  // Sincronizar selección inicial de slot del hangar real
+  useEffect(() => {
+    if (hangarUnits.length > 0 && !hangarUnits.some((u) => u.id === selectedSlotId)) {
+      setSelectedSlotId(hangarUnits[0].id);
+    } else if (hangarUnits.length === 0) {
+      setSelectedSlotId('');
+    }
+  }, [hangarUnits, selectedSlotId]);
+
+  // Cargar permisos corporativos y barracones/fábricas de la corporación desde Supabase
+  useEffect(() => {
+    if (!isOpen) return;
     setErrorMsg(null);
     setSuccessMsg(null);
-    setIsDeploying(true);
 
+    if (!resolvedCorpId || !isSupabaseConfigured() || !supabase) {
+      setPermissions({ canControlUnits: false, canPurchaseUnits: false });
+      setBuildings([]);
+      return;
+    }
+
+    let cancelled = false;
+    const loadCorpContext = async () => {
+      setIsCheckingAccess(true);
+      try {
+        const { data: authData } = await supabase!.auth.getUser();
+        const userId = authData?.user?.id;
+        if (!userId || cancelled) return;
+
+        const [memberRes, bldRes] = await Promise.all([
+          supabase!
+            .from('corporation_members')
+            .select('role, delegated_permissions')
+            .eq('corp_id', resolvedCorpId)
+            .eq('user_id', userId)
+            .maybeSingle(),
+          supabase!
+            .from('buildings')
+            .select('id, building_type, h3_index, hp')
+            .eq('corp_id', resolvedCorpId)
+            .eq('is_disabled', false)
+            .in('building_type', ['barracks', 'factory', 'war_factory', 'airport', 'port', 'hq'])
+            .order('created_at', { ascending: false }),
+        ]);
+
+        if (cancelled) return;
+
+        const role = (memberRes.data?.role ?? '').toLowerCase();
+        const isLeadership = role === 'founder' || role === 'ceo' || role === 'leader' || role === 'commander';
+        const permsObj =
+          memberRes.data?.delegated_permissions &&
+          typeof memberRes.data.delegated_permissions === 'object' &&
+          !Array.isArray(memberRes.data.delegated_permissions)
+            ? (memberRes.data.delegated_permissions as Record<string, unknown>)
+            : {};
+
+        setPermissions({
+          canControlUnits: Boolean(memberRes.data) && (isLeadership || Boolean(permsObj.can_control_units)),
+          canPurchaseUnits: Boolean(memberRes.data) && (isLeadership || Boolean(permsObj.can_purchase_units)),
+        });
+
+        const rows = (bldRes.data ?? []) as ProductionBuildingRow[];
+        setBuildings(rows);
+        if (rows.length > 0) {
+          setSelectedBuildingId((prev) => (rows.some((b) => b.id === prev) ? prev : rows[0].id));
+        } else {
+          setSelectedBuildingId('');
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setErrorMsg(err instanceof Error ? err.message : 'Error verificando permisos corporativos.');
+        }
+      } finally {
+        if (!cancelled) setIsCheckingAccess(false);
+      }
+    };
+
+    void loadCorpContext();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, resolvedCorpId]);
+
+  if (!isOpen) return null;
+
+  const selectedSlot = hangarUnits.find((u) => u.id === selectedSlotId) ?? null;
+  const selectedCatalogInfo = selectedSlot
+    ? CANONICAL_UNIT_PRODUCTION_CATALOG[selectedSlot.unitCode]
+    : null;
+
+  const handleExecuteDeploy = async () => {
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    if (!resolvedCorpId) {
+      setErrorMsg('BLOQUEO: No tienes una corporación activa asignada.');
+      return;
+    }
+    if (!permissions.canControlUnits) {
+      setErrorMsg('BLOQUEO DE PERMISOS: Tu rango corporativo no tiene permiso can_control_units.');
+      return;
+    }
+    if (!selectedSlot) {
+      setErrorMsg('No hay chasis seleccionado en el Hangar Físico. Compra o produce uno primero.');
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
-      const res = spatialDeploymentService.deployUnitAt({
-        sector,
-        cell,
-        lngLat,
-        unitCode: selectedUnit.code,
-        unitName: selectedUnit.name,
-        clanId: userClanId,
-        clanTag: userClanTag,
-        factionId: userFactionId,
-        callsign: callsign.trim().toUpperCase() || 'ESCUADRÓN-TÁCTICO',
-        tier: selectedUnit.tier,
+      await deployOperationalUnitDb({
+        hangarSlotId: selectedSlot.id,
+        corpId: resolvedCorpId,
+        h3Index: resolvedH3Index,
       });
 
-      if (!res.success || !res.unit) {
-        audioManager.playCue('defeat_sting');
-        setErrorMsg(res.reason || 'Fallo al posicionar la unidad en las coordenadas.');
-      } else {
-        audioManager.playCue('victory_fanfare');
-        setSuccessMsg(`¡${res.unit.callsign} DESPLEGADO EN COORDENADAS CON ÉXITO!`);
-        if (onDeploySuccess) onDeploySuccess(selectedUnit.code);
-        window.setTimeout(() => {
-          onClose();
-        }, 1400);
-      }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Error inesperado al emitir la orden de despliegue.');
+      await refreshHangar();
+      audioManager.playCue('co_power_charge');
+      const label = callsign.trim().toUpperCase() || selectedCatalogInfo?.displayName || selectedSlot.unitCode;
+      setSuccessMsg(`¡${label} DESPLEGADO EN H3 #${resolvedH3Index} CON ÉXITO!`);
+      onDeploySuccess?.(selectedSlot.unitCode);
+      window.setTimeout(() => {
+        onClose();
+      }, 1200);
+    } catch (err: unknown) {
+      audioManager.playCue('ui_cancel_rollback');
+      setErrorMsg(err instanceof Error ? err.message : 'Error al desplegar unidad operacional en DB.');
     } finally {
-      setIsDeploying(false);
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePurchaseFromBarracks = async () => {
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    if (!isSupabaseConfigured() || !supabase) {
+      setErrorMsg('Conexión a Supabase no configurada.');
+      return;
+    }
+    if (!resolvedCorpId) {
+      setErrorMsg('BLOQUEO: Requiere corporación activa para adquirir chasis.');
+      return;
+    }
+    if (!permissions.canPurchaseUnits) {
+      setErrorMsg('BLOQUEO DE PERMISOS: Tu rango corporativo no tiene permiso can_purchase_units.');
+      return;
+    }
+    if (!selectedBuildingId) {
+      setErrorMsg('No hay barracones, fábricas ni HQ operativos en tu corporación.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const contribution =
+        personalEcContribution > 0 ? { ec: Math.floor(personalEcContribution) } : {};
+
+      const { error } = await supabase.rpc('purchase_unit_from_barracks', {
+        p_corp_id: resolvedCorpId,
+        p_building_id: selectedBuildingId,
+        p_unit_code: purchaseCode,
+        p_tier: 1,
+        p_personal_contribution: contribution,
+        p_idempotency_key: crypto.randomUUID(),
+      });
+
+      if (error) throw new Error(error.message);
+
+      await refreshHangar();
+      audioManager.playCue('co_power_charge');
+      const unitName = CANONICAL_UNIT_PRODUCTION_CATALOG[purchaseCode]?.displayName ?? purchaseCode;
+      setSuccessMsg(`¡Chasis ${unitName} adquirido en Hangar Físico! Ya puedes desplegarlo.`);
+      setActiveTab('deploy');
+    } catch (err: unknown) {
+      audioManager.playCue('ui_cancel_rollback');
+      setErrorMsg(err instanceof Error ? err.message : 'Error al comprar unidad en barracones.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -324,10 +307,10 @@ export const TacticalUnitDeployModal: React.FC<TacticalUnitDeployModalProps> = (
             </div>
             <div>
               <span className="text-[10px] font-mono font-black uppercase text-amber-400 tracking-widest block leading-tight">
-                ORDEN OPERACIONAL • ZOOM x15
+                ORDEN OPERACIONAL • HANGAR DB
               </span>
               <h3 className="text-sm font-display font-black text-[#F2E8D5] uppercase tracking-wide">
-                DESPLIEGUE TÁCTICO DE TROPA
+                DESPLIEGUE Y BARRACONES
               </h3>
             </div>
           </div>
@@ -350,7 +333,7 @@ export const TacticalUnitDeployModal: React.FC<TacticalUnitDeployModalProps> = (
           <div>
             <span className="text-[10px] text-amber-300 font-bold block">ASIGNACIÓN ESPACIAL:</span>
             <span className="text-[#F2E8D5]">
-              SEC [{sector.join(',')}] • CELDA [{cell.join(',')}]
+              SEC [{sector.join(',')}] • CELDA [{cell.join(',')}] • H3 #{resolvedH3Index}
             </span>
           </div>
           <div className="text-right">
@@ -361,8 +344,59 @@ export const TacticalUnitDeployModal: React.FC<TacticalUnitDeployModalProps> = (
           </div>
         </div>
 
-        {/* Formulario y Catálogo de Tropas */}
-        <div className="p-4 space-y-3.5 overflow-y-auto max-h-[60vh]">
+        {/* Pestañas: Hangar Físico vs Compra en Barracones */}
+        <div className="px-4 pt-3 flex gap-2 border-b border-[#0A0B08] bg-[#1C1E17]">
+          <button
+            type="button"
+            onClick={() => setActiveTab('deploy')}
+            className={`px-3 py-1.5 text-[11px] font-mono font-black uppercase rounded-t border-t-2 border-x-2 border-[#0A0B08] cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'deploy'
+                ? 'bg-[#2B2C24] text-amber-300'
+                : 'bg-[#161712] text-[#F2E8D5]/60 hover:text-[#F2E8D5]'
+            }`}
+          >
+            <Box className="w-3.5 h-3.5" />
+            <span>Hangar ({hangarUnits.reduce((acc, u) => acc + u.quantity, 0)})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('barracks')}
+            className={`px-3 py-1.5 text-[11px] font-mono font-black uppercase rounded-t border-t-2 border-x-2 border-[#0A0B08] cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'barracks'
+                ? 'bg-[#2B2C24] text-emerald-300'
+                : 'bg-[#161712] text-[#F2E8D5]/60 hover:text-[#F2E8D5]'
+            }`}
+          >
+            <ShoppingCart className="w-3.5 h-3.5" />
+            <span>Barracones</span>
+          </button>
+        </div>
+
+        {/* Contenido */}
+        <div className="p-4 space-y-3.5 overflow-y-auto max-h-[58vh]">
+          {!resolvedCorpId && !isCheckingAccess && (
+            <div className="p-3 bg-amber-950/80 border-2 border-amber-500 rounded text-amber-200 text-xs font-mono flex items-center gap-2">
+              <Lock className="w-4 h-4 shrink-0 text-amber-400" />
+              <span>
+                BLOQUEO: No perteneces a ninguna corporación activa (`corp_id` requerido). Únete o funda una corporación para comprar o desplegar tropas.
+              </span>
+            </div>
+          )}
+
+          {resolvedCorpId && !isCheckingAccess && activeTab === 'deploy' && !permissions.canControlUnits && (
+            <div className="p-2.5 bg-red-950/80 border-2 border-red-500 rounded text-red-200 text-xs font-mono flex items-center gap-2">
+              <Lock className="w-4 h-4 shrink-0 text-red-400" />
+              <span>Permiso requerido: `can_control_units` para desplegar tropas al mapa operacional.</span>
+            </div>
+          )}
+
+          {resolvedCorpId && !isCheckingAccess && activeTab === 'barracks' && !permissions.canPurchaseUnits && (
+            <div className="p-2.5 bg-red-950/80 border-2 border-red-500 rounded text-red-200 text-xs font-mono flex items-center gap-2">
+              <Lock className="w-4 h-4 shrink-0 text-red-400" />
+              <span>Permiso requerido: `can_purchase_units` para adquirir chasis en barracones.</span>
+            </div>
+          )}
+
           {errorMsg && (
             <div className="p-2.5 bg-red-950/80 border-2 border-red-500 rounded text-red-200 text-xs font-mono flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0 text-red-400" />
@@ -377,85 +411,210 @@ export const TacticalUnitDeployModal: React.FC<TacticalUnitDeployModalProps> = (
             </div>
           )}
 
-          {/* Indicativo de Radio / Callsign */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-mono font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-              <Radio className="w-3.5 h-3.5" />
-              <span>Indicativo de Radio (Callsign)</span>
-            </label>
-            <input
-              type="text"
-              value={callsign}
-              onChange={(e) => setCallsign(e.target.value)}
-              maxLength={24}
-              className="w-full px-3 py-2 bg-[#161712] border-2 border-[#0A0B08] text-xs font-mono text-[#F2E8D5] uppercase rounded-[6px_2px_6px_2px] focus:outline-none focus:border-amber-400 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)]"
-              placeholder="Ej. VANGUARDIA-ALFA, FERRO-1..."
-            />
-          </div>
+          {activeTab === 'deploy' ? (
+            <>
+              <div className="space-y-1">
+                <label className="text-[11px] font-mono font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Radio className="w-3.5 h-3.5" />
+                  <span>Indicativo de Radio (Callsign)</span>
+                </label>
+                <input
+                  type="text"
+                  value={callsign}
+                  onChange={(e) => setCallsign(e.target.value)}
+                  maxLength={24}
+                  className="w-full px-3 py-2 bg-[#161712] border-2 border-[#0A0B08] text-xs font-mono text-[#F2E8D5] uppercase rounded-[6px_2px_6px_2px] focus:outline-none focus:border-amber-400 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)]"
+                  placeholder="Ej. VANGUARDIA-ALFA"
+                />
+              </div>
 
-          {/* Selector de Unidades */}
-          <div className="space-y-1.5">
-            <span className="text-[11px] font-mono font-bold text-amber-300 uppercase tracking-wider block">
-              Seleccionar Chasis del Hangar
-            </span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {DEPLOY_UNITS_CATALOG.map((u) => {
-                const isSelected = selectedCode === u.code;
-                return (
-                  <div
-                    key={u.code}
-                    onClick={() => {
-                      audioManager.playHoverTick();
-                      setSelectedCode(u.code);
-                    }}
-                    className={`p-2.5 rounded-[6px_2px_6px_2px] border-2 transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-[#2B2C24] border-amber-400 shadow-[3px_3px_0px_#0A0B08] scale-[1.02]'
-                        : 'bg-[#1C1E17] border-[#0A0B08] hover:border-[#46521F]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-display font-black text-[#F2E8D5] uppercase">
-                        {u.name}
-                      </span>
-                      <span className="px-1.5 py-0.5 bg-[#161712] border border-[#0A0B08] text-amber-400 font-mono font-bold text-[10px] rounded">
-                        T{u.tier}
-                      </span>
-                    </div>
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-mono font-bold text-amber-300 uppercase tracking-wider block">
+                  Stock Real en Hangar Físico (`user_unit_hangar`)
+                </span>
 
-                    <p className="text-[10px] font-mono text-[#F2E8D5]/70 mb-1">
-                      {u.specs}
-                    </p>
-
-                    <div className="flex items-center justify-between text-[10px] font-mono text-emerald-400 font-bold border-t border-[#46521F]/40 pt-1">
-                      <span>{u.role}</span>
-                      <span>{u.costGold} $G</span>
-                    </div>
+                {isHangarLoading ? (
+                  <div className="p-4 text-center text-xs font-mono text-[#F2E8D5]/70 bg-[#1C1E17] border border-[#0A0B08] rounded">
+                    Sincronizando inventario del Hangar Físico...
                   </div>
-                );
-              })}
+                ) : hangarUnits.length === 0 ? (
+                  <div className="p-4 text-center space-y-2 bg-[#1C1E17] border-2 border-[#0A0B08] rounded">
+                    <p className="text-xs font-mono text-red-300 font-bold">
+                      0 chasis disponibles en tu Hangar Físico.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('barracks')}
+                      className="px-3 py-1.5 bg-[#46521F] hover:bg-[#5A6929] text-amber-300 border border-[#0A0B08] rounded text-[11px] font-mono font-bold uppercase cursor-pointer"
+                    >
+                      Ir a Barracones para Comprar Chasis
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {hangarUnits.map((slot) => {
+                      const isSelected = selectedSlotId === slot.id;
+                      const info = CANONICAL_UNIT_PRODUCTION_CATALOG[slot.unitCode];
+                      return (
+                        <div
+                          key={slot.id}
+                          onClick={() => {
+                            audioManager.playHoverTick();
+                            setSelectedSlotId(slot.id);
+                          }}
+                          className={`p-2.5 rounded-[6px_2px_6px_2px] border-2 transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#2B2C24] border-amber-400 shadow-[3px_3px_0px_#0A0B08] scale-[1.01]'
+                              : 'bg-[#1C1E17] border-[#0A0B08] hover:border-[#46521F]'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-display font-black text-[#F2E8D5] uppercase">
+                              {info?.displayName ?? slot.unitCode}
+                            </span>
+                            <span className="px-1.5 py-0.5 bg-[#161712] border border-[#0A0B08] text-amber-400 font-mono font-bold text-[10px] rounded">
+                              T{slot.tier} • x{slot.quantity}
+                            </span>
+                          </div>
+                          <p className="text-[10px] font-mono text-[#F2E8D5]/70 mb-1">
+                            HP {slot.hp}/100 • Nv.{slot.level}
+                            {info ? ` • Mov ${info.movementPoints}` : ''}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-[11px] font-mono font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Factory className="w-3.5 h-3.5" />
+                  <span>Instalación de Producción Corporativa</span>
+                </label>
+                {buildings.length === 0 ? (
+                  <div className="p-2.5 bg-[#1C1E17] border border-[#0A0B08] rounded text-[11px] font-mono text-amber-300">
+                    No se detectaron barracones, fábricas ni HQ operativos para esta corporación.
+                  </div>
+                ) : (
+                  <select
+                    value={selectedBuildingId}
+                    onChange={(e) => setSelectedBuildingId(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#161712] border-2 border-[#0A0B08] text-xs font-mono text-[#F2E8D5] rounded"
+                  >
+                    {buildings.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.building_type.toUpperCase()} • H3 #{b.h3_index} (HP {b.hp})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-mono font-bold text-amber-300 uppercase tracking-wider block">
+                  Aporte Personal de EC (Opcional, combinado con Tesorería)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step={50}
+                  value={personalEcContribution}
+                  onChange={(e) => setPersonalEcContribution(Math.max(0, Number(e.target.value) || 0))}
+                  className="w-full px-3 py-1.5 bg-[#161712] border-2 border-[#0A0B08] text-xs font-mono text-[#F2E8D5] rounded"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {availableCatalogUnits.map(([code, unit]) => {
+                  const isSelected = purchaseCode === code;
+                  return (
+                    <div
+                      key={code}
+                      onClick={() => {
+                        audioManager.playHoverTick();
+                        setPurchaseCode(code);
+                      }}
+                      className={`p-2 rounded-[6px_2px_6px_2px] border-2 cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#2B2C24] border-emerald-400 shadow-[3px_3px_0px_#0A0B08]'
+                          : 'bg-[#1C1E17] border-[#0A0B08] hover:border-[#46521F]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-display font-black uppercase text-[#F2E8D5]">
+                          {unit.displayName}
+                        </span>
+                        <span className="text-[10px] font-mono font-bold text-amber-400">
+                          {unit.cost.toLocaleString()}G
+                        </span>
+                      </div>
+                      <p className="text-[10px] font-mono text-[#F2E8D5]/60 mt-0.5">
+                        Mov {unit.movementPoints} • {unit.facility.toUpperCase()}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Pie con Botón de Despliegue Pesado */}
+        {/* Pie de Acción */}
         <div className="p-3.5 bg-[#2B2C24] border-t-3 border-[#0A0B08] flex items-center justify-between gap-3">
-          <div className="text-xs font-mono">
-            <span className="text-[10px] text-[#F2E8D5]/60 block">COSTE DE SALIDA:</span>
-            <span className="text-sm font-black text-amber-400">
-              {selectedUnit.costGold.toLocaleString()} $G
-            </span>
-          </div>
+          {activeTab === 'deploy' ? (
+            <>
+              <div className="text-xs font-mono">
+                <span className="text-[10px] text-[#F2E8D5]/60 block">CHASIS SELECCIONADO:</span>
+                <span className="text-sm font-black text-amber-400">
+                  {selectedSlot
+                    ? `${selectedCatalogInfo?.displayName ?? selectedSlot.unitCode} (x${selectedSlot.quantity})`
+                    : 'Ninguno'}
+                </span>
+              </div>
 
-          <button
-            type="button"
-            disabled={isDeploying}
-            onClick={handleExecuteDeploy}
-            className="tactical-btn-heavy px-5 py-2.5 text-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            <Swords className="w-4 h-4" />
-            <span>{isDeploying ? 'DESPLEGANDO...' : '¡DESPLEGAR EN COORDENADAS!'}</span>
-          </button>
+              <button
+                type="button"
+                disabled={
+                  isSubmitting ||
+                  !resolvedCorpId ||
+                  !permissions.canControlUnits ||
+                  !selectedSlot
+                }
+                onClick={handleExecuteDeploy}
+                className="tactical-btn-heavy px-5 py-2.5 text-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Swords className="w-4 h-4" />
+                <span>{isSubmitting ? 'DESPLEGANDO...' : '¡DESPLEGAR EN COORDENADAS!'}</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="text-xs font-mono">
+                <span className="text-[10px] text-[#F2E8D5]/60 block">ORDEN DE COMPRA:</span>
+                <span className="text-sm font-black text-emerald-400">
+                  {CANONICAL_UNIT_PRODUCTION_CATALOG[purchaseCode]?.displayName ?? purchaseCode}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                disabled={
+                  isSubmitting ||
+                  !resolvedCorpId ||
+                  !permissions.canPurchaseUnits ||
+                  !selectedBuildingId
+                }
+                onClick={handlePurchaseFromBarracks}
+                className="tactical-btn-heavy px-5 py-2.5 text-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                <span>{isSubmitting ? 'COMPRANDO...' : 'COMPRAR EN BARRACONES'}</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

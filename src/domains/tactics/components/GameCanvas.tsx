@@ -4,6 +4,7 @@ import { GridPosition, TacticalUnit, TerrainTile, TerrainType, assetLoader } fro
 import { audioManager, SfxType } from '@domains/game-feel';
 import { triggerHaptic } from '@domains/game-feel';
 import { AvailableSubAction } from '@domains/tactics';
+import { calculatePathArrow, ArrowSegment } from '../core/pathingArrow';
 import { TileContextMenu } from './TileContextMenu';
 
 export interface TacticalDropMarker {
@@ -50,7 +51,7 @@ export interface GameCanvasProps {
   tiles: TerrainTile[][];
   units?: TacticalUnit[];
   selectedCoord?: GridPosition | null;
-  reachableCoords?: GridPosition[];
+  reachableCoords?: Array<{ x: number; y: number; path?: GridPosition[] }>;
   targetCoords?: GridPosition[];
   onCellSelect?: (coord: GridPosition) => void;
   onCellHover?: (coord: GridPosition | null) => void;
@@ -419,6 +420,24 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
         // Brillo pulsante en esquinas
         drawCornerBrackets(ctx, sx, sy, TILE_SIZE);
+      }
+
+      // 5B. FLECHA RETRO ADVANCE WARS (calculatePathArrow)
+      if (selectedCoord && hoveredCoord) {
+        const hoveredReachable = reachableCoords.find(
+          (c) => c.x === hoveredCoord.x && c.y === hoveredCoord.y
+        );
+        if (hoveredReachable) {
+          let arrowPath: GridPosition[] =
+            hoveredReachable.path && hoveredReachable.path.length > 0
+              ? hoveredReachable.path
+              : buildOrthogonalFallbackPath(selectedCoord, hoveredCoord);
+
+          if (arrowPath.length > 0) {
+            const segments = calculatePathArrow(arrowPath);
+            drawPathArrowSegments(ctx, segments);
+          }
+        }
       }
 
       // 6. DIBUJAR UNIDADES TÁCTICAS MEDIANTE EL SPRITESHEET ENGINE
@@ -1134,6 +1153,210 @@ function drawAirDropBeacon(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(label, centerX, dy + 2.5);
+
+  ctx.restore();
+}
+
+function buildOrthogonalFallbackPath(start: GridPosition, end: GridPosition): GridPosition[] {
+  const path: GridPosition[] = [{ x: start.x, y: start.y }];
+  let cx = start.x;
+  let cy = start.y;
+
+  while (cx !== end.x) {
+    cx += end.x > cx ? 1 : -1;
+    path.push({ x: cx, y: cy });
+  }
+  while (cy !== end.y) {
+    cy += end.y > cy ? 1 : -1;
+    path.push({ x: cx, y: cy });
+  }
+  return path;
+}
+
+function drawPathArrowSegments(ctx: CanvasRenderingContext2D, segments: ArrowSegment[]) {
+  if (segments.length === 0) return;
+
+  ctx.save();
+  ctx.lineCap = 'butt';
+  ctx.lineJoin = 'miter';
+
+  const half = TILE_SIZE / 2;
+  const bodyWidth = 14;
+  const borderWidth = 20;
+  const innerWidth = 6;
+
+  const drawSegmentPath = (seg: ArrowSegment) => {
+    const px = seg.position.x * TILE_SIZE;
+    const py = seg.position.y * TILE_SIZE;
+    const cx = px + half;
+    const cy = py + half;
+
+    switch (seg.type) {
+      case 'horizontal':
+        ctx.moveTo(px, cy);
+        ctx.lineTo(px + TILE_SIZE, cy);
+        break;
+      case 'vertical':
+        ctx.moveTo(cx, py);
+        ctx.lineTo(cx, py + TILE_SIZE);
+        break;
+      case 'corner_ne':
+        ctx.moveTo(cx, py);
+        ctx.lineTo(cx, cy);
+        ctx.lineTo(px + TILE_SIZE, cy);
+        break;
+      case 'corner_nw':
+        ctx.moveTo(cx, py);
+        ctx.lineTo(cx, cy);
+        ctx.lineTo(px, cy);
+        break;
+      case 'corner_se':
+        ctx.moveTo(cx, py + TILE_SIZE);
+        ctx.lineTo(cx, cy);
+        ctx.lineTo(px + TILE_SIZE, cy);
+        break;
+      case 'corner_sw':
+        ctx.moveTo(cx, py + TILE_SIZE);
+        ctx.lineTo(cx, cy);
+        ctx.lineTo(px, cy);
+        break;
+      case 'start_up':
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx, py);
+        break;
+      case 'start_down':
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx, py + TILE_SIZE);
+        break;
+      case 'start_left':
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(px, cy);
+        break;
+      case 'start_right':
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(px + TILE_SIZE, cy);
+        break;
+      case 'arrow_up':
+        ctx.moveTo(cx, py + TILE_SIZE);
+        ctx.lineTo(cx, cy + 2);
+        break;
+      case 'arrow_down':
+        ctx.moveTo(cx, py);
+        ctx.lineTo(cx, cy - 2);
+        break;
+      case 'arrow_left':
+        ctx.moveTo(px + TILE_SIZE, cy);
+        ctx.lineTo(cx + 2, cy);
+        break;
+      case 'arrow_right':
+        ctx.moveTo(px, cy);
+        ctx.lineTo(cx - 2, cy);
+        break;
+      case 'start_dot':
+      default:
+        break;
+    }
+  };
+
+  // Pasada 1: Contorno oscuro #0A0B08
+  ctx.beginPath();
+  for (const seg of segments) {
+    drawSegmentPath(seg);
+  }
+  ctx.strokeStyle = '#0A0B08';
+  ctx.lineWidth = borderWidth;
+  ctx.stroke();
+
+  // Pasada 2: Relleno ámbar táctico #F59E0B
+  ctx.beginPath();
+  for (const seg of segments) {
+    drawSegmentPath(seg);
+  }
+  ctx.strokeStyle = '#F59E0B';
+  ctx.lineWidth = bodyWidth;
+  ctx.stroke();
+
+  // Pasada 3: Núcleo luminoso retro #FDE047
+  ctx.beginPath();
+  for (const seg of segments) {
+    drawSegmentPath(seg);
+  }
+  ctx.strokeStyle = '#FDE047';
+  ctx.lineWidth = innerWidth;
+  ctx.stroke();
+
+  // Origen y Puntas direccionales
+  for (const seg of segments) {
+    const px = seg.position.x * TILE_SIZE;
+    const py = seg.position.y * TILE_SIZE;
+    const cx = px + half;
+    const cy = py + half;
+
+    if (seg.type.startsWith('start_')) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+      ctx.fillStyle = '#F59E0B';
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#0A0B08';
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#FDE047';
+      ctx.fill();
+    } else if (seg.type.startsWith('arrow_')) {
+      const headLen = 15;
+      const headHalfW = 14;
+      ctx.beginPath();
+      if (seg.type === 'arrow_up') {
+        ctx.moveTo(cx, cy - headLen);
+        ctx.lineTo(cx + headHalfW, cy + 6);
+        ctx.lineTo(cx - headHalfW, cy + 6);
+      } else if (seg.type === 'arrow_down') {
+        ctx.moveTo(cx, cy + headLen);
+        ctx.lineTo(cx + headHalfW, cy - 6);
+        ctx.lineTo(cx - headHalfW, cy - 6);
+      } else if (seg.type === 'arrow_left') {
+        ctx.moveTo(cx - headLen, cy);
+        ctx.lineTo(cx + 6, cy - headHalfW);
+        ctx.lineTo(cx + 6, cy + headHalfW);
+      } else if (seg.type === 'arrow_right') {
+        ctx.moveTo(cx + headLen, cy);
+        ctx.lineTo(cx - 6, cy - headHalfW);
+        ctx.lineTo(cx - 6, cy + headHalfW);
+      }
+      ctx.closePath();
+      ctx.fillStyle = '#F59E0B';
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#0A0B08';
+      ctx.stroke();
+
+      // Brillo interior en la punta
+      ctx.beginPath();
+      if (seg.type === 'arrow_up') {
+        ctx.moveTo(cx, cy - headLen + 5);
+        ctx.lineTo(cx + headHalfW - 6, cy + 3);
+        ctx.lineTo(cx - headHalfW + 6, cy + 3);
+      } else if (seg.type === 'arrow_down') {
+        ctx.moveTo(cx, cy + headLen - 5);
+        ctx.lineTo(cx + headHalfW - 6, cy - 3);
+        ctx.lineTo(cx - headHalfW + 6, cy - 3);
+      } else if (seg.type === 'arrow_left') {
+        ctx.moveTo(cx - headLen + 5, cy);
+        ctx.lineTo(cx + 3, cy - headHalfW + 6);
+        ctx.lineTo(cx + 3, cy + headHalfW - 6);
+      } else if (seg.type === 'arrow_right') {
+        ctx.moveTo(cx + headLen - 5, cy);
+        ctx.lineTo(cx - 3, cy - headHalfW + 6);
+        ctx.lineTo(cx - 3, cy + headHalfW - 6);
+      }
+      ctx.closePath();
+      ctx.fillStyle = '#FDE047';
+      ctx.fill();
+    }
+  }
 
   ctx.restore();
 }

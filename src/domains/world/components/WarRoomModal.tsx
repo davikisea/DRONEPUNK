@@ -12,7 +12,7 @@ import {
   getCOFullBodyUrl,
   resolveCanonicalCOId,
 } from '@domains/tactics';
-import { TacticalGhostBar } from './TacticalGhostBar';
+import { TacticalGhostBar } from '@shared';
 
 export interface PrizeItem {
   text: string;

@@ -57,9 +57,8 @@ export const ProductionModal: React.FC<ProductionModalProps> = ({
       if (!isNaN(num) && num >= 1 && num <= availableUnits.length) {
         const [code, unit] = availableUnits[num - 1];
         const effectiveCost = coId ? COEngine.getProductionCostModifier(coId, unit.cost) : unit.cost;
-        const isF2PInfinite = code === 'infantry' || code === 'recon';
-        const stockCount = hangarStock ? (hangarStock[code] ?? 0) : Infinity;
-        const hasChassis = isF2PInfinite || stockCount > 0;
+        const stockCount = hangarStock ? (hangarStock[code] ?? 0) : 0;
+        const hasChassis = stockCount > 0;
 
         if (currentFunds >= effectiveCost && hasChassis) {
           e.preventDefault();
@@ -109,10 +108,11 @@ export const ProductionModal: React.FC<ProductionModalProps> = ({
         }
       }}
     >
-      <div className="bg-[#2B2C24] border-4 border-[#0A0B08] w-full max-w-4xl rounded-[24px_6px_24px_6px] shadow-[12px_12px_0px_#0A0B08] flex flex-col max-h-[92vh] overflow-hidden text-[#F2E8D5] ben-day-dark">
+      <div className="bg-[#2B2C24] border-4 border-[#0A0B08] w-full max-w-4xl rounded-[14px_4px_14px_4px] shadow-[4px_4px_0px_#0A0B08] flex flex-col max-h-[92vh] overflow-hidden text-[#F2E8D5] ben-day-dark">
         {/* Encabezado C4ISR */}
         <div className="p-4 border-b-2 border-[#0A0B08] flex items-center justify-between bg-[#181914]">
           <div className="flex items-center gap-3">
+            <img src="/favicon.svg" alt="DRONEPUNK" className="w-5 h-5 object-contain shrink-0" />
             <div className={`p-2 rounded-[8px_2px_8px_2px] border-2 border-[#0A0B08] shadow-[2px_2px_0px_#0A0B08] ${
               player === 'p1' ? 'bg-[#46521F] text-amber-300' : 'bg-[#7F1D1D] text-amber-300'
             }`}>
@@ -187,9 +187,8 @@ export const ProductionModal: React.FC<ProductionModalProps> = ({
               const effectiveCost = coId ? COEngine.getProductionCostModifier(coId, unit.cost) : unit.cost;
               const hasDiscount = effectiveCost < unit.cost;
               const canAfford = currentFunds >= effectiveCost;
-              const isF2PInfinite = code === 'infantry' || code === 'recon';
-              const stock = hangarStock ? (hangarStock[code] ?? 0) : Infinity;
-              const hasChassis = isF2PInfinite || stock > 0;
+              const stockCount = hangarStock ? (hangarStock[code] ?? 0) : 0;
+              const hasChassis = stockCount > 0;
               const canDeploy = canAfford && hasChassis;
               const hotkey = idx < 9 ? `${idx + 1}` : null;
 
@@ -213,12 +212,10 @@ export const ProductionModal: React.FC<ProductionModalProps> = ({
 
                   {/* Insignia de Stock / Chasis */}
                   <div className="absolute top-2 right-2 z-10 px-1.5 py-0.2 rounded-[3px_1px_3px_1px] text-[8px] font-black uppercase border border-black/40">
-                    {isF2PInfinite ? (
-                      <span className="bg-emerald-950/90 text-emerald-300 px-1 py-0.5 rounded">F2P ∞</span>
-                    ) : stock > 0 ? (
-                      <span className="bg-[#46521F] text-amber-300 px-1 py-0.5 rounded">Stock: {stock}</span>
+                    {stockCount > 0 ? (
+                      <span className="bg-[#46521F] text-amber-300 px-1 py-0.5 rounded">Stock: {stockCount}</span>
                     ) : (
-                      <span className="bg-red-950 text-red-400 px-1 py-0.5 rounded">Sin Chasis</span>
+                      <span className="bg-red-950 text-red-400 px-1 py-0.5 rounded">Stock: 0</span>
                     )}
                   </div>
 
@@ -259,10 +256,10 @@ export const ProductionModal: React.FC<ProductionModalProps> = ({
 
                     <button
                       disabled={!canDeploy}
-                      className={`px-2 py-0.5 rounded-[4px_1px_4px_1px] text-[10px] font-black uppercase tracking-wider border transition-all ${
+                      className={`px-2 py-0.5 text-[10px] font-black uppercase tracking-wider transition-all ${
                         canDeploy
-                          ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 border-[#0A0B08] shadow-[2px_2px_0px_#0A0B08] cursor-pointer'
-                          : 'bg-[#2B2C24] text-[#7B8A4A] border-transparent cursor-not-allowed'
+                          ? 'tactical-btn-heavy cursor-pointer'
+                          : 'rounded-[4px_1px_4px_1px] border bg-[#2B2C24] text-[#7B8A4A] border-transparent cursor-not-allowed'
                       }`}
                     >
                       {canDeploy ? 'Crear' : !hasChassis ? 'Hangar' : 'Fondos'}

@@ -264,7 +264,7 @@ RAMA 5: INFRAESTRUCTURA Y QA
 │   ├── 5.1.4 Esquema de hangares físicos de flota (user_unit_hangar) ............ 🟢 [LISTO]
 │   ├── 5.1.5 Esquema de Asedios y Semillero de Venezuela (Migración 26) ........ 🟢 [LISTO]
 │   ├── 5.1.6 Esquema de Nodos Estratégicos, Hangar Facción y Colas (Migración 27) 🟢 [LISTO]
-│   └── 5.1.7 Soberanía RBAC, Cabimas, Catálogo, Ventanas y Auditoría (Migr. 28-32) 🟢 [LISTO]
+│   └── 5.1.7 Soberanía RBAC, Cabimas, Catálogo, Ventanas, Logística Dual, Bases Históricas y Drones (Migr. 28-39) 🟢 [LISTO]
 │
 ├── 5.2 Seguridad y Lógica Transaccional
 │   ├── 5.2.1 Políticas RLS estrictas multi-tenant para aislamiento de perfiles . 🟢 [LISTO]
@@ -303,7 +303,7 @@ Para que la base de código y la documentación subordinada alcancen el estado 1
 | **3.2.2 Buff Regional Capital** | 🟠 | Consolidado Buff Regional de Capital (+5% recursos/logística regional) junto con hegemonía nacional (+15% EC, +10% forja, -20% aranceles P2P) en `src/domains/economy/core/strategicAndProductionEngine.ts` y `src/domains/world/core/territorialExpansionEngine.ts`. | 🟢 `[LISTO]` |
 | **3.4.2 Handshake 120s** | 🟠 | Fijado `HANDSHAKE_TIMEOUT_SECONDS: 120` en `src/shared/types/metagame.ts`, orquestado en `src/domains/world/core/territorialSiegeOrchestrator.ts` y certificado en `src/domains/world/__tests__/territorialSiege.test.ts` y `src/domains/tactics/core/tacticalCombatSeamlessIntegration.ts`. | 🟢 `[LISTO]` |
 | **1.0.0 Capa 2 MVP Standby** | 🟢 | El motor determinista TBS (`src/domains/tactics/`) queda en espera en la UI según `THREE_LAYER_ARCHITECTURE` en `src/domains/world/core/politicalAliceEngine.ts` para priorizar la estabilidad geopolítica de Capa 1. | 🟡 `[DESARROLLADO]` |
-| **5.1.1 a 5.1.7 Migraciones SQL** | 🟠 | Consolidadas las 32 migraciones DDL en `supabase/migrations/` (incluyendo asedios, 24 regiones VE, nodos estratégicos, soberanía RBAC, Cabimas realtime, manifiesto de catálogos, ventanas de vulnerabilidad y saneamiento de auditoría). | 🟢 `[LISTO]` |
+| **5.1.1 a 5.1.7 Migraciones SQL** | 🟠 | Consolidadas las 39 migraciones DDL en `supabase/migrations/` (incluyendo asedios, 24 regiones VE, nodos estratégicos, soberanía RBAC, Cabimas realtime, manifiesto de catálogos, ventanas de vulnerabilidad 120s, logística dual por tuberías/recolectores, devastación/reparación `RUINED`/`SEVERED`, programación de drones y bases históricas de ciudad). | 🟢 `[LISTO]` |
 
 ---
 

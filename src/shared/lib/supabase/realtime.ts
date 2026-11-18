@@ -395,7 +395,7 @@ export class RealtimeConnectionManager {
       this.heartbeatInterval = null;
     }
     if (this.channel) {
-      this.channel.unsubscribe();
+      this.client.removeChannel(this.channel);
       this.channel = null;
     }
     this.handlers.onConnectionStatusChange('DISCONNECTED');
