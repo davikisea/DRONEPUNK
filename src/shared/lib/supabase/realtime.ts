@@ -1,5 +1,5 @@
 import { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
-import { Database } from '../../types/database.types';
+import { Database, Json } from '../../types/database.types';
 import { GridPosition, TacticalUnit, TerrainTile } from '../../types';
 
 // ============================================================================
@@ -252,7 +252,7 @@ export class RealtimeConnectionManager {
   public connect() {
     this.handlers.onConnectionStatusChange('CONNECTING');
 
-    const channelName = `match_room_${this.matchId}`;
+    const channelName = `match:${this.matchId}`;
     this.channel = this.client.channel(channelName, {
       config: {
         broadcast: { ack: true, self: false },
@@ -260,11 +260,25 @@ export class RealtimeConnectionManager {
       },
     });
 
-    // 1. ESCUCHAR DIFUSIONES BROADCAST (Acciones instantáneas)
-    this.channel.on('broadcast', { event: 'match_action' }, payload => {
-      if (payload.payload) {
-        this.handlers.onActionReceived(payload.payload as RealtimeMatchEvent);
+    // 1. ESCUCHAR DIFUSIONES BROADCAST (Acciones instantáneas y formato v3)
+    const handleBroadcastAction = (payload: any) => {
+      if (!payload) return;
+      if (payload.v === 3 && payload.record) {
+        const rec = payload.record as { actor_id?: string; action_payload?: RealtimeMatchEvent };
+        if (rec.actor_id !== this.userId && rec.action_payload) {
+          this.handlers.onActionReceived(rec.action_payload);
+        }
+        return;
       }
+      this.handlers.onActionReceived(payload as RealtimeMatchEvent);
+    };
+
+    this.channel.on('broadcast', { event: 'MATCH_ACTION' }, ({ payload }) => {
+      handleBroadcastAction(payload);
+    });
+
+    this.channel.on('broadcast', { event: 'match_action' }, ({ payload }) => {
+      handleBroadcastAction(payload);
     });
 
     // 2. ESCUCHAR PERSISTENCIA EN BD (Postgres Changes)
@@ -314,14 +328,47 @@ export class RealtimeConnectionManager {
   }
 
   /**
-   * Transmite una acción de juego al oponente a través del canal de difusión
+   * Valida y persiste la acción vía RPC autoritativa `submit_match_action`
+   * y transmite al oponente a través del canal Broadcast `match:{matchId}` (`MATCH_ACTION`).
    */
   public async sendAction(action: RealtimeMatchEvent): Promise<boolean> {
     if (!this.channel) return false;
 
+    if (action.type !== 'CURSOR_MOVE' && typeof this.client.rpc === 'function') {
+      const canonicalTypeMap: Record<Exclude<RealtimeMatchEvent['type'], 'CURSOR_MOVE'>, string> = {
+        MOVE_UNIT: 'MOVE',
+        ATTACK_UNIT: 'ATTACK',
+        CAPTURE_BUILDING: 'CAPTURE',
+        SPAWN_UNIT: 'PRODUCE',
+        END_TURN: 'END_TURN',
+      };
+
+      const idempotencyKey =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : undefined;
+
+      const { error: rpcError } = await this.client.rpc('submit_match_action', {
+        p_match_id: this.matchId,
+        p_turn_number: 'turnNumber' in action ? action.turnNumber : 1,
+        p_action_index: action.sequenceId,
+        p_action_payload: {
+          ...action,
+          type: canonicalTypeMap[action.type],
+          legacyType: action.type,
+        } as unknown as Json,
+        p_idempotency_key: idempotencyKey ?? null,
+      });
+
+      if (rpcError) {
+        console.warn('[RealtimeConnectionManager] submit_match_action rechazó la acción:', rpcError.message);
+        return false;
+      }
+    }
+
     const response = await this.channel.send({
       type: 'broadcast',
-      event: 'match_action',
+      event: 'MATCH_ACTION',
       payload: action,
     });
 
@@ -436,7 +483,11 @@ export function subscribeToMatchSession(
     }
   );
 
-  // 2. Micro-acciones en vivo efímeras (Broadcast - Cero escrituras en WAL)
+  // 2. Acciones autoritativas v3 Broadcast (MATCH_ACTION) y micro-acciones efímeras
+  channel.on('broadcast', { event: 'MATCH_ACTION' }, ({ payload }) => {
+    onStateUpdate(payload?.record ?? payload);
+  });
+
   if (onEphemeralEvent) {
     channel.on('broadcast', { event: 'TACTICAL_CURSOR' }, ({ payload }) => {
       onEphemeralEvent('TACTICAL_CURSOR', payload);

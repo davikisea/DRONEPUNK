@@ -69,6 +69,27 @@ export function useMatchSync({
         timestamp: Date.now(),
       };
 
+      // Validación autoritativa server-side (1-100 HP, turno e idempotencia)
+      if (matchId && supabase?.rpc) {
+        const idempotencyKey =
+          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : undefined;
+
+        const { error: rpcError } = await supabase.rpc('submit_match_action', {
+          p_match_id: matchId,
+          p_turn_number: turnNumber,
+          p_action_index: fullAction.actionId,
+          p_action_payload: fullAction as unknown as Record<string, never>,
+          p_idempotency_key: idempotencyKey ?? null,
+        });
+
+        if (rpcError) {
+          console.warn('[useMatchSync] submit_match_action rechazó la acción:', rpcError.message);
+          return false;
+        }
+      }
+
       const syncMessage: MatchSyncEvent = {
         type: 'MATCH_ACTION',
         matchId: matchId || '',
@@ -125,8 +146,16 @@ export function useMatchSync({
       },
     });
 
-    // 1. Escuchar acciones tácticas del rival
+    // 1. Escuchar acciones tácticas del rival (formato v3 Broadcast y MatchSyncEvent)
     channel.on('broadcast', { event: 'MATCH_ACTION' }, ({ payload }) => {
+      if (!payload) return;
+      if (payload.v === 3 && payload.record) {
+        const rec = payload.record as { actor_id?: string; action_payload?: DeltaAction };
+        if (rec.actor_id !== userId && rec.action_payload) {
+          onRemoteAction?.(rec.action_payload);
+        }
+        return;
+      }
       const event = payload as MatchSyncEvent;
       if (event && event.senderId !== userId && event.action) {
         onRemoteAction?.(event.action);

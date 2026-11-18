@@ -268,3 +268,21 @@ FASE 4: GOLPE DE CALIDAD TOTAL Y CERTIFICACIÓN DETERMINISTA (SEMANA 3)
 > [!IMPORTANT] DICTAMEN DEL ENJAMBRE DE 10 AGENTES
 > La propuesta de GDD queda **OFICIALMENTE INTEGRADA COMO ESPECIFICACIÓN CANÓNICA ADAPTADA** para **DRONEPUNK 0.0.1** bajo la referencia `docs/VIABILITY_REPORT_GAMEPLAY_TICKS_LOGISTICS.md`.
 > Queda blindada contra Pay-to-Win, optimizada para infraestructura Supabase sin saturación de I/O, enlazada a la proyección analítica WGS84 $O(1)$ de MapLibre GL JS v6 y en armonía total con los 7 Pilares Canónicos del proyecto.
+
+---
+
+## 8. Actualización de Escalabilidad 10,000+ CCU (Resolución CDC, Delta Renderer 60 FPS, Spatial RPCs y Autoridad de Combate)
+
+La arquitectura de red y renderizado fue endurecida para sostener **10,000+ CCU** eliminando los últimos cuellos de botella de cliente y servidor:
+
+1. **Resolución del Fan-Out CDC (`Broadcast v3` Segmentado):**
+   - Se eliminaron las suscripciones globales `postgres_changes` y el `REPLICA IDENTITY FULL` en tablas de alto churn (`20261118000009`).
+   - El servidor emite deltas compactos **v3** vía `realtime.send` hacia canales segmentados (`world:region:{regionId}`, `market:orders`, `siege:region:{regionId}`, `match:{matchId}`).
+   - En el cliente, `useWorldRegionBroadcast` (`src/domains/world/hooks/useWorldRegionBroadcast.ts`) aplica *coalescing* en memoria por `${table}:${id}` con *debounce* de 150 ms y resincronización automática ante `CHANNEL_ERROR`, `TIMED_OUT` o `RECONNECTED`, eliminando llamadas a `supabase.auth.getUser()` en el *hot-path*.
+2. **Delta Renderer a 60 FPS (`useTacticalDeltaRenderer.ts`):**
+   - Se reemplazó el bucle `setInterval(..., 100)` y las reconstrucciones completas de `GeoJSONSource.setData()` en `TacticalWorldMap.tsx` por `useTacticalDeltaRenderer` (`src/domains/world/hooks/useTacticalDeltaRenderer.ts`).
+   - Utiliza `source.updateData({ add, update, remove })` en MapLibre GL v6 (con fallback *throttled* seguro) e interpolación continua mediante `requestAnimationFrame` hasta **60 FPS** (con *throttle* configurable cuando la pestaña está oculta).
+3. **Viewport Spatial RPCs ($O(\log N)$):**
+   - Las cargas iniciales y eventos `moveend` en `TacticalWorldMap.tsx` dejaron de consultar tablas completas para usar RPCs acotadas por *bounding box* del viewport (`get_buildings_in_viewport`, `get_infra_edges_in_viewport`, `get_units_in_viewport` en `20261118000008`), expuestas a través de `spatialDeploymentService.ts`.
+4. **Autoridad de Combate, Asedio y Match Actions (`20261118000014`):**
+   - `useSiegeRealtime.ts` y `useMatchSync.ts` / `RealtimeConnectionManager` migraron de escrituras directas desde cliente a RPCs autoritativas con llave de idempotencia (`start_territorial_siege`, `claim_territorial_handshake`, `resolve_territorial_handshake_timeout`, `resolve_territorial_battle`, `submit_match_action`), respaldadas por `match_action_deltas` y difusión Broadcast v3.

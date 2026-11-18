@@ -29,31 +29,33 @@ export default defineConfig(() => {
       port: 5000,
       host: '0.0.0.0',
     },
-    build: {
-      target: 'es2022',
-      minify: 'esbuild',
-      cssMinify: true,
-      assetsInlineLimit: 4096,
-      chunkSizeWarningLimit: 650,
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            const normalizedId = id.replace(/\\/g, '/');
-            if (normalizedId.includes('node_modules/react/') || normalizedId.includes('node_modules/react-dom/')) {
-              return 'vendor-react';
-            }
-            if (normalizedId.includes('node_modules/lucide-react/')) {
-              return 'vendor-lucide';
-            }
-            if (normalizedId.includes('node_modules/@supabase/')) {
-              return 'vendor-supabase';
-            }
-            if (normalizedId.includes('node_modules/motion/')) {
-              return 'vendor-motion';
-            }
+      build: {
+        target: 'es2022',
+        minify: 'esbuild' as const,
+        cssMinify: true,
+        assetsInlineLimit: 4096,
+        chunkSizeWarningLimit: 650,
+        rolldownOptions: {
+          output: {
+            codeSplitting: {
+              maxSize: 550_000,
+              groups: [
+                { name: 'vendor-react', test: /node_modules[\\/](react|react-dom)[\\/]/, priority: 30 },
+                { name: 'vendor-lucide', test: /node_modules[\\/]lucide-react[\\/]/, priority: 30 },
+                { name: 'vendor-supabase', test: /node_modules[\\/]@supabase[\\/]/, priority: 30 },
+                { name: 'vendor-motion', test: /node_modules[\\/]motion[\\/]/, priority: 30 },
+                { name: 'vendor-maplibre', test: /node_modules[\\/]maplibre-gl[\\/]/, priority: 30 },
+                { name: 'vendor-genai', test: /node_modules[\\/]@google[\\/]genai[\\/]/, priority: 30 },
+                { name: 'vendor-topojson', test: /node_modules[\\/]topojson/, priority: 30 },
+                { name: 'domain-world', test: /src[\\/]domains[\\/]world[\\/]/, priority: 20, minSize: 0 },
+                { name: 'domain-tactics', test: /src[\\/]domains[\\/]tactics[\\/]/, priority: 20, minSize: 0 },
+                { name: 'domain-economy', test: /src[\\/]domains[\\/]economy[\\/]/, priority: 20, minSize: 0 },
+                { name: 'domain-game-feel', test: /src[\\/]domains[\\/]game-feel[\\/]/, priority: 20, minSize: 0 },
+                { name: 'domain-shared', test: /src[\\/]shared[\\/]/, priority: 20, minSize: 0 },
+              ],
+            },
           },
         },
       },
-    },
   };
 });

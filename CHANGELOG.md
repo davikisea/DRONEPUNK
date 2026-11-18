@@ -7,6 +7,32 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ---
 
+## [0.0.1] - Refactorización de Arquitectura 10,000+ CCU, Broadcast v3 y Delta Renderer 60 FPS (2026-11-18)
+
+### Escalabilidad SQL/RPC v3, Realtime Segmentado y Renderizado WebGL Incremental
+
+#### Added
+- **10 Migraciones SQL/RPC Contrato v3 (`20261118000005`..`20261118000014`)**:
+  - `20261118000005`: Endurecimiento RLS/RBAC (`(SELECT auth.uid())`), cierre de políticas `PERMISSIVE` huérfanas y `REVOKE` de escrituras directas desde cliente en tablas críticas.
+  - `20261118000006`: Unificación del Orden Canónico Global de Locks para erradicar deadlocks entre corporaciones, edificios, aristas, unidades, hangares, perfiles, mercado y sesiones de asedio.
+  - `20261118000007`: Sharding de tesorería corporativa en `corporation_treasury_shards` (16 shards/corporación) y contadores desacoplados de miembros.
+  - `20261118000008`: Culling espacial por viewport (`h3_res9_to_lat_lng`, triggers `lat`/`lng` e índices B-tree) con RPCs `get_buildings_in_viewport`, `get_infra_edges_in_viewport` y `get_units_in_viewport`.
+  - `20261118000009`: Transición de `REPLICA IDENTITY FULL` a `DEFAULT` en tablas de alto churn, eliminación de `postgres_changes` global y emisión **Broadcast v3** vía `realtime.send` (con fallback `pg_notify`).
+  - `20261118000010`: Batch worker `process_due_unit_schedules` con `FOR UPDATE SKIP LOCKED`, backoff exponencial, deltas agrupados por región y programación en `pg_cron`.
+  - `20261118000011`: Columnas TTL `expires_at` y purga por lotes `purge_expired_idempotency_and_logs` en `pg_cron` (`economy_rpc_idempotency`, `unit_action_logs`, `auth_audit_logs`).
+  - `20261118000012`: Índices en `infra_edges` y alcance BFS acotado con recomputación *dirty-graph* en `sync_pipeline_logistics` y `execute_collector_haul`.
+  - `20261118000013`: Paginación *keyset* $O(\log N)$ (`get_p2p_market_orders_page`) y escrow atómico (`publish_p2p_market_order`, `cancel_p2p_market_order`, `execute_p2p_market_transaction`).
+  - `20261118000014`: Tabla `match_action_deltas` y 5 RPCs autoritativas de combate/asedio (`start_territorial_siege`, `claim_territorial_handshake`, `resolve_territorial_handshake_timeout`, `resolve_territorial_battle`, `submit_match_action`).
+- **Hooks y Motores Frontend de Alto Rendimiento**:
+  - `useWorldRegionBroadcast.ts` (`@domains/world`): suscripción segmentada `world:region:{regionId}` con *coalescing* en memoria y *debounce* de 150 ms.
+  - `useTacticalDeltaRenderer.ts` (`@domains/world`): actualizaciones delta GeoJSON (`source.updateData`) e interpolación `requestAnimationFrame` a 60 FPS.
+  - Modularización de `TacticalWorldMap.tsx` en `src/domains/world/components/map/` (`tacticalMapStyle.ts`, `tacticalTerrainSprites.ts`, `tacticalGridGeoJson.ts`, `tacticalTerrainWebGLLayer.ts`) y *code splitting* en `vite.config.ts`.
+
+#### Changed
+- **Realtime y Autoridad en Cliente**: `useSiegeRealtime.ts`, `useMatchSync.ts`, `RealtimeConnectionManager` (`realtime.ts`), `stateSovereigntyService.ts`, `spatialDeploymentService.ts` y `playerDatabaseService.ts` migrados a Broadcast v3, RPCs autoritativas y paginación *keyset* sin `supabase.auth.getUser()` en *hot-paths*.
+
+---
+
 ## [0.0.1] - Sistema MMO 2D en Vivo, Logística Dual, Devastación y Programación de Drones (2026-11-18)
 
 ### Cierre del Bucle MMO 2D en Mapa WebGL (`TacticalWorldMap.tsx` + Migración `20261118000004`)

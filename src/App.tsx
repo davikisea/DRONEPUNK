@@ -105,6 +105,7 @@ import {
   MatchFormat,
   ComicVignetteOverlay,
   CombatTheaterView,
+  type CombatTheaterViewProps,
   PreBattleDeploymentModal,
   DeploymentConfig,
   ReinforcementRequestModal,
@@ -118,6 +119,14 @@ import {
   calculateBuildingAuras,
   GeotacticsLoadingScreen,
   TacticalPathfindingEngine,
+  tacticalMatchStore,
+  useTurnTimeRemaining,
+  useMatchUnits,
+  useMatchTiles,
+  usePlayerFunds,
+  useSelectedUnitId,
+  useTacticalTurnTimer,
+  type SimUnit,
 } from '@domains/tactics';
 
 // Shared: Primitivas, Auth, Servicios y Tipos
@@ -160,23 +169,6 @@ export function TacticalLoadingFallback() {
 }
 
 // --- Tipos de Unidad para el Simulador Interactivo ---
-interface SimUnit {
-  id: string;
-  name: string;
-  code: string;
-  owner: 'p1' | 'p2';
-  x: number;
-  y: number;
-  hp: number;
-  movePoints: number;
-  moveType: MovementType;
-  minRange: number;
-  maxRange: number;
-  baseAtk: number;
-  hasMoved?: boolean;
-  hasActed?: boolean;
-}
-
 const INITIAL_UNITS: SimUnit[] = [
   { id: 'u1', name: 'Infantería Aliada', code: 'infantry', owner: 'p1', x: 1, y: 0, hp: 100, movePoints: 3, moveType: 'foot', minRange: 1, maxRange: 1, baseAtk: 55 },
   { id: 'u2', name: 'Tanque Ligero Aliado', code: 'tank_light', owner: 'p1', x: 2, y: 1, hp: 100, movePoints: 6, moveType: 'treads', minRange: 1, maxRange: 1, baseAtk: 75 },
@@ -184,6 +176,15 @@ const INITIAL_UNITS: SimUnit[] = [
   { id: 'e1', name: 'Infantería Hostil', code: 'infantry', owner: 'p2', x: 6, y: 0, hp: 100, movePoints: 3, moveType: 'foot', minRange: 1, maxRange: 1, baseAtk: 55 },
   { id: 'e2', name: 'Tanque Ligero Hostil', code: 'tank_light', owner: 'p2', x: 6, y: 1, hp: 90, movePoints: 6, moveType: 'treads', minRange: 1, maxRange: 1, baseAtk: 75 },
 ];
+
+/**
+ * Puente granular que suscribe únicamente al temporizador de 1s sin re-renderizar `App`.
+ * Mantiene 100% retrocompatibilidad de props hacia `CombatTheaterView`.
+ */
+function CombatTheaterWithTimer(props: Omit<CombatTheaterViewProps, 'turnTimeRemaining'>) {
+  const turnTimeRemaining = useTurnTimeRemaining();
+  return <CombatTheaterView {...props} turnTimeRemaining={turnTimeRemaining} />;
+}
 
 export default function App() {
   const {
@@ -313,35 +314,20 @@ export default function App() {
     return getPredefinedMap(selectedMapId);
   }, [selectedMapId, customMaps]);
 
-  // Estados del Simulador Táctico Interactivo
-  const [units, setUnits] = useState<SimUnit[]>(() => {
-    const initialMap = getPredefinedMap('caustic_finale');
-    return initialMap.startingUnits.map(u => ({
-      id: u.id,
-      name: u.displayName,
-      code: u.unitCode,
-      owner: u.ownerId as 'p1' | 'p2',
-      x: u.x,
-      y: u.y,
-      hp: u.hp,
-      movePoints: u.movementPoints,
-      moveType: u.movementType as any,
-      minRange: u.minRange,
-      maxRange: u.maxRange,
-      baseAtk: u.baseAttack,
-      hasMoved: false,
-      hasActed: false,
-    }));
-  });
-  const [selectedUnitId, setSelectedUnitId] = useState<string>('p1_inf_hq');
+  // Estados del Simulador Táctico Interactivo (extraídos al store atómico granular)
+  const units = useMatchUnits();
+  const selectedUnitId = useSelectedUnitId();
   const [targetEnemyId, setTargetEnemyId] = useState<string>('p2_inf_hq');
   const [turn, setTurn] = useState<'p1' | 'p2'>('p1');
 
-  // Estados de Tablero Mutable, Economía y Producción
-  const [matchTiles, setMatchTiles] = useState<TerrainTile[][]>(() =>
-    activeMap.tiles.map(row => row.map(t => ({ ...t })))
-  );
-  const [playerFunds, setPlayerFunds] = useState<Record<'p1' | 'p2', number>>({ p1: 6000, p2: 6000 });
+  // Estados de Tablero Mutable, Economía y Producción (extraídos al store atómico granular)
+  const matchTiles = useMatchTiles();
+  const playerFunds = usePlayerFunds();
+  const setUnits = tacticalMatchStore.setUnits;
+  const setSelectedUnitId = tacticalMatchStore.setSelectedUnitId;
+  const setMatchTiles = tacticalMatchStore.setMatchTiles;
+  const setPlayerFunds = tacticalMatchStore.setPlayerFunds;
+  const setTurnTimeRemaining = tacticalMatchStore.setTurnTimeRemaining;
   const [turnNumber, setTurnNumber] = useState<number>(1);
   const [selectedFactoryCoord, setSelectedFactoryCoord] = useState<GridPosition | null>(null);
 
@@ -380,8 +366,7 @@ export default function App() {
     setGameMode(mode);
   }, [cancelBotExecution]);
 
-  // Estados de Temporizador de Turno WeGo en Vivo
-  const [turnTimeRemaining, setTurnTimeRemaining] = useState<number>(() => MATCH_FORMAT_CONFIGS.blitz_skirmish.turnTimeLimitSec);
+  // Estados de Temporizador de Turno WeGo en Vivo (gestionado en tacticalMatchStore)
 
   // Función canónica para reiniciar o reemparejar el escenario de combate
   const resetMatchState = React.useCallback((format?: MatchFormat) => {
@@ -1639,31 +1624,14 @@ export default function App() {
   };
 
   // Temporizador de Turno en Tiempo Real (Anti-AFK & Arbitraje Blitz / Espejo)
-  React.useEffect(() => {
-    if (isSummaryModalOpen || isBotThinking || viewMode !== 'canvas') {
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setTurnTimeRemaining(prev => {
-        if (prev <= 1) {
-          // Árbitro Anti-AFK: Agotamiento de tiempo -> Forzar paso de turno automático
-          audioManager.playSFX('combat_hit');
-          setTimeout(() => handleEndTurn(), 0);
-          return MATCH_FORMAT_CONFIGS[matchFormat].turnTimeLimitSec;
-        }
-
-        // Tictac sonoro de urgencia en los últimos 5 segundos
-        if (prev <= 6) {
-          audioManager.playSFX('button_click');
-        }
-
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [turn, turnNumber, matchFormat, isSummaryModalOpen, isBotThinking, viewMode]);
+  useTacticalTurnTimer({
+    enabled: !isSummaryModalOpen && !isBotThinking && viewMode === 'canvas',
+    turnTimeLimitSec: MATCH_FORMAT_CONFIGS[matchFormat].turnTimeLimitSec,
+    resetKey: `${turn}:${turnNumber}:${matchFormat}`,
+    onTimeExpired: handleEndTurn,
+    onExpiredTick: () => audioManager.playSFX('combat_hit'),
+    onUrgencyTick: () => audioManager.playSFX('button_click'),
+  });
 
   // Copiar al portapapeles
   const handleCopy = (text: string, key: string) => {
@@ -2373,11 +2341,10 @@ export default function App() {
       <div className="h-screen max-h-screen w-full overflow-hidden bg-[#161712] text-[#F2E8D5] flex flex-col font-sans selection:bg-[#C46A3A] selection:text-[#F2E8D5]">
       {/* Renderizado Principal: Teatro de Combate vs Shell Persistente del Cuartel General (Zero-Unmount) */}
       <div className={mainNav === 'combat' ? 'relative w-full h-full flex flex-col' : 'hidden'}>
-        <CombatTheaterView
+        <CombatTheaterWithTimer
           matchFormat={matchFormat}
           turn={turn}
           turnNumber={turnNumber}
-          turnTimeRemaining={turnTimeRemaining}
           playerFunds={playerFunds}
           p1Income={p1Income}
           p2Income={p2Income}

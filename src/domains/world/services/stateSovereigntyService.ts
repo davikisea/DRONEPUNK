@@ -91,12 +91,55 @@ class StateSovereigntyService {
   private listeners: Set<StateChangeListener> = new Set();
   private isInitialized = false;
   private realtimeChannel: any = null;
+  private activeRegionId = 'GLOBAL';
+  private lastSeqByState: Map<string, number> = new Map();
+  private cachedSessionUserId: string | null = null;
+  private sessionCacheExpiresAt = 0;
+  private authListenerUnsubscribe: (() => void) | null = null;
 
   constructor() {
     this.initializeDefaultStates();
-    this.initRealtimeSubscription().catch((err) => {
+    this.initSessionCache();
+    this.initRealtimeSubscription('GLOBAL').catch((err) => {
       console.warn('[StateSovereigntyService] Fallo inicializando Realtime (degradado a memoria):', err);
     });
+  }
+
+  /**
+   * Inicializa caché de sesión reactiva mediante getSession() y onAuthStateChange
+   * (evita round-trips auth.getUser() bajo alta concurrencia).
+   */
+  private initSessionCache(): void {
+    if (!isSupabaseConfigured() || !supabase?.auth) return;
+    try {
+      const { data } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
+        this.cachedSessionUserId = session?.user?.id ?? null;
+        this.sessionCacheExpiresAt = Date.now() + 60_000;
+      });
+      this.authListenerUnsubscribe = () => data?.subscription?.unsubscribe?.();
+    } catch {
+      // Entorno sin auth listener (p.ej. tests unitarios)
+    }
+  }
+
+  /**
+   * Obtiene el userId desde caché en memoria o supabase.auth.getSession().
+   */
+  public async getCachedSessionUserId(): Promise<string | null> {
+    if (this.cachedSessionUserId && Date.now() < this.sessionCacheExpiresAt) {
+      return this.cachedSessionUserId;
+    }
+    if (!isSupabaseConfigured() || !supabase?.auth?.getSession) {
+      return this.cachedSessionUserId;
+    }
+    try {
+      const { data } = await supabase.auth.getSession();
+      this.cachedSessionUserId = data?.session?.user?.id ?? null;
+      this.sessionCacheExpiresAt = Date.now() + 60_000;
+      return this.cachedSessionUserId;
+    } catch {
+      return this.cachedSessionUserId;
+    }
   }
 
   /**
@@ -224,16 +267,22 @@ class StateSovereigntyService {
   }
 
   /**
-   * Conecta y sincroniza con Supabase Realtime CDC en la tabla 'state_sovereignty'.
+   * Conecta y sincroniza con Supabase Broadcast acotado por región: `world:region:{regionId}`
+   * (por defecto `world:region:GLOBAL` para cambios de soberanía v3).
    */
-  public async initRealtimeSubscription(): Promise<void> {
+  public async initRealtimeSubscription(regionId: string = 'GLOBAL'): Promise<void> {
     if (!isSupabaseConfigured() || !supabase) return;
+
+    const targetRegion = regionId || 'GLOBAL';
+    this.activeRegionId = targetRegion;
 
     try {
       // 1. Hidratación inicial desde la base de datos
-      const { data: dbStates, error } = await supabase
-        .from('state_sovereignty')
-        .select('*');
+      const query = supabase.from('state_sovereignty').select('*');
+      const { data: dbStates, error } =
+        targetRegion !== 'GLOBAL'
+          ? await query.eq('state_id', targetRegion)
+          : await query;
 
       if (error) {
         throw new Error(`SOVEREIGNTY_FETCH_ERROR: ${error.message}`);
@@ -241,39 +290,26 @@ class StateSovereigntyService {
 
       if (Array.isArray(dbStates)) {
         dbStates.forEach((row: any) => {
-          const existing = this.getState(row.state_id);
-          if (existing) {
-            const merged: StateSovereigntyRecord = {
-              ...existing,
-              customCountryName: row.custom_country_name || existing.customCountryName,
-              customStateName: row.custom_state_name || existing.customStateName,
-              customMotto: row.custom_motto || existing.customMotto,
-              sovereignProclamation: row.sovereign_proclamation || existing.sovereignProclamation,
-              controllingFactionId: (row.controlling_faction_id as FactionId) || existing.controllingFactionId,
-              controllingClanId: row.controlling_clan_id || existing.controllingClanId,
-              tcpCurrent: row.tcp_current ?? existing.tcpCurrent,
-              tcpMax: row.tcp_max ?? existing.tcpMax,
-              defenseLevel: row.defense_level ?? existing.defenseLevel,
-            };
-            this.statesMap.set(row.state_id, merged);
-          }
+          this.applyStateDeltaToMemory(row, false);
         });
       }
 
       // 2. Desuscribir canal anterior si existe
       this.unsubscribeRealtime();
 
-      // 3. Suscribirse a cambios reactivos CDC
+      // 3. Suscribirse a canal Broadcast v3 acotado por región
+      const topic = `world:region:${targetRegion}`;
       this.realtimeChannel = supabase
-        .channel('state_sovereignty_changes')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'state_sovereignty' },
-          (payload: any) => this.handleRealtimeChange(payload)
+        .channel(topic, { config: { broadcast: { self: false } } })
+        .on('broadcast', { event: 'ENTITY_UPSERT' }, ({ payload }: { payload: any }) =>
+          this.handleBroadcastDelta(payload)
+        )
+        .on('broadcast', { event: 'ENTITY_DELETE' }, ({ payload }: { payload: any }) =>
+          this.handleBroadcastDelta(payload)
         )
         .subscribe((status: string) => {
           if (status === 'SUBSCRIBED') {
-            console.info('[StateSovereigntyService] Canal Realtime conectado: state_sovereignty_changes');
+            console.info(`[StateSovereigntyService] Canal Broadcast conectado: ${topic}`);
           }
         });
     } catch (e) {
@@ -297,29 +333,53 @@ class StateSovereigntyService {
   }
 
   /**
-   * Maneja eventos CDC de la tabla 'state_sovereignty'.
+   * Aplica un delta de registro `state_sovereignty` en memoria.
    */
-  private handleRealtimeChange(payload: any) {
-    const { eventType, new: newRec } = payload;
-    if ((eventType === 'INSERT' || eventType === 'UPDATE') && newRec) {
-      const stateId = newRec.state_id;
-      const existing = this.getState(stateId);
-      if (existing) {
-        const updated: StateSovereigntyRecord = {
-          ...existing,
-          customCountryName: newRec.custom_country_name || existing.customCountryName,
-          customStateName: newRec.custom_state_name || existing.customStateName,
-          customMotto: newRec.custom_motto || existing.customMotto,
-          sovereignProclamation: newRec.sovereign_proclamation || existing.sovereignProclamation,
-          controllingFactionId: (newRec.controlling_faction_id as FactionId) || existing.controllingFactionId,
-          controllingClanId: newRec.controlling_clan_id || existing.controllingClanId,
-          tcpCurrent: newRec.tcp_current ?? existing.tcpCurrent,
-          tcpMax: newRec.tcp_max ?? existing.tcpMax,
-          defenseLevel: newRec.defense_level ?? existing.defenseLevel,
-        };
-        this.statesMap.set(stateId, updated);
-        this.notifyListeners(updated);
-      }
+  private applyStateDeltaToMemory(row: any, notify: boolean): void {
+    if (!row?.state_id) return;
+    const existing = this.getState(row.state_id);
+    if (!existing) return;
+
+    const merged: StateSovereigntyRecord = {
+      ...existing,
+      customCountryName: row.custom_country_name || existing.customCountryName,
+      customStateName: row.custom_state_name || existing.customStateName,
+      customMotto: row.custom_motto || existing.customMotto,
+      sovereignProclamation: row.sovereign_proclamation || existing.sovereignProclamation,
+      controllingFactionId: (row.controlling_faction_id as FactionId) || existing.controllingFactionId,
+      controllingClanId: row.controlling_clan_id || existing.controllingClanId,
+      tcpCurrent: row.tcp_current ?? existing.tcpCurrent,
+      tcpMax: row.tcp_max ?? existing.tcpMax,
+      defenseLevel: row.defense_level ?? existing.defenseLevel,
+    };
+    this.statesMap.set(row.state_id, merged);
+    if (notify) {
+      this.notifyListeners(merged);
+    }
+  }
+
+  /**
+   * Maneja eventos Broadcast v3 (`ENTITY_UPSERT` / `ENTITY_DELETE`) para `state_sovereignty`.
+   */
+  private handleBroadcastDelta(payload: any) {
+    if (!payload || (payload.table && payload.table !== 'state_sovereignty')) return;
+    const op = payload.op;
+    const newRec = payload.record;
+    if (!newRec?.state_id) return;
+
+    const stateId = String(newRec.state_id);
+    const seq = Number(payload.seq ?? 0);
+    const prevSeq = this.lastSeqByState.get(stateId) ?? 0;
+    if (seq > 0 && seq < prevSeq) return;
+    if (seq > 0) this.lastSeqByState.set(stateId, seq);
+
+    if (op === 'DELETE') {
+      this.statesMap.delete(stateId);
+      return;
+    }
+
+    if (op === 'INSERT' || op === 'UPDATE' || !op) {
+      this.applyStateDeltaToMemory(newRec, true);
     }
   }
 

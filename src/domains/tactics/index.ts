@@ -207,7 +207,7 @@ export {
   CAMPAIGN_ACT_I_MISSIONS,
 } from './core/campaignEngine';
 
-// Services & Hooks
+// Services, Hooks & Store
 export {
   operationalUnitsService,
   type DeployedOperationalUnit,
@@ -215,6 +215,19 @@ export {
 export {
   useMatchSync,
 } from './hooks/useMatchSync';
+export {
+  tacticalMatchStore,
+  useTacticalMatchSelector,
+  useTurnTimeRemaining,
+  useMatchUnits,
+  useMatchTiles,
+  usePlayerFunds,
+  useSelectedUnitId,
+  useTacticalTurnTimer,
+  type TacticalMatchState,
+  type SimUnit,
+  type UseTacticalTurnTimerOptions,
+} from './store/useTacticalMatchStore';
 
 // Components
 export { COCommandBar } from './components/COCommandBar';
@@ -225,7 +238,7 @@ export { TacticalStudioEditor } from './components/TacticalStudioEditor';
 export { GameCanvas, type AmbushAlert } from './components/GameCanvas';
 export { ProductionModal } from './components/ProductionModal';
 export { ComicVignetteOverlay } from './components/ComicVignetteOverlay';
-export { CombatTheaterView } from './components/CombatTheaterView';
+export { CombatTheaterView, type CombatTheaterViewProps } from './components/CombatTheaterView';
 export { ReinforcementRequestModal } from './components/ReinforcementRequestModal';
 export { GeotacticsLoadingScreen, DronepunkLoadingScreen } from './components/GeotacticsLoadingScreen';
 export { BaseProductionModal, type BaseProductionModalProps } from './components/BaseProductionModal';

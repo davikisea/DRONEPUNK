@@ -82,62 +82,192 @@ export const P2PMarketplaceView: React.FC<P2PMarketplaceViewProps> = ({
 
   // Lista activa de órdenes en el mercado con canon del 2% (1% sink + 1% regalía)
   const [listings, setListings] = useState<P2PMarketListing[]>([]);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [isLoadingPage, setIsLoadingPage] = useState<boolean>(false);
+  const [totalActiveCount, setTotalActiveCount] = useState<number>(0);
 
-  // Sincronización en vivo con public.p2p_market_orders en Supabase
-  const fetchOrders = React.useCallback(async () => {
+  // Filtros y Pestañas (declarados antes de la suscripción para acotar RPC/Broadcast)
+  const [resourceFilter, setResourceFilter] = useState<'all' | RefinedResourceType>('all');
+  const [viewTab, setViewTab] = useState<'market' | 'my_listings'>('market');
+  const activeCategory = 'refined_material';
+
+  const cursorRef = React.useRef<{ createdAt: string; id: string } | null>(null);
+  const pendingDeltasRef = React.useRef<Map<string, { op: string; record: any; seq: number }>>(new Map());
+  const lastSeqByOrderRef = React.useRef<Map<string, number>>(new Map());
+  const debounceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cachedUserIdRef = React.useRef<string | null>(
+    currentUserId && currentUserId !== 'user_me' ? currentUserId : null
+  );
+
+  React.useEffect(() => {
+    if (currentUserId && currentUserId !== 'user_me') {
+      cachedUserIdRef.current = currentUserId;
+    }
+  }, [currentUserId]);
+
+  const mapOrderRowToListing = React.useCallback((o: any): P2PMarketListing => ({
+    id: o.id,
+    sellerId: o.seller_id,
+    sellerName: o.seller_id === currentUserId ? currentUserName : `Comandante ${String(o.seller_id || '').slice(0, 8)}`,
+    resourceType: (o.item_code as RefinedResourceType) || 'refined_steel',
+    quantity: o.quantity,
+    pricePerUnitGold: o.unit_price_ec,
+    totalPriceGold: o.total_price_ec,
+    taxDeductedGold: (o.platform_burn_ec || 0) + (o.province_royalty_ec || 0),
+    netSellerRevenueGold: o.net_seller_revenue_ec,
+    status: o.status as any,
+    createdAt: new Date(o.created_at).getTime(),
+  }), [currentUserId, currentUserName]);
+
+  const PAGE_SIZE = 50;
+  const isUuid = (val: string | null | undefined): val is string =>
+    Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
+
+  // Paginación keyset O(log N) vía RPC get_p2p_market_orders_page
+  const fetchOrders = React.useCallback(async (reset: boolean = true) => {
+    if (reset) {
+      cursorRef.current = null;
+    }
+    setIsLoadingPage(true);
     try {
-      const { data, error } = await supabase
-        .from('p2p_market_orders')
-        .select('*')
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
+      const sellerParam =
+        viewTab === 'my_listings' && isUuid(currentUserId) ? currentUserId : null;
+      const itemCodeParam =
+        viewTab === 'market' && resourceFilter !== 'all' ? resourceFilter : null;
+
+      const { data, error } = await supabase.rpc('get_p2p_market_orders_page', {
+        p_item_category: activeCategory,
+        p_item_code: itemCodeParam,
+        p_seller_id: sellerParam,
+        p_status: 'active',
+        p_cursor_created_at: reset ? null : (cursorRef.current?.createdAt ?? null),
+        p_cursor_id: reset ? null : (cursorRef.current?.id ?? null),
+        p_limit: PAGE_SIZE,
+      });
 
       if (error) throw error;
 
-      if (data) {
-        const liveListings: P2PMarketListing[] = data.map((o) => ({
-          id: o.id,
-          sellerId: o.seller_id,
-          sellerName: `Comandante ${o.seller_id.slice(0, 8)}`,
-          resourceType: (o.item_code as RefinedResourceType) || 'refined_steel',
-          quantity: o.quantity,
-          pricePerUnitGold: o.unit_price_ec,
-          totalPriceGold: o.total_price_ec,
-          taxDeductedGold: (o.platform_burn_ec || 0) + (o.province_royalty_ec || 0),
-          netSellerRevenueGold: o.net_seller_revenue_ec,
-          status: o.status as any,
-          createdAt: new Date(o.created_at).getTime(),
-        }));
+      const rows = Array.isArray(data) ? data : [];
+      const liveListings: P2PMarketListing[] = rows.map(mapOrderRowToListing);
+
+      if (rows.length > 0) {
+        const last = rows[rows.length - 1];
+        cursorRef.current = { createdAt: last.created_at, id: last.id };
+        setTotalActiveCount(Number(rows[0]?.total_active_count ?? rows.length));
+      } else if (reset) {
+        setTotalActiveCount(0);
+      }
+
+      setHasMore(rows.length === PAGE_SIZE);
+
+      if (reset) {
         setListings(liveListings);
+      } else {
+        setListings((prev) => {
+          const existingIds = new Set(prev.map((item) => item.id));
+          const merged = [...prev];
+          for (const item of liveListings) {
+            if (!existingIds.has(item.id)) {
+              merged.push(item);
+            }
+          }
+          return merged;
+        });
       }
     } catch (err) {
-      console.error('[P2PMarketplaceView] Error consultando órdenes Supabase:', err);
+      console.error('[P2PMarketplaceView] Error consultando órdenes paginadas RPC:', err);
+    } finally {
+      setIsLoadingPage(false);
     }
-  }, []);
+  }, [activeCategory, currentUserId, mapOrderRowToListing, resourceFilter, viewTab]);
+
+  // Flush debounced de deltas Broadcast v3 en memoria
+  const flushPendingDeltas = React.useCallback(() => {
+    if (pendingDeltasRef.current.size === 0) return;
+    const batch = Array.from(pendingDeltasRef.current.values());
+    pendingDeltasRef.current.clear();
+
+    setListings((prev) => {
+      const next = [...prev];
+      const indexById = new Map<string, number>();
+      next.forEach((item, idx) => indexById.set(item.id, idx));
+
+      for (const delta of batch) {
+        const rec = delta.record;
+        if (!rec || !rec.id) continue;
+
+        const prevSeq = lastSeqByOrderRef.current.get(rec.id) ?? 0;
+        if (delta.seq > 0 && delta.seq < prevSeq) continue;
+        if (delta.seq > 0) lastSeqByOrderRef.current.set(rec.id, delta.seq);
+
+        const isDeletedOrInactive = delta.op === 'DELETE' || rec.status !== 'active';
+        const existingIdx = indexById.get(rec.id);
+
+        if (isDeletedOrInactive) {
+          if (existingIdx !== undefined) {
+            next.splice(existingIdx, 1);
+            indexById.clear();
+            next.forEach((item, idx) => indexById.set(item.id, idx));
+          }
+        } else {
+          const mapped = mapOrderRowToListing(rec);
+          if (existingIdx !== undefined) {
+            next[existingIdx] = mapped;
+          } else {
+            next.unshift(mapped);
+            indexById.clear();
+            next.forEach((item, idx) => indexById.set(item.id, idx));
+          }
+        }
+      }
+      return next;
+    });
+  }, [mapOrderRowToListing]);
 
   React.useEffect(() => {
-    fetchOrders();
+    fetchOrders(true);
+  }, [fetchOrders]);
 
-    const channelName = `p2p_orders_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  // Canal Broadcast acotado por categoría: market:p2p:{category}
+  React.useEffect(() => {
+    const channelName = `market:p2p:${activeCategory}`;
     const channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'p2p_market_orders' },
-        () => {
-          fetchOrders();
+      .channel(channelName, { config: { broadcast: { self: false } } })
+      .on('broadcast', { event: 'MARKET_ORDER' }, ({ payload }: { payload: any }) => {
+        if (!payload || !payload.record?.id) return;
+        if (payload.table && payload.table !== 'p2p_market_orders') return;
+
+        const orderId = String(payload.record.id);
+        const seq = Number(payload.seq ?? 0);
+        const queued = pendingDeltasRef.current.get(orderId);
+        if (!queued || seq >= queued.seq) {
+          pendingDeltasRef.current.set(orderId, {
+            op: String(payload.op || 'UPDATE'),
+            record: payload.record,
+            seq,
+          });
         }
-      )
+
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+        }
+        debounceTimerRef.current = setTimeout(() => {
+          flushPendingDeltas();
+        }, 120);
+      })
       .subscribe();
 
     return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      pendingDeltasRef.current.clear();
       supabase.removeChannel(channel);
     };
-  }, [fetchOrders]);
+  }, [activeCategory, flushPendingDeltas]);
 
-  // Filtros y Pestañas
-  const [resourceFilter, setResourceFilter] = useState<'all' | RefinedResourceType>('all');
-  const [viewTab, setViewTab] = useState<'market' | 'my_listings'>('market');
+  // Modales y alertas
   const [isPublishModalOpen, setIsPublishModalOpen] = useState<boolean>(false);
   const [feedbackAlert, setFeedbackAlert] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -189,33 +319,33 @@ export const P2PMarketplaceView: React.FC<P2PMarketplaceViewProps> = ({
     const netSellerRevenueGold = totalPriceGold - taxTotal;
 
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const activeSellerId = authData?.user?.id ?? currentUserId;
+      let activeSellerId = cachedUserIdRef.current;
+      if (!activeSellerId) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        activeSellerId = sessionData?.session?.user?.id ?? null;
+        if (activeSellerId) {
+          cachedUserIdRef.current = activeSellerId;
+        }
+      }
 
       if (!activeSellerId || activeSellerId === 'user_me') {
         showFeedback('Debe tener una sesión militar activa para publicar en el mercado P2P.', 'error');
         return;
       }
 
-      const { data: insertedOrder, error: insertError } = await supabase
-        .from('p2p_market_orders')
-        .insert({
-          seller_id: activeSellerId,
-          origin_province_id: 'ES_MADRID',
-          province_terminal_id: 'ES_MADRID',
-          item_category: 'refined_material',
-          item_code: publishResource,
-          tier: 1,
-          quantity: publishQuantity,
-          unit_price_ec: publishPricePerUnit,
-          total_price_ec: totalPriceGold,
-          platform_burn_ec: taxBurn,
-          province_royalty_ec: taxRoyalty,
-          net_seller_revenue_ec: netSellerRevenueGold,
-          status: 'active',
-        })
-        .select()
-        .single();
+      const { data: insertedOrder, error: insertError } = await supabase.rpc(
+        'publish_p2p_market_order',
+        {
+          p_item_category: activeCategory,
+          p_item_code: publishResource,
+          p_tier: 1,
+          p_quantity: publishQuantity,
+          p_unit_price_ec: publishPricePerUnit,
+          p_origin_province_id: 'ES_MADRID',
+          p_province_terminal_id: 'ES_MADRID',
+          p_idempotency_key: crypto.randomUUID(),
+        }
+      );
 
       if (insertError) {
         showFeedback(`Error en base de datos: ${insertError.message}`, 'error');
@@ -255,7 +385,9 @@ export const P2PMarketplaceView: React.FC<P2PMarketplaceViewProps> = ({
           status: 'active',
           createdAt: new Date(insertedOrder.created_at).getTime(),
         };
-        setListings((prev) => [newListing, ...prev]);
+        setListings((prev) =>
+          prev.some((l) => l.id === newListing.id) ? prev : [newListing, ...prev]
+        );
       }
 
       setIsPublishModalOpen(false);
@@ -269,19 +401,28 @@ export const P2PMarketplaceView: React.FC<P2PMarketplaceViewProps> = ({
     }
   };
 
-  // Acción: Cancelar Venta Propia en Supabase
+  // Acción: Cancelar Venta Propia vía RPC atómica cancel_p2p_market_order
   const handleCancelListing = async (listingId: string) => {
     const target = listings.find((l) => l.id === listingId);
     if (!target || target.status !== 'active') return;
 
     try {
-      const { error: cancelError } = await supabase
-        .from('p2p_market_orders')
-        .update({ status: 'cancelled' })
-        .eq('id', listingId);
+      const { data: cancelRes, error: cancelError } = await supabase.rpc(
+        'cancel_p2p_market_order',
+        {
+          p_order_id: listingId,
+          p_idempotency_key: crypto.randomUUID(),
+        }
+      );
 
       if (cancelError) {
         showFeedback(`Fallo al cancelar orden: ${cancelError.message}`, 'error');
+        return;
+      }
+
+      const res = cancelRes as { success?: boolean; error?: string } | null;
+      if (res && res.success === false) {
+        showFeedback(`Fallo al cancelar orden: ${res.error || 'Error desconocido'}`, 'error');
         return;
       }
 
@@ -651,6 +792,24 @@ export const P2PMarketplaceView: React.FC<P2PMarketplaceViewProps> = ({
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {(hasMore || totalActiveCount > 0) && (
+          <div className="mt-3 pt-3 border-t border-[#7B8A4A]/40 flex items-center justify-between text-[11px] text-[#F2E8D5]/75">
+            <span>
+              Mostrando {filteredListings.length}
+              {totalActiveCount > 0 ? ` de ${totalActiveCount} órdenes activas` : ' órdenes'}
+            </span>
+            {hasMore && (
+              <button
+                onClick={() => fetchOrders(false)}
+                disabled={isLoadingPage}
+                className="px-3 py-1 bg-[#2B2C24] hover:bg-[#3a3b30] disabled:opacity-50 text-[#F2E8D5] font-bold rounded-[8px_2px_8px_2px] border border-[#7B8A4A] cursor-pointer transition-all"
+              >
+                {isLoadingPage ? 'Cargando...' : 'Cargar más órdenes'}
+              </button>
+            )}
           </div>
         )}
       </div>

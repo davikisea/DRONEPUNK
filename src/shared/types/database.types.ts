@@ -21,14 +21,20 @@ export type Database = {
           edge_type: string
           from_building_id: string | null
           from_h3: number
+          from_lat?: number | null
+          from_lng?: number | null
           hp: number
           id: string
           is_historical_anchor: boolean
+          lat?: number | null
+          lng?: number | null
           max_hp: number
           ruined_at: string | null
           status: string
           to_building_id: string | null
           to_h3: number
+          to_lat?: number | null
+          to_lng?: number | null
         }
         Insert: {
           corp_id?: string | null
@@ -36,14 +42,20 @@ export type Database = {
           edge_type: string
           from_building_id?: string | null
           from_h3: number
+          from_lat?: number | null
+          from_lng?: number | null
           hp?: number
           id?: string
           is_historical_anchor?: boolean
+          lat?: number | null
+          lng?: number | null
           max_hp?: number
           ruined_at?: string | null
           status?: string
           to_building_id?: string | null
           to_h3: number
+          to_lat?: number | null
+          to_lng?: number | null
         }
         Update: {
           corp_id?: string | null
@@ -51,14 +63,20 @@ export type Database = {
           edge_type?: string
           from_building_id?: string | null
           from_h3?: number
+          from_lat?: number | null
+          from_lng?: number | null
           hp?: number
           id?: string
           is_historical_anchor?: boolean
+          lat?: number | null
+          lng?: number | null
           max_hp?: number
           ruined_at?: string | null
           status?: string
           to_building_id?: string | null
           to_h3?: number
+          to_lat?: number | null
+          to_lng?: number | null
         }
         Relationships: []
       }
@@ -67,6 +85,7 @@ export type Database = {
           action_type: string
           corp_id: string
           created_at: string
+          expires_at?: string | null
           h3_index: number | null
           id: string
           metadata: Json
@@ -78,6 +97,7 @@ export type Database = {
           action_type: string
           corp_id: string
           created_at?: string
+          expires_at?: string | null
           h3_index?: number | null
           id?: string
           metadata?: Json
@@ -89,6 +109,7 @@ export type Database = {
           action_type?: string
           corp_id?: string
           created_at?: string
+          expires_at?: string | null
           h3_index?: number | null
           id?: string
           metadata?: Json
@@ -107,8 +128,10 @@ export type Database = {
           failure_reason: string | null
           hangar_slot_id: string | null
           id: string
+          last_error_at?: string | null
           next_tick_at: string
           repeat_interval_sec: number | null
+          retry_count?: number
           scheduled_at: string
           status: string
           target_building_id: string | null
@@ -125,8 +148,10 @@ export type Database = {
           failure_reason?: string | null
           hangar_slot_id?: string | null
           id?: string
+          last_error_at?: string | null
           next_tick_at?: string
           repeat_interval_sec?: number | null
+          retry_count?: number
           scheduled_at?: string
           status?: string
           target_building_id?: string | null
@@ -143,8 +168,10 @@ export type Database = {
           failure_reason?: string | null
           hangar_slot_id?: string | null
           id?: string
+          last_error_at?: string | null
           next_tick_at?: string
           repeat_interval_sec?: number | null
+          retry_count?: number
           scheduled_at?: string
           status?: string
           target_building_id?: string | null
@@ -237,6 +264,7 @@ export type Database = {
           country_code: string | null
           created_at: string
           event_type: string
+          expires_at?: string | null
           fingerprint_hash: string | null
           id: string
           ip_hash: string
@@ -251,6 +279,7 @@ export type Database = {
           country_code?: string | null
           created_at?: string
           event_type: string
+          expires_at?: string | null
           fingerprint_hash?: string | null
           id?: string
           ip_hash: string
@@ -265,6 +294,7 @@ export type Database = {
           country_code?: string | null
           created_at?: string
           event_type?: string
+          expires_at?: string | null
           fingerprint_hash?: string | null
           id?: string
           ip_hash?: string
@@ -1557,24 +1587,30 @@ export type Database = {
         Row: {
           action_index: number
           action_payload: Json
+          actor_id?: string | null
           created_at: string | null
           id: number
+          idempotency_key?: string | null
           match_id: string
           turn_number: number
         }
         Insert: {
           action_index: number
           action_payload: Json
+          actor_id?: string | null
           created_at?: string | null
           id?: number
+          idempotency_key?: string | null
           match_id: string
           turn_number: number
         }
         Update: {
           action_index?: number
           action_payload?: Json
+          actor_id?: string | null
           created_at?: string | null
           id?: number
+          idempotency_key?: string | null
           match_id?: string
           turn_number?: number
         }
@@ -4205,7 +4241,9 @@ export type Database = {
           is_historical: boolean
           is_production_halted: boolean
           last_collected_at: string
+          lat?: number | null
           level: number
+          lng?: number | null
           max_hp: number
           municipality_id: string | null
           owner_user_id: string | null
@@ -4228,7 +4266,9 @@ export type Database = {
           is_historical?: boolean
           is_production_halted?: boolean
           last_collected_at?: string
+          lat?: number | null
           level?: number
+          lng?: number | null
           max_hp?: number
           municipality_id?: string | null
           owner_user_id?: string | null
@@ -4251,7 +4291,9 @@ export type Database = {
           is_historical?: boolean
           is_production_halted?: boolean
           last_collected_at?: string
+          lat?: number | null
           level?: number
+          lng?: number | null
           max_hp?: number
           municipality_id?: string | null
           owner_user_id?: string | null
@@ -4769,6 +4811,8 @@ export type Database = {
           hangar_slot_id: string | null
           hp: number
           id: string
+          lat?: number | null
+          lng?: number | null
           municipality_id: string | null
           next_haul_at: string | null
           owner_user_id: string
@@ -4790,6 +4834,8 @@ export type Database = {
           hangar_slot_id?: string | null
           hp?: number
           id?: string
+          lat?: number | null
+          lng?: number | null
           municipality_id?: string | null
           next_haul_at?: string | null
           owner_user_id: string
@@ -4811,6 +4857,8 @@ export type Database = {
           hangar_slot_id?: string | null
           hp?: number
           id?: string
+          lat?: number | null
+          lng?: number | null
           municipality_id?: string | null
           next_haul_at?: string | null
           owner_user_id?: string
@@ -4826,6 +4874,7 @@ export type Database = {
       economy_rpc_idempotency: {
         Row: {
           created_at: string
+          expires_at?: string | null
           idempotency_key: string
           response: Json
           rpc_name: string
@@ -4833,6 +4882,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          expires_at?: string | null
           idempotency_key: string
           response: Json
           rpc_name: string
@@ -4840,12 +4890,141 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          expires_at?: string | null
           idempotency_key?: string
           response?: Json
           rpc_name?: string
           user_id?: string
         }
         Relationships: []
+      }
+      corporation_treasury_shards: {
+        Row: {
+          corp_id: string
+          shard_id: number
+          treasury_alloys: number
+          treasury_chips: number
+          treasury_citizens: number
+          treasury_composites: number
+          treasury_ec: number
+          treasury_fuel: number
+          treasury_rare_earth: number
+          treasury_tech_scrap: number
+          updated_at: string
+        }
+        Insert: {
+          corp_id: string
+          shard_id: number
+          treasury_alloys?: number
+          treasury_chips?: number
+          treasury_citizens?: number
+          treasury_composites?: number
+          treasury_ec?: number
+          treasury_fuel?: number
+          treasury_rare_earth?: number
+          treasury_tech_scrap?: number
+          updated_at?: string
+        }
+        Update: {
+          corp_id?: string
+          shard_id?: number
+          treasury_alloys?: number
+          treasury_chips?: number
+          treasury_citizens?: number
+          treasury_composites?: number
+          treasury_ec?: number
+          treasury_fuel?: number
+          treasury_rare_earth?: number
+          treasury_tech_scrap?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corporation_treasury_shards_corp_id_fkey"
+            columns: ["corp_id"]
+            isOneToOne: false
+            referencedRelation: "corporations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      corporation_member_counts: {
+        Row: {
+          corp_id: string
+          member_count: number
+          updated_at: string
+        }
+        Insert: {
+          corp_id: string
+          member_count?: number
+          updated_at?: string
+        }
+        Update: {
+          corp_id?: string
+          member_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corporation_member_counts_corp_id_fkey"
+            columns: ["corp_id"]
+            isOneToOne: true
+            referencedRelation: "corporations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      corp_logistics_dirty: {
+        Row: {
+          corp_id: string
+          is_dirty: boolean
+          updated_at: string
+        }
+        Insert: {
+          corp_id: string
+          is_dirty?: boolean
+          updated_at?: string
+        }
+        Update: {
+          corp_id?: string
+          is_dirty?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corp_logistics_dirty_corp_id_fkey"
+            columns: ["corp_id"]
+            isOneToOne: true
+            referencedRelation: "corporations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      corp_pipeline_reachability: {
+        Row: {
+          corp_id: string
+          h3_index: number
+          hop_depth: number
+        }
+        Insert: {
+          corp_id: string
+          h3_index: number
+          hop_depth?: number
+        }
+        Update: {
+          corp_id?: string
+          h3_index?: number
+          hop_depth?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corp_pipeline_reachability_corp_id_fkey"
+            columns: ["corp_id"]
+            isOneToOne: false
+            referencedRelation: "corporations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       faction_unit_hangar: {
         Row: {
@@ -5170,9 +5349,210 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      corporation_treasury_totals: {
+        Row: {
+          corp_id: string
+          treasury_alloys: number
+          treasury_chips: number
+          treasury_citizens: number
+          treasury_composites: number
+          treasury_ec: number
+          treasury_fuel: number
+          treasury_rare_earth: number
+          treasury_tech_scrap: number
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corporation_treasury_shards_corp_id_fkey"
+            columns: ["corp_id"]
+            isOneToOne: true
+            referencedRelation: "corporations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      is_sovereignty_authorized: {
+        Args: { target_clan_id: string | null }
+        Returns: boolean
+      }
+      init_corp_treasury_shards: {
+        Args: { p_corp_id: string }
+        Returns: undefined
+      }
+      get_corp_treasury_totals: {
+        Args: { p_corp_id: string }
+        Returns: {
+          treasury_ec: number
+          treasury_alloys: number
+          treasury_fuel: number
+          treasury_chips: number
+          treasury_rare_earth: number
+          treasury_composites: number
+          treasury_tech_scrap: number
+          treasury_citizens: number
+        }[]
+      }
+      apply_corp_treasury_delta: {
+        Args: {
+          p_corp_id: string
+          p_delta_ec?: number
+          p_delta_alloys?: number
+          p_delta_fuel?: number
+          p_delta_chips?: number
+          p_delta_rare_earth?: number
+          p_delta_composites?: number
+          p_delta_tech_scrap?: number
+          p_delta_citizens?: number
+          p_shard_seed?: string | null
+        }
+        Returns: {
+          treasury_ec: number
+          treasury_alloys: number
+          treasury_fuel: number
+          treasury_chips: number
+          treasury_rare_earth: number
+          treasury_composites: number
+          treasury_tech_scrap: number
+          treasury_citizens: number
+        }[]
+      }
+      h3_res9_to_lat_lng: {
+        Args: { p_h3_index: number }
+        Returns: { lat: number | null; lng: number | null }
+      }
+      get_buildings_in_viewport: {
+        Args: {
+          p_min_lat: number
+          p_max_lat: number
+          p_min_lng: number
+          p_max_lng: number
+          p_corp_id?: string | null
+          p_limit?: number
+        }
+        Returns: Database["public"]["Tables"]["buildings"]["Row"][]
+      }
+      get_infra_edges_in_viewport: {
+        Args: {
+          p_min_lat: number
+          p_max_lat: number
+          p_min_lng: number
+          p_max_lng: number
+          p_corp_id?: string | null
+          p_limit?: number
+        }
+        Returns: Database["public"]["Tables"]["infra_edges"]["Row"][]
+      }
+      get_units_in_viewport: {
+        Args: {
+          p_min_lat: number
+          p_max_lat: number
+          p_min_lng: number
+          p_max_lng: number
+          p_corp_id?: string | null
+          p_status?: string | null
+          p_limit?: number
+        }
+        Returns: Database["public"]["Tables"]["operational_units"]["Row"][]
+      }
+      purge_expired_idempotency_and_logs: {
+        Args: { p_batch_size?: number }
+        Returns: Json
+      }
+      get_p2p_market_orders_page: {
+        Args: {
+          p_item_category?: string | null
+          p_item_code?: string | null
+          p_seller_id?: string | null
+          p_status?: string | null
+          p_cursor_created_at?: string | null
+          p_cursor_id?: string | null
+          p_limit?: number
+        }
+        Returns: {
+          id: string
+          seller_id: string
+          buyer_id: string | null
+          origin_province_id: string | null
+          province_terminal_id: string | null
+          item_category: string
+          item_code: string
+          tier: number
+          quantity: number
+          unit_price_ec: number
+          total_price_ec: number
+          platform_burn_ec: number
+          province_royalty_ec: number
+          net_seller_revenue_ec: number
+          status: string
+          created_at: string
+          completed_at: string | null
+          total_active_count: number
+        }[]
+      }
+      publish_p2p_market_order: {
+        Args: {
+          p_item_category: string
+          p_item_code: string
+          p_tier: number
+          p_quantity: number
+          p_unit_price_ec: number
+          p_origin_province_id?: string
+          p_province_terminal_id?: string
+          p_idempotency_key?: string | null
+        }
+        Returns: Database["public"]["Tables"]["p2p_market_orders"]["Row"]
+      }
+      cancel_p2p_market_order: {
+        Args: {
+          p_order_id: string
+          p_idempotency_key?: string | null
+        }
+        Returns: Json
+      }
+      start_territorial_siege: {
+        Args: {
+          p_region_id: string
+          p_attacker_clan_id: string
+          p_attacker_commander_id: string
+          p_defender_clan_id?: string | null
+        }
+        Returns: Database["public"]["Tables"]["territorial_battle_sessions"]["Row"]
+      }
+      claim_territorial_handshake: {
+        Args: {
+          p_session_id: string
+          p_defender_commander_id: string
+        }
+        Returns: Database["public"]["Tables"]["territorial_battle_sessions"]["Row"]
+      }
+      resolve_territorial_handshake_timeout: {
+        Args: {
+          p_session_id: string
+          p_bunker_level?: number
+        }
+        Returns: Database["public"]["Tables"]["territorial_battle_sessions"]["Row"]
+      }
+      resolve_territorial_battle: {
+        Args: {
+          p_session_id: string
+          p_winner: string
+          p_is_capital?: boolean
+        }
+        Returns: Json
+      }
+      submit_match_action: {
+        Args: {
+          p_match_id: string
+          p_turn_number: number
+          p_action_index: number
+          p_action_payload: Json
+          p_idempotency_key?: string | null
+        }
+        Returns: Json
+      }
       create_infra_edge: {
         Args: {
           p_corp_id: string

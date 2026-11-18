@@ -1113,6 +1113,7 @@ function extractAddSourceObjectById(code, sourceId) {
 export function auditTacticalWorldMapInvariants(options = {}) {
   const rootDir = options.rootDir ?? process.cwd();
   const mapFilePath = path.resolve(rootDir, 'src/domains/world/components/TacticalWorldMap.tsx');
+  const styleFilePath = path.resolve(rootDir, 'src/domains/world/components/map/tacticalMapStyle.ts');
   if (!fs.existsSync(mapFilePath)) {
     return {
       passed: false,
@@ -1121,8 +1122,15 @@ export function auditTacticalWorldMapInvariants(options = {}) {
     };
   }
 
-  const rawSource = fs.readFileSync(mapFilePath, 'utf8');
-  const code = stripCommentsPreservingStrings(rawSource);
+  const rawMapSource = fs.readFileSync(mapFilePath, 'utf8');
+  const rawStyleSource = fs.existsSync(styleFilePath) ? fs.readFileSync(styleFilePath, 'utf8') : '';
+  // Estilo base (tacticalMapStyle.ts) se carga primero en MapLibre; luego las capas de TacticalWorldMap.tsx.
+  const code = [
+    rawStyleSource ? stripCommentsPreservingStrings(rawStyleSource) : '',
+    stripCommentsPreservingStrings(rawMapSource),
+  ]
+    .filter(Boolean)
+    .join('\n');
   const errors = [];
 
   // 1) Zero external raster tile URLs

@@ -1,7 +1,7 @@
 -- ==============================================================================
 -- DRONEPUNK 0.0.1 - CONSOLIDATED DATABASE DEPLOYMENT SCRIPT
--- Combina las 39 migraciones canónicas + seed inicial en un solo bloque ejecutable.
--- Generado automáticamente: 2026-11-18T16:50:59.000Z
+-- Combina las 49 migraciones canónicas + seed inicial en un solo bloque ejecutable.
+-- Generado automáticamente: 2026-11-18T18:52:31.404Z
 -- ==============================================================================
 
 
@@ -15246,6 +15246,5608 @@ REVOKE ALL ON FUNCTION public.seed_historical_city_bases() FROM PUBLIC, anon, au
 GRANT EXECUTE ON FUNCTION public.seed_historical_city_bases() TO service_role;
 
 -- >>> FIN MIGRACIÓN: 20261118000004_mmo_dual_logistics_devastation_and_city_bases_seed.sql <<<
+
+
+-- >>> INICIO MIGRACIÓN: 20261118000005_rls_auth_hardening_and_policies.sql <<<
+-- ==============================================================================
+-- MIGRACIÓN 20261118000005: ENDURECIMIENTO RLS, RBAC ESTRICTO Y REVOKE DE WRITES
+-- ==============================================================================
+-- Contrato SQL/RPC v3 (10,000+ CCU):
+-- 1. Cierra políticas PERMISSIVE huérfanas de:
+--    - 20261107_theatre_cabimas_realtime.sql:
+--      spatial_dep_auth_insert_update, fief_const_auth_insert_update, region_op_auth_update
+--    - 20261106_state_sovereignty_rbac.sql:
+--      municipal_micro_grids_auth_write, territorial_tax_ledgers_auth_write,
+--      territories_auth_write, map_hexes_auth_write
+-- 2. Implementa RBAC estricto usando (SELECT auth.uid()) y membresía en
+--    public.corporation_members / public.profiles.
+-- 3. Revoca writes directos de cliente (INSERT, UPDATE, DELETE) en:
+--    p2p_market_orders, territorial_battle_sessions, state_sovereignty,
+--    tactical_spatial_deployments, tactical_fief_constructions, region_operational_state
+--    preservando lecturas públicas autorizadas (GRANT SELECT + política FOR SELECT).
+-- ==============================================================================
+
+-- ------------------------------------------------------------------------------
+-- 1. FUNCIÓN HELPER RBAC: public.is_sovereignty_authorized
+-- ------------------------------------------------------------------------------
+-- Reemplaza la implementación previa que usaba auth.uid() sin initplan y
+-- permitía cross-clan por OR cm.role IN ('leader', 'officer') sobre clan_members.
+-- Ahora valida membresía estricta en corporation_members o rol admin/gestor en profiles.
+CREATE OR REPLACE FUNCTION public.is_sovereignty_authorized(target_clan_id VARCHAR(64))
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public, pg_temp
+AS $$
+  SELECT
+    (
+      target_clan_id IS NOT NULL
+      AND EXISTS (
+        SELECT 1
+        FROM public.corporation_members cm
+        WHERE cm.user_id = (SELECT auth.uid())
+          AND cm.corp_id::text = target_clan_id
+          AND cm.role IN ('majority_shareholder', 'shareholder')
+      )
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.profiles pp
+      WHERE pp.id = (SELECT auth.uid())
+        AND (
+          pp.is_admin = true
+          OR pp.metadata->>'is_faction_manager' = 'true'
+        )
+    );
+$$;
+
+-- Actualizar municipal_managers_auth_write para usar (SELECT auth.uid())
+DROP POLICY IF EXISTS "municipal_managers_auth_write" ON public.municipal_managers;
+CREATE POLICY "municipal_managers_auth_write"
+  ON public.municipal_managers
+  FOR ALL
+  TO authenticated
+  USING (
+    public.is_sovereignty_authorized(appointed_by_clan_id)
+    OR manager_user_id = (SELECT auth.uid())
+  )
+  WITH CHECK (
+    public.is_sovereignty_authorized(appointed_by_clan_id)
+    OR manager_user_id = (SELECT auth.uid())
+  );
+
+-- ------------------------------------------------------------------------------
+-- 2. CIERRE DE POLÍTICAS PERMISSIVE HUÉRFANAS EN TABLAS DE 20261106 (RBAC ESTRICTO)
+-- ------------------------------------------------------------------------------
+
+-- 2a. public.municipal_micro_grids
+ALTER TABLE public.municipal_micro_grids ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "municipal_micro_grids_public_read" ON public.municipal_micro_grids;
+CREATE POLICY "municipal_micro_grids_public_read"
+  ON public.municipal_micro_grids
+  FOR SELECT
+  USING (true);
+
+DROP POLICY IF EXISTS "municipal_micro_grids_auth_write" ON public.municipal_micro_grids;
+DROP POLICY IF EXISTS "municipal_micro_grids_rbac_write" ON public.municipal_micro_grids;
+CREATE POLICY "municipal_micro_grids_rbac_write"
+  ON public.municipal_micro_grids
+  FOR ALL
+  TO authenticated
+  USING (
+    public.is_sovereignty_authorized(controlling_clan_id)
+  )
+  WITH CHECK (
+    public.is_sovereignty_authorized(controlling_clan_id)
+  );
+
+-- 2b. public.territorial_tax_ledgers
+ALTER TABLE public.territorial_tax_ledgers ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "territorial_tax_ledgers_public_read" ON public.territorial_tax_ledgers;
+CREATE POLICY "territorial_tax_ledgers_public_read"
+  ON public.territorial_tax_ledgers
+  FOR SELECT
+  USING (true);
+
+DROP POLICY IF EXISTS "territorial_tax_ledgers_auth_write" ON public.territorial_tax_ledgers;
+DROP POLICY IF EXISTS "territorial_tax_ledgers_rbac_write" ON public.territorial_tax_ledgers;
+CREATE POLICY "territorial_tax_ledgers_rbac_write"
+  ON public.territorial_tax_ledgers
+  FOR ALL
+  TO authenticated
+  USING (
+    public.is_sovereignty_authorized(controlling_clan_id)
+  )
+  WITH CHECK (
+    public.is_sovereignty_authorized(controlling_clan_id)
+  );
+
+-- 2c. public.territories
+ALTER TABLE public.territories ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "territories_public_read" ON public.territories;
+CREATE POLICY "territories_public_read"
+  ON public.territories
+  FOR SELECT
+  USING (true);
+
+DROP POLICY IF EXISTS "territories_auth_write" ON public.territories;
+DROP POLICY IF EXISTS "territories_rbac_write" ON public.territories;
+CREATE POLICY "territories_rbac_write"
+  ON public.territories
+  FOR ALL
+  TO authenticated
+  USING (
+    manager_user_id = (SELECT auth.uid())
+    OR (
+      owner_corp_id IS NOT NULL
+      AND EXISTS (
+        SELECT 1
+        FROM public.corporation_members cm
+        WHERE cm.user_id = (SELECT auth.uid())
+          AND cm.corp_id = territories.owner_corp_id
+          AND cm.role IN ('majority_shareholder', 'shareholder')
+      )
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.profiles pp
+      WHERE pp.id = (SELECT auth.uid())
+        AND (
+          pp.is_admin = true
+          OR pp.metadata->>'is_faction_manager' = 'true'
+        )
+    )
+  )
+  WITH CHECK (
+    manager_user_id = (SELECT auth.uid())
+    OR (
+      owner_corp_id IS NOT NULL
+      AND EXISTS (
+        SELECT 1
+        FROM public.corporation_members cm
+        WHERE cm.user_id = (SELECT auth.uid())
+          AND cm.corp_id = territories.owner_corp_id
+          AND cm.role IN ('majority_shareholder', 'shareholder')
+      )
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.profiles pp
+      WHERE pp.id = (SELECT auth.uid())
+        AND (
+          pp.is_admin = true
+          OR pp.metadata->>'is_faction_manager' = 'true'
+        )
+    )
+  );
+
+-- 2d. public.map_hexes
+ALTER TABLE public.map_hexes ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "map_hexes_public_read" ON public.map_hexes;
+CREATE POLICY "map_hexes_public_read"
+  ON public.map_hexes
+  FOR SELECT
+  USING (true);
+
+DROP POLICY IF EXISTS "map_hexes_auth_write" ON public.map_hexes;
+DROP POLICY IF EXISTS "map_hexes_rbac_write" ON public.map_hexes;
+CREATE POLICY "map_hexes_rbac_write"
+  ON public.map_hexes
+  FOR ALL
+  TO authenticated
+  USING (
+    (
+      owner_corp_id IS NOT NULL
+      AND EXISTS (
+        SELECT 1
+        FROM public.corporation_members cm
+        WHERE cm.user_id = (SELECT auth.uid())
+          AND cm.corp_id = map_hexes.owner_corp_id
+          AND cm.role IN ('majority_shareholder', 'shareholder')
+      )
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.profiles pp
+      WHERE pp.id = (SELECT auth.uid())
+        AND (
+          pp.is_admin = true
+          OR pp.metadata->>'is_faction_manager' = 'true'
+        )
+    )
+  )
+  WITH CHECK (
+    (
+      owner_corp_id IS NOT NULL
+      AND EXISTS (
+        SELECT 1
+        FROM public.corporation_members cm
+        WHERE cm.user_id = (SELECT auth.uid())
+          AND cm.corp_id = map_hexes.owner_corp_id
+          AND cm.role IN ('majority_shareholder', 'shareholder')
+      )
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.profiles pp
+      WHERE pp.id = (SELECT auth.uid())
+        AND (
+          pp.is_admin = true
+          OR pp.metadata->>'is_faction_manager' = 'true'
+        )
+    )
+  );
+
+-- ------------------------------------------------------------------------------
+-- 3. CIERRE DE HUÉRFANAS EN 20261107 + REVOCACIÓN DE WRITES DIRECTOS DE CLIENTE
+-- ------------------------------------------------------------------------------
+-- Todas las escrituras en estas 6 tablas deben pasar exclusivamente por RPCs
+-- SECURITY DEFINER autoritativas o service_role. Se preservan las lecturas públicas.
+
+-- 3a. public.tactical_spatial_deployments
+ALTER TABLE public.tactical_spatial_deployments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "spatial_dep_auth_insert_update" ON public.tactical_spatial_deployments;
+DROP POLICY IF EXISTS "Allow authenticated write tactical_spatial_deployments" ON public.tactical_spatial_deployments;
+DROP POLICY IF EXISTS "tactical_spatial_deployments_corp_write" ON public.tactical_spatial_deployments;
+DROP POLICY IF EXISTS "spatial_dep_public_read" ON public.tactical_spatial_deployments;
+CREATE POLICY "spatial_dep_public_read"
+  ON public.tactical_spatial_deployments
+  FOR SELECT
+  USING (true);
+
+REVOKE ALL ON public.tactical_spatial_deployments FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.tactical_spatial_deployments TO anon, authenticated;
+
+-- 3b. public.tactical_fief_constructions
+ALTER TABLE public.tactical_fief_constructions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "fief_const_auth_insert_update" ON public.tactical_fief_constructions;
+DROP POLICY IF EXISTS "Allow authenticated write tactical_fief_constructions" ON public.tactical_fief_constructions;
+DROP POLICY IF EXISTS "tactical_fief_constructions_corp_write" ON public.tactical_fief_constructions;
+DROP POLICY IF EXISTS "fief_const_public_read" ON public.tactical_fief_constructions;
+CREATE POLICY "fief_const_public_read"
+  ON public.tactical_fief_constructions
+  FOR SELECT
+  USING (true);
+
+REVOKE ALL ON public.tactical_fief_constructions FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.tactical_fief_constructions TO anon, authenticated;
+
+-- 3c. public.region_operational_state
+ALTER TABLE public.region_operational_state ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "region_op_auth_update" ON public.region_operational_state;
+DROP POLICY IF EXISTS "Allow authenticated write region_operational_state" ON public.region_operational_state;
+DROP POLICY IF EXISTS "region_operational_state_corp_write" ON public.region_operational_state;
+DROP POLICY IF EXISTS "region_op_public_read" ON public.region_operational_state;
+CREATE POLICY "region_op_public_read"
+  ON public.region_operational_state
+  FOR SELECT
+  USING (true);
+
+REVOKE ALL ON public.region_operational_state FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.region_operational_state TO anon, authenticated;
+
+-- 3d. public.state_sovereignty
+ALTER TABLE public.state_sovereignty ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "state_sovereignty_leader_update" ON public.state_sovereignty;
+DROP POLICY IF EXISTS "state_sovereignty_public_read" ON public.state_sovereignty;
+CREATE POLICY "state_sovereignty_public_read"
+  ON public.state_sovereignty
+  FOR SELECT
+  USING (true);
+
+REVOKE ALL ON public.state_sovereignty FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.state_sovereignty TO anon, authenticated;
+
+-- 3e. public.p2p_market_orders
+ALTER TABLE public.p2p_market_orders ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "p2p_market_orders_manage_own" ON public.p2p_market_orders;
+DROP POLICY IF EXISTS "p2p_market_orders_view" ON public.p2p_market_orders;
+CREATE POLICY "p2p_market_orders_view"
+  ON public.p2p_market_orders
+  FOR SELECT
+  USING (true);
+
+REVOKE ALL ON public.p2p_market_orders FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.p2p_market_orders TO anon, authenticated;
+
+-- 3f. public.territorial_battle_sessions
+ALTER TABLE public.territorial_battle_sessions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "battle_sessions_read_all" ON public.territorial_battle_sessions;
+CREATE POLICY "battle_sessions_read_all"
+  ON public.territorial_battle_sessions
+  FOR SELECT
+  USING (true);
+
+REVOKE ALL ON public.territorial_battle_sessions FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.territorial_battle_sessions TO anon, authenticated;
+
+-- >>> FIN MIGRACIÓN: 20261118000005_rls_auth_hardening_and_policies.sql <<<
+
+
+-- >>> INICIO MIGRACIÓN: 20261118000006_canonical_lock_order_unification.sql <<<
+-- ==============================================================================
+-- MIGRACIÓN: 20261118000006_canonical_lock_order_unification.sql
+-- CONTRATO v3: Unificación estricta del Orden Canónico Global de Locks
+--
+-- Orden Global Obligatorio:
+--   corporations
+--   -> buildings (ORDER BY id ASC)
+--   -> infra_edges (ORDER BY id ASC)
+--   -> operational_units (ORDER BY id ASC)
+--   -> user_unit_hangar (ORDER BY id ASC)
+--   -> profiles (ORDER BY id ASC)
+--   -> user_industrial_inventory (ORDER BY user_id ASC)
+--   -> p2p_market_orders (ORDER BY id ASC)
+--   -> territorial_battle_sessions / vulnerability_windows (ORDER BY id ASC)
+--
+-- RPCs refactorizadas (100% retrocompatibles en firma y retorno):
+--   1. remodel_building
+--   2. purchase_unit_from_barracks
+--   3. collect_housing_citizens
+--   4. recruit_and_deploy_unit
+--   5. repair_infrastructure
+--   6. damage_infrastructure
+--   7. claim_or_capture_building
+-- ==============================================================================
+
+-- ------------------------------------------------------------------------------
+-- 1. REMODEL_BUILDING
+-- Orden de locks: corporations -> buildings -> profiles -> user_industrial_inventory
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.remodel_building(
+  p_building_id UUID,
+  p_corp_id UUID,
+  p_target_type VARCHAR DEFAULT NULL,
+  p_upgrade_level BOOLEAN DEFAULT true,
+  p_use_personal_topup BOOLEAN DEFAULT false,
+  p_idempotency_key UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_cached JSONB;
+  v_bld public.buildings%ROWTYPE;
+  v_corp public.corporations%ROWTYPE;
+  v_profile public.profiles%ROWTYPE;
+  v_inv public.user_industrial_inventory%ROWTYPE;
+  v_new_level INT;
+  v_new_type VARCHAR;
+  v_old_spec RECORD;
+  v_new_spec RECORD;
+  v_elapsed_hours NUMERIC;
+  v_stored JSONB;
+  v_corp_ec_spend BIGINT := 0;
+  v_personal_ec_spend BIGINT := 0;
+  v_corp_alloy_spend BIGINT := 0;
+  v_personal_alloy_spend BIGINT := 0;
+  v_res JSONB;
+BEGIN
+  IF p_idempotency_key IS NOT NULL THEN
+    SELECT response INTO v_cached FROM public.economy_rpc_idempotency WHERE idempotency_key = p_idempotency_key;
+    IF FOUND THEN RETURN v_cached; END IF;
+  END IF;
+
+  PERFORM public.assert_corp_permission(v_user_id, p_corp_id, 'can_remodel');
+
+  -- 1. Lock corporations
+  SELECT * INTO v_corp FROM public.corporations WHERE id = p_corp_id ORDER BY id ASC FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'CORPORATION_NOT_FOUND'; END IF;
+
+  -- 2. Lock buildings
+  SELECT * INTO v_bld FROM public.buildings WHERE id = p_building_id ORDER BY id ASC FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'BUILDING_NOT_FOUND'; END IF;
+  IF v_bld.corp_id <> p_corp_id THEN RAISE EXCEPTION 'NOT_BUILDING_OWNER'; END IF;
+  IF v_bld.is_disabled THEN RAISE EXCEPTION 'BUILDING_DISABLED'; END IF;
+
+  v_new_level := CASE WHEN p_upgrade_level THEN v_bld.level + 1 ELSE v_bld.level END;
+  IF v_new_level > 5 THEN RAISE EXCEPTION 'MAX_BUILDING_LEVEL_REACHED'; END IF;
+  v_new_type := COALESCE(p_target_type, v_bld.building_type);
+
+  SELECT * INTO v_old_spec FROM public.get_building_catalog_spec(v_bld.building_type, v_bld.level);
+  SELECT * INTO v_new_spec FROM public.get_building_catalog_spec(v_new_type, v_new_level);
+
+  IF p_use_personal_topup THEN
+    -- 3. Lock profiles
+    SELECT * INTO v_profile FROM public.profiles WHERE id = v_user_id ORDER BY id ASC FOR UPDATE;
+    -- 4. Lock user_industrial_inventory
+    SELECT * INTO v_inv FROM public.user_industrial_inventory WHERE user_id = v_user_id ORDER BY user_id ASC FOR UPDATE;
+
+    v_corp_ec_spend := LEAST(v_corp.treasury_ec, v_new_spec.cost_ec);
+    v_personal_ec_spend := v_new_spec.cost_ec - v_corp_ec_spend;
+    IF COALESCE(v_profile.battle_credits, 0) < v_personal_ec_spend THEN RAISE EXCEPTION 'INSUFFICIENT_EC'; END IF;
+
+    v_corp_alloy_spend := LEAST(v_corp.treasury_alloys, v_new_spec.cost_alloys);
+    v_personal_alloy_spend := v_new_spec.cost_alloys - v_corp_alloy_spend;
+    IF COALESCE(v_inv.refined_steel, 0) < v_personal_alloy_spend THEN RAISE EXCEPTION 'INSUFFICIENT_ALLOYS'; END IF;
+
+    IF v_personal_ec_spend > 0 THEN
+      UPDATE public.profiles SET battle_credits = battle_credits - v_personal_ec_spend WHERE id = v_user_id;
+    END IF;
+    IF v_personal_alloy_spend > 0 THEN
+      UPDATE public.user_industrial_inventory SET refined_steel = refined_steel - v_personal_alloy_spend WHERE user_id = v_user_id;
+    END IF;
+  ELSE
+    IF v_corp.treasury_ec < v_new_spec.cost_ec OR v_corp.treasury_alloys < v_new_spec.cost_alloys THEN
+      RAISE EXCEPTION 'INSUFFICIENT_CORP_TREASURY';
+    END IF;
+    v_corp_ec_spend := v_new_spec.cost_ec;
+    v_corp_alloy_spend := v_new_spec.cost_alloys;
+  END IF;
+
+  UPDATE public.corporations
+  SET treasury_ec = treasury_ec - v_corp_ec_spend,
+      treasury_alloys = treasury_alloys - v_corp_alloy_spend
+  WHERE id = p_corp_id;
+
+  -- Liquidar producción pendiente antes de cambiar nivel/tipo
+  v_elapsed_hours := LEAST(16.0, GREATEST(0.0, EXTRACT(EPOCH FROM (timezone('utc'::text, now()) - v_bld.last_collected_at)) / 3600.0));
+  v_stored := jsonb_build_object(
+    'alloys', COALESCE((v_bld.stored_resources->>'alloys')::numeric, 0) + FLOOR(v_old_spec.alloys_per_hour * v_elapsed_hours),
+    'fuel',   COALESCE((v_bld.stored_resources->>'fuel')::numeric, 0)   + FLOOR(v_old_spec.fuel_per_hour * v_elapsed_hours),
+    'chips',  COALESCE((v_bld.stored_resources->>'chips')::numeric, 0)  + FLOOR(v_old_spec.chips_per_hour * v_elapsed_hours)
+  );
+
+  UPDATE public.buildings
+  SET building_type = v_new_type,
+      level = v_new_level,
+      hp = v_new_spec.max_hp,
+      stored_resources = v_stored,
+      last_collected_at = timezone('utc'::text, now()),
+      updated_at = timezone('utc'::text, now())
+  WHERE id = p_building_id
+  RETURNING * INTO v_bld;
+
+  v_res := jsonb_build_object('building', to_jsonb(v_bld));
+
+  IF p_idempotency_key IS NOT NULL THEN
+    INSERT INTO public.economy_rpc_idempotency (idempotency_key, user_id, rpc_name, response)
+    VALUES (p_idempotency_key, v_user_id, 'remodel_building', v_res);
+  END IF;
+
+  RETURN v_res;
+END;
+$$;
+
+-- ------------------------------------------------------------------------------
+-- 2. PURCHASE_UNIT_FROM_BARRACKS
+-- Orden de locks: corporations -> buildings -> user_unit_hangar -> profiles -> user_industrial_inventory
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.purchase_unit_from_barracks(
+  p_corp_id UUID,
+  p_building_id UUID,
+  p_unit_code TEXT,
+  p_tier INT DEFAULT 1,
+  p_personal_contribution JSONB DEFAULT '{}'::jsonb,
+  p_idempotency_key UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_cached JSONB;
+  v_bld public.buildings%ROWTYPE;
+  v_corp public.corporations%ROWTYPE;
+  v_profile public.profiles%ROWTYPE;
+  v_inv public.user_industrial_inventory%ROWTYPE;
+  v_spec RECORD;
+  v_total_qty INT := 0;
+  v_vanguard_qty INT := 0;
+  v_slot_type VARCHAR(16);
+  v_p_ec BIGINT := GREATEST(0, COALESCE((p_personal_contribution->>'ec')::bigint, 0));
+  v_p_alloys BIGINT := GREATEST(0, COALESCE((p_personal_contribution->>'alloys')::bigint, 0));
+  v_p_rare BIGINT := GREATEST(0, COALESCE((p_personal_contribution->>'rare_earth')::bigint, 0));
+  v_p_comp BIGINT := GREATEST(0, COALESCE((p_personal_contribution->>'composites')::bigint, 0));
+  v_c_ec BIGINT;
+  v_c_alloys BIGINT;
+  v_c_rare BIGINT;
+  v_c_comp BIGINT;
+  v_unit_row public.user_unit_hangar%ROWTYPE;
+  v_res JSONB;
+BEGIN
+  IF p_idempotency_key IS NOT NULL THEN
+    SELECT response INTO v_cached FROM public.economy_rpc_idempotency WHERE idempotency_key = p_idempotency_key;
+    IF FOUND THEN RETURN v_cached; END IF;
+  END IF;
+
+  PERFORM public.assert_corp_permission(v_user_id, p_corp_id, 'can_purchase_units');
+
+  -- 1. Lock corporations
+  SELECT * INTO v_corp FROM public.corporations WHERE id = p_corp_id ORDER BY id ASC FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'CORPORATION_NOT_FOUND'; END IF;
+
+  -- 2. Lock buildings
+  SELECT * INTO v_bld FROM public.buildings WHERE id = p_building_id ORDER BY id ASC FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'BARRACKS_NOT_FOUND'; END IF;
+  IF v_bld.corp_id <> p_corp_id THEN RAISE EXCEPTION 'BARRACKS_NOT_OWNED_BY_CORP'; END IF;
+  IF v_bld.is_disabled THEN RAISE EXCEPTION 'BARRACKS_DISABLED'; END IF;
+  IF v_bld.building_type NOT IN ('barracks', 'factory', 'war_factory', 'airport', 'port', 'hq') THEN
+    RAISE EXCEPTION 'INVALID_PRODUCTION_BUILDING';
+  END IF;
+
+  IF p_tier > 1 THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM public.user_patents
+      WHERE user_id = v_user_id AND lower(patent_code) = lower(p_unit_code) AND tier >= p_tier
+    ) THEN
+      RAISE EXCEPTION 'PATENT_REQUIRED: Patente Tier % requerida para %.', p_tier, p_unit_code;
+    END IF;
+  END IF;
+
+  SELECT * INTO v_spec FROM public.get_unit_catalog_spec(p_unit_code, p_tier);
+
+  -- 3. Lock user_unit_hangar en orden determinista antes de agregar (evita FOR UPDATE con SUM)
+  PERFORM 1
+  FROM public.user_unit_hangar
+  WHERE user_id = v_user_id
+  ORDER BY id ASC
+  FOR UPDATE;
+
+  SELECT
+    COALESCE(SUM(quantity), 0),
+    COALESCE(SUM(CASE WHEN slot_type = 'vanguard' THEN quantity ELSE 0 END), 0)
+  INTO v_total_qty, v_vanguard_qty
+  FROM public.user_unit_hangar
+  WHERE user_id = v_user_id;
+
+  IF v_total_qty >= 16 THEN
+    RAISE EXCEPTION 'HANGAR_CAPACITY_EXCEEDED: Límite físico de 16 chasis alcanzado.';
+  END IF;
+
+  v_slot_type := CASE WHEN v_vanguard_qty < 4 THEN 'vanguard' ELSE 'reserve' END;
+
+  -- Combinar Tesorería de Corporación + Aporte Personal
+  v_p_ec     := LEAST(v_p_ec, v_spec.cost_ec);
+  v_p_alloys := LEAST(v_p_alloys, v_spec.cost_alloys);
+  v_p_rare   := LEAST(v_p_rare, v_spec.cost_rare_earth);
+  v_p_comp   := LEAST(v_p_comp, v_spec.cost_composites);
+
+  v_c_ec     := v_spec.cost_ec - v_p_ec;
+  v_c_alloys := v_spec.cost_alloys - v_p_alloys;
+  v_c_rare   := v_spec.cost_rare_earth - v_p_rare;
+  v_c_comp   := v_spec.cost_composites - v_p_comp;
+
+  IF v_corp.treasury_ec < v_c_ec
+     OR v_corp.treasury_alloys < v_c_alloys
+     OR v_corp.treasury_rare_earth < v_c_rare
+     OR v_corp.treasury_composites < v_c_comp THEN
+    RAISE EXCEPTION 'INSUFFICIENT_CORP_RESOURCES: La Tesorería corporativa no cubre el resto del costo.';
+  END IF;
+
+  -- 4. Lock profiles
+  IF v_p_ec > 0 THEN
+    SELECT * INTO v_profile FROM public.profiles WHERE id = v_user_id ORDER BY id ASC FOR UPDATE;
+    IF COALESCE(v_profile.battle_credits, 0) < v_p_ec THEN
+      RAISE EXCEPTION 'INSUFFICIENT_PERSONAL_EC';
+    END IF;
+    UPDATE public.profiles SET battle_credits = battle_credits - v_p_ec WHERE id = v_user_id;
+  END IF;
+
+  -- 5. Lock user_industrial_inventory
+  IF (v_p_alloys + v_p_rare + v_p_comp) > 0 THEN
+    SELECT * INTO v_inv FROM public.user_industrial_inventory WHERE user_id = v_user_id ORDER BY user_id ASC FOR UPDATE;
+    IF COALESCE(v_inv.refined_steel, 0) < v_p_alloys
+       OR COALESCE(v_inv.rare_earth, 0) < v_p_rare
+       OR COALESCE(v_inv.carbon_composites, 0) < v_p_comp THEN
+      RAISE EXCEPTION 'INSUFFICIENT_PERSONAL_MATERIALS';
+    END IF;
+    UPDATE public.user_industrial_inventory
+    SET refined_steel = refined_steel - v_p_alloys,
+        rare_earth = rare_earth - v_p_rare,
+        carbon_composites = carbon_composites - v_p_comp
+    WHERE user_id = v_user_id;
+  END IF;
+
+  UPDATE public.corporations
+  SET treasury_ec = treasury_ec - v_c_ec,
+      treasury_alloys = treasury_alloys - v_c_alloys,
+      treasury_rare_earth = treasury_rare_earth - v_c_rare,
+      treasury_composites = treasury_composites - v_c_comp
+  WHERE id = p_corp_id;
+
+  -- Upsert en user_unit_hangar registrando user_id (owner) + corp_id + building_id
+  INSERT INTO public.user_unit_hangar (
+    user_id, corp_id, building_id, unit_code, tier, level, hp, quantity, slot_type
+  ) VALUES (
+    v_user_id, p_corp_id, p_building_id, lower(p_unit_code), p_tier, 1, 100, 1, v_slot_type
+  )
+  ON CONFLICT (user_id, unit_code, tier)
+  DO UPDATE SET
+    quantity = public.user_unit_hangar.quantity + 1,
+    corp_id = EXCLUDED.corp_id,
+    building_id = EXCLUDED.building_id,
+    updated_at = timezone('utc'::text, now())
+  RETURNING * INTO v_unit_row;
+
+  v_res := jsonb_build_object(
+    'unit', to_jsonb(v_unit_row),
+    'slot_type', v_slot_type,
+    'total_hangar_units', v_total_qty + 1
+  );
+
+  IF p_idempotency_key IS NOT NULL THEN
+    INSERT INTO public.economy_rpc_idempotency (idempotency_key, user_id, rpc_name, response)
+    VALUES (p_idempotency_key, v_user_id, 'purchase_unit_from_barracks', v_res);
+  END IF;
+
+  RETURN v_res;
+END;
+$$;
+
+-- ------------------------------------------------------------------------------
+-- 3. COLLECT_HOUSING_CITIZENS
+-- Orden de locks: corporations -> buildings
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.collect_housing_citizens(
+  p_building_id UUID,
+  p_corp_id UUID,
+  p_spawn_as_unit BOOLEAN DEFAULT false,
+  p_idempotency_key UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_cached JSONB;
+  v_bld public.buildings%ROWTYPE;
+  v_corp public.corporations%ROWTYPE;
+  v_citizens_per_hour NUMERIC;
+  v_elapsed_hours NUMERIC;
+  v_generated INT;
+  v_room INT;
+  v_added INT;
+  v_res JSONB;
+BEGIN
+  IF v_user_id IS NULL THEN RAISE EXCEPTION 'AUTH_REQUIRED'; END IF;
+  PERFORM public.assert_corp_permission(v_user_id, p_corp_id, 'can_collect');
+
+  IF p_idempotency_key IS NOT NULL THEN
+    SELECT response INTO v_cached FROM public.economy_rpc_idempotency WHERE idempotency_key = p_idempotency_key;
+    IF FOUND THEN RETURN v_cached; END IF;
+  END IF;
+
+  -- 1. Lock corporations
+  SELECT * INTO v_corp FROM public.corporations WHERE id = p_corp_id ORDER BY id ASC FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'CORPORATION_NOT_FOUND'; END IF;
+
+  -- 2. Lock buildings
+  SELECT * INTO v_bld FROM public.buildings WHERE id = p_building_id ORDER BY id ASC FOR UPDATE;
+  IF NOT FOUND OR v_bld.corp_id <> p_corp_id OR v_bld.building_type <> 'housing' THEN
+    RAISE EXCEPTION 'INVALID_HOUSING_BUILDING';
+  END IF;
+  IF v_bld.infra_state = 'RUINED' OR v_bld.is_disabled THEN
+    RAISE EXCEPTION 'BUILDING_RUINED';
+  END IF;
+
+  v_citizens_per_hour := 2.0 * power(1.5, GREATEST(0, v_bld.level - 1));
+  v_elapsed_hours := LEAST(24.0, GREATEST(0.0, EXTRACT(EPOCH FROM (timezone('utc'::text, now()) - v_bld.last_collected_at)) / 3600.0));
+  v_generated := FLOOR(v_citizens_per_hour * v_elapsed_hours);
+  v_room := GREATEST(0, v_corp.population_cap - v_corp.treasury_citizens);
+  v_added := LEAST(v_generated, v_room);
+
+  IF v_added > 0 THEN
+    IF p_spawn_as_unit THEN
+      INSERT INTO public.operational_units (
+        owner_user_id, corp_id, unit_code, tier, hp, h3_index, municipality_id, status, unit_role, citizens_aboard
+      ) VALUES (
+        v_user_id, p_corp_id, 'infantry', 1, 100, v_bld.h3_index, v_bld.municipality_id, 'active', 'citizen', v_added
+      );
+    ELSE
+      UPDATE public.corporations
+      SET treasury_citizens = treasury_citizens + v_added, updated_at = timezone('utc'::text, now())
+      WHERE id = p_corp_id;
+    END IF;
+  END IF;
+
+  UPDATE public.buildings
+  SET last_collected_at = timezone('utc'::text, now()), updated_at = timezone('utc'::text, now())
+  WHERE id = p_building_id;
+
+  v_res := jsonb_build_object('added_citizens', v_added, 'spawned_unit', p_spawn_as_unit);
+  IF p_idempotency_key IS NOT NULL THEN
+    INSERT INTO public.economy_rpc_idempotency (idempotency_key, user_id, rpc_name, response)
+    VALUES (p_idempotency_key, v_user_id, 'collect_housing_citizens', v_res);
+  END IF;
+  RETURN v_res;
+END;
+$$;
+
+-- ------------------------------------------------------------------------------
+-- 4. RECRUIT_AND_DEPLOY_UNIT
+-- Orden de locks: corporations -> buildings -> operational_units (INSERT)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.recruit_and_deploy_unit(
+  p_corp_id UUID,
+  p_building_id UUID,
+  p_unit_code TEXT,
+  p_tier INT DEFAULT 1,
+  p_target_h3_index BIGINT DEFAULT NULL,
+  p_personal_contribution NUMERIC DEFAULT 0,
+  p_idempotency_key UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_cached JSONB;
+  v_bld public.buildings%ROWTYPE;
+  v_corp public.corporations%ROWTYPE;
+  v_spec RECORD;
+  v_citizen_cost INT := 1;
+  v_cost_ec INT;
+  v_cost_alloys INT;
+  v_spawn_h3 BIGINT;
+  v_unit public.operational_units%ROWTYPE;
+  v_res JSONB;
+BEGIN
+  IF v_user_id IS NULL THEN RAISE EXCEPTION 'AUTH_REQUIRED'; END IF;
+  PERFORM public.assert_corp_permission(v_user_id, p_corp_id, 'can_purchase_units');
+  PERFORM public.assert_corp_permission(v_user_id, p_corp_id, 'can_control_units');
+
+  IF p_idempotency_key IS NOT NULL THEN
+    SELECT response INTO v_cached FROM public.economy_rpc_idempotency WHERE idempotency_key = p_idempotency_key;
+    IF FOUND THEN RETURN v_cached; END IF;
+  END IF;
+
+  -- 1. Lock corporations
+  SELECT * INTO v_corp FROM public.corporations WHERE id = p_corp_id ORDER BY id ASC FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'CORPORATION_NOT_FOUND'; END IF;
+
+  -- 2. Lock buildings
+  SELECT * INTO v_bld FROM public.buildings WHERE id = p_building_id ORDER BY id ASC FOR UPDATE;
+  IF NOT FOUND OR v_bld.corp_id <> p_corp_id THEN RAISE EXCEPTION 'BUILDING_NOT_OWNED'; END IF;
+  IF v_bld.infra_state = 'RUINED' OR v_bld.is_disabled THEN RAISE EXCEPTION 'BUILDING_RUINED'; END IF;
+  IF v_bld.building_type NOT IN ('factory', 'barracks', 'port', 'airport', 'hq') THEN
+    RAISE EXCEPTION 'INVALID_PRODUCTION_FACILITY';
+  END IF;
+
+  SELECT * INTO v_spec FROM public.get_unit_catalog_spec(p_unit_code, p_tier);
+  v_cost_ec := GREATEST(0, COALESCE(v_spec.cost_ec, 0)::INT - COALESCE(p_personal_contribution, 0)::INT);
+  v_cost_alloys := COALESCE(v_spec.cost_alloys, 0)::INT;
+
+  IF v_corp.treasury_citizens < v_citizen_cost THEN
+    RAISE EXCEPTION 'INSUFFICIENT_CITIZENS: Requiere % ciudadano(s).', v_citizen_cost;
+  END IF;
+  IF v_corp.treasury_ec < v_cost_ec OR v_corp.treasury_alloys < v_cost_alloys THEN
+    RAISE EXCEPTION 'INSUFFICIENT_CORP_TREASURY';
+  END IF;
+
+  UPDATE public.corporations
+  SET
+    treasury_citizens = treasury_citizens - v_citizen_cost,
+    treasury_ec = treasury_ec - v_cost_ec,
+    treasury_alloys = treasury_alloys - v_cost_alloys,
+    updated_at = timezone('utc'::text, now())
+  WHERE id = p_corp_id;
+
+  v_spawn_h3 := COALESCE(p_target_h3_index, v_bld.h3_index);
+
+  INSERT INTO public.operational_units (
+    owner_user_id, corp_id, unit_code, tier, hp, h3_index, municipality_id, status, unit_role
+  ) VALUES (
+    v_user_id, p_corp_id, p_unit_code, GREATEST(1, LEAST(5, p_tier)), 100, v_spawn_h3, v_bld.municipality_id, 'active', 'combat'
+  )
+  RETURNING * INTO v_unit;
+
+  INSERT INTO public.unit_action_logs (unit_id, corp_id, action_type, summary, h3_index, metadata)
+  VALUES (v_unit.id, p_corp_id, 'deployed', 'Reclutamiento directo estilo Advance Wars: ' || p_unit_code, v_spawn_h3, jsonb_build_object('building_id', p_building_id, 'citizen_cost', v_citizen_cost));
+
+  v_res := jsonb_build_object('operational_unit', to_jsonb(v_unit), 'citizens_spent', v_citizen_cost);
+  IF p_idempotency_key IS NOT NULL THEN
+    INSERT INTO public.economy_rpc_idempotency (idempotency_key, user_id, rpc_name, response)
+    VALUES (p_idempotency_key, v_user_id, 'recruit_and_deploy_unit', v_res);
+  END IF;
+  RETURN v_res;
+END;
+$$;
+
+-- ------------------------------------------------------------------------------
+-- 5. REPAIR_INFRASTRUCTURE
+-- Orden de locks: corporations -> buildings / infra_edges
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.repair_infrastructure(
+  p_target_kind TEXT,
+  p_target_id UUID,
+  p_corp_id UUID,
+  p_idempotency_key UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_cached JSONB;
+  v_bld public.buildings%ROWTYPE;
+  v_edge public.infra_edges%ROWTYPE;
+  v_spec RECORD;
+  v_cost_ec INT;
+  v_cost_alloys INT;
+  v_corp public.corporations%ROWTYPE;
+  v_res JSONB;
+BEGIN
+  IF v_user_id IS NULL THEN RAISE EXCEPTION 'AUTH_REQUIRED'; END IF;
+  IF p_target_kind NOT IN ('building', 'edge') THEN RAISE EXCEPTION 'INVALID_TARGET_KIND'; END IF;
+  PERFORM public.assert_corp_permission(v_user_id, p_corp_id, 'can_construct');
+
+  IF p_idempotency_key IS NOT NULL THEN
+    SELECT response INTO v_cached FROM public.economy_rpc_idempotency WHERE idempotency_key = p_idempotency_key;
+    IF FOUND THEN RETURN v_cached; END IF;
+  END IF;
+
+  -- 1. Lock corporations
+  SELECT * INTO v_corp FROM public.corporations WHERE id = p_corp_id ORDER BY id ASC FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'CORPORATION_NOT_FOUND'; END IF;
+
+  -- 2. Lock buildings o infra_edges
+  IF p_target_kind = 'building' THEN
+    SELECT * INTO v_bld FROM public.buildings WHERE id = p_target_id ORDER BY id ASC FOR UPDATE;
+    IF NOT FOUND OR v_bld.corp_id <> p_corp_id THEN RAISE EXCEPTION 'BUILDING_NOT_OWNED'; END IF;
+    SELECT * INTO v_spec FROM public.get_building_catalog_spec(v_bld.building_type, v_bld.level);
+  ELSE
+    SELECT * INTO v_edge FROM public.infra_edges WHERE id = p_target_id ORDER BY id ASC FOR UPDATE;
+    IF NOT FOUND OR v_edge.corp_id <> p_corp_id THEN RAISE EXCEPTION 'EDGE_NOT_OWNED'; END IF;
+    SELECT * INTO v_spec FROM public.get_building_catalog_spec(v_edge.edge_type, 1);
+  END IF;
+
+  v_cost_ec := GREATEST(1, FLOOR(COALESCE(v_spec.cost_ec, 100)::NUMERIC * 0.35)::INT);
+  v_cost_alloys := FLOOR(COALESCE(v_spec.cost_alloys, 0)::NUMERIC * 0.35)::INT;
+
+  IF v_corp.treasury_ec < v_cost_ec OR v_corp.treasury_alloys < v_cost_alloys THEN
+    RAISE EXCEPTION 'INSUFFICIENT_CORP_TREASURY';
+  END IF;
+
+  UPDATE public.corporations
+  SET treasury_ec = treasury_ec - v_cost_ec, treasury_alloys = treasury_alloys - v_cost_alloys, updated_at = timezone('utc'::text, now())
+  WHERE id = p_corp_id;
+
+  IF p_target_kind = 'building' THEN
+    UPDATE public.buildings
+    SET hp = max_hp, infra_state = 'OPERATIONAL', is_disabled = false, is_production_halted = false, ruined_at = NULL, updated_at = timezone('utc'::text, now())
+    WHERE id = p_target_id;
+  ELSE
+    UPDATE public.infra_edges
+    SET hp = max_hp, status = 'operational', ruined_at = NULL
+    WHERE id = p_target_id;
+  END IF;
+
+  v_res := jsonb_build_object('repaired', true, 'cost_ec', v_cost_ec, 'cost_alloys', v_cost_alloys);
+  IF p_idempotency_key IS NOT NULL THEN
+    INSERT INTO public.economy_rpc_idempotency (idempotency_key, user_id, rpc_name, response)
+    VALUES (p_idempotency_key, v_user_id, 'repair_infrastructure', v_res);
+  END IF;
+  RETURN v_res;
+END;
+$$;
+
+-- ------------------------------------------------------------------------------
+-- 6. DAMAGE_INFRASTRUCTURE
+-- Orden de locks: corporations -> buildings / infra_edges -> vulnerability_windows
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.damage_infrastructure(
+  p_target_kind TEXT,
+  p_target_id UUID,
+  p_attacker_corp_id UUID,
+  p_damage NUMERIC DEFAULT 10.0,
+  p_bypass_handshake_in_simulation BOOLEAN DEFAULT false,
+  p_idempotency_key UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_cached JSONB;
+  v_now TIMESTAMPTZ := timezone('utc'::text, now());
+  v_corp public.corporations%ROWTYPE;
+  v_bld public.buildings%ROWTYPE;
+  v_edge public.infra_edges%ROWTYPE;
+  v_spec RECORD;
+  v_new_hp NUMERIC;
+  v_new_state TEXT;
+  v_scrap_ec BIGINT := 0;
+  v_scrap_alloys BIGINT := 0;
+  v_has_window BOOLEAN := false;
+  v_res JSONB;
+BEGIN
+  IF v_user_id IS NULL THEN RAISE EXCEPTION 'AUTH_REQUIRED'; END IF;
+  IF COALESCE(p_damage, 0) <= 0 THEN RAISE EXCEPTION 'INVALID_DAMAGE'; END IF;
+  IF p_target_kind NOT IN ('building', 'edge') THEN RAISE EXCEPTION 'INVALID_TARGET_KIND'; END IF;
+
+  PERFORM public.assert_corp_permission(v_user_id, p_attacker_corp_id, 'can_control_units');
+
+  IF p_idempotency_key IS NOT NULL THEN
+    SELECT response INTO v_cached FROM public.economy_rpc_idempotency WHERE idempotency_key = p_idempotency_key;
+    IF FOUND THEN RETURN v_cached; END IF;
+  END IF;
+
+  -- 1. Lock corporations (atacante para posible loot)
+  SELECT * INTO v_corp FROM public.corporations WHERE id = p_attacker_corp_id ORDER BY id ASC FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'CORPORATION_NOT_FOUND'; END IF;
+
+  -- 2. Lock target (buildings o infra_edges)
+  IF p_target_kind = 'building' THEN
+    SELECT * INTO v_bld FROM public.buildings WHERE id = p_target_id ORDER BY id ASC FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'BUILDING_NOT_FOUND'; END IF;
+    IF v_bld.corp_id = p_attacker_corp_id THEN
+      RAISE EXCEPTION 'FRIENDLY_FIRE_PROHIBITED';
+    END IF;
+  ELSE
+    SELECT * INTO v_edge FROM public.infra_edges WHERE id = p_target_id ORDER BY id ASC FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'EDGE_NOT_FOUND'; END IF;
+    IF v_edge.corp_id = p_attacker_corp_id THEN
+      RAISE EXCEPTION 'FRIENDLY_FIRE_PROHIBITED';
+    END IF;
+  END IF;
+
+  -- 3. Lock y activar vulnerability_windows cuyo Handshake de 120s ya venció
+  PERFORM 1
+  FROM public.vulnerability_windows
+  WHERE status = 'handshake'
+    AND active_from <= v_now
+    AND expires_at > v_now
+  ORDER BY id ASC
+  FOR UPDATE;
+
+  UPDATE public.vulnerability_windows
+  SET status = 'active'
+  WHERE status = 'handshake'
+    AND active_from <= v_now
+    AND expires_at > v_now;
+
+  IF p_target_kind = 'building' THEN
+    IF v_bld.corp_id IS NOT NULL AND NOT p_bypass_handshake_in_simulation THEN
+      SELECT EXISTS (
+        SELECT 1 FROM public.vulnerability_windows vw
+        WHERE vw.municipality_id = v_bld.municipality_id
+          AND vw.attacker_corp_id = p_attacker_corp_id
+          AND vw.status = 'active'
+          AND vw.active_from <= v_now
+          AND vw.expires_at > v_now
+      ) INTO v_has_window;
+
+      IF NOT v_has_window THEN
+        RAISE EXCEPTION 'VULNERABILITY_HANDSHAKE_REQUIRED: Inicia el Handshake de 120s antes de devastar infraestructura enemiga.';
+      END IF;
+    END IF;
+
+    SELECT * INTO v_spec FROM public.get_building_catalog_spec(v_bld.building_type, v_bld.level);
+    v_new_hp := GREATEST(0, v_bld.hp - p_damage);
+    v_new_state := CASE
+      WHEN v_new_hp <= 0 THEN 'RUINED'
+      WHEN v_new_hp < COALESCE(v_bld.max_hp, v_spec.max_hp) THEN 'DAMAGED'
+      ELSE 'OPERATIONAL'
+    END;
+
+    IF v_new_state = 'RUINED' AND v_bld.infra_state <> 'RUINED' THEN
+      v_scrap_ec := FLOOR(COALESCE(v_spec.cost_ec, 100)::NUMERIC * 0.35)::BIGINT;
+      v_scrap_alloys := FLOOR(COALESCE(v_spec.cost_alloys, 0)::NUMERIC * 0.35)::BIGINT;
+      UPDATE public.corporations
+      SET treasury_tech_scrap = treasury_tech_scrap + v_scrap_ec,
+          treasury_alloys = treasury_alloys + v_scrap_alloys,
+          updated_at = v_now
+      WHERE id = p_attacker_corp_id;
+    END IF;
+
+    UPDATE public.buildings
+    SET hp = v_new_hp,
+        infra_state = v_new_state,
+        is_disabled = (v_new_state = 'RUINED'),
+        is_production_halted = CASE WHEN v_new_state = 'RUINED' THEN true ELSE is_production_halted END,
+        ruined_at = CASE WHEN v_new_state = 'RUINED' THEN COALESCE(ruined_at, v_now) ELSE ruined_at END,
+        updated_at = v_now
+    WHERE id = p_target_id
+    RETURNING * INTO v_bld;
+
+    INSERT INTO public.unit_action_logs (corp_id, action_type, summary, h3_index, metadata)
+    VALUES (
+      p_attacker_corp_id,
+      'skirmish',
+      'Ataque a infraestructura (' || v_bld.building_type || ') -> ' || v_new_state,
+      v_bld.h3_index,
+      jsonb_build_object('building_id', v_bld.id, 'hp_after', v_new_hp, 'loot_tech_scrap', v_scrap_ec, 'loot_alloys', v_scrap_alloys)
+    );
+
+    v_res := jsonb_build_object(
+      'target_kind', 'building',
+      'target', to_jsonb(v_bld),
+      'infra_state', v_new_state,
+      'loot_tech_scrap', v_scrap_ec,
+      'loot_alloys', v_scrap_alloys
+    );
+
+  ELSE
+    IF v_edge.corp_id IS NOT NULL AND NOT p_bypass_handshake_in_simulation THEN
+      SELECT EXISTS (
+        SELECT 1 FROM public.vulnerability_windows vw
+        WHERE vw.attacker_corp_id = p_attacker_corp_id
+          AND vw.status = 'active'
+          AND vw.active_from <= v_now
+          AND vw.expires_at > v_now
+      ) INTO v_has_window;
+
+      IF NOT v_has_window THEN
+        RAISE EXCEPTION 'VULNERABILITY_HANDSHAKE_REQUIRED: Inicia el Handshake de 120s antes de sabotear rutas.';
+      END IF;
+    END IF;
+
+    SELECT * INTO v_spec FROM public.get_building_catalog_spec(v_edge.edge_type, 1);
+    v_new_hp := GREATEST(0, v_edge.hp - p_damage);
+    v_new_state := CASE WHEN v_new_hp <= 0 THEN 'severed' ELSE 'operational' END;
+
+    IF v_new_state = 'severed' AND v_edge.status <> 'severed' THEN
+      v_scrap_ec := FLOOR(COALESCE(v_spec.cost_ec, 60)::NUMERIC * 0.35)::BIGINT;
+      v_scrap_alloys := FLOOR(COALESCE(v_spec.cost_alloys, 0)::NUMERIC * 0.35)::BIGINT;
+      UPDATE public.corporations
+      SET treasury_tech_scrap = treasury_tech_scrap + v_scrap_ec,
+          treasury_alloys = treasury_alloys + v_scrap_alloys,
+          updated_at = v_now
+      WHERE id = p_attacker_corp_id;
+    END IF;
+
+    UPDATE public.infra_edges
+    SET hp = v_new_hp,
+        status = v_new_state,
+        ruined_at = CASE WHEN v_new_state = 'severed' THEN COALESCE(ruined_at, v_now) ELSE ruined_at END
+    WHERE id = p_target_id
+    RETURNING * INTO v_edge;
+
+    INSERT INTO public.unit_action_logs (corp_id, action_type, summary, h3_index, metadata)
+    VALUES (
+      p_attacker_corp_id,
+      'skirmish',
+      'Sabotaje a ' || v_edge.edge_type || ' -> ' || upper(v_new_state),
+      v_edge.to_h3,
+      jsonb_build_object('edge_id', v_edge.id, 'hp_after', v_new_hp, 'loot_tech_scrap', v_scrap_ec, 'loot_alloys', v_scrap_alloys)
+    );
+
+    v_res := jsonb_build_object(
+      'target_kind', 'edge',
+      'target', to_jsonb(v_edge),
+      'status', v_new_state,
+      'loot_tech_scrap', v_scrap_ec,
+      'loot_alloys', v_scrap_alloys
+    );
+  END IF;
+
+  IF p_idempotency_key IS NOT NULL THEN
+    INSERT INTO public.economy_rpc_idempotency (idempotency_key, user_id, rpc_name, response)
+    VALUES (p_idempotency_key, v_user_id, 'damage_infrastructure', v_res);
+  END IF;
+  RETURN v_res;
+END;
+$$;
+
+-- ------------------------------------------------------------------------------
+-- 7. CLAIM_OR_CAPTURE_BUILDING
+-- Orden de locks: buildings (ORDER BY id ASC)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.claim_or_capture_building(
+  p_building_id UUID,
+  p_corp_id UUID,
+  p_idempotency_key UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_cached JSONB;
+  v_bld public.buildings%ROWTYPE;
+  v_spec RECORD;
+  v_res JSONB;
+BEGIN
+  IF p_idempotency_key IS NOT NULL THEN
+    SELECT response INTO v_cached FROM public.economy_rpc_idempotency WHERE idempotency_key = p_idempotency_key;
+    IF FOUND THEN RETURN v_cached; END IF;
+  END IF;
+
+  PERFORM public.assert_corp_permission(v_user_id, p_corp_id, 'can_construct');
+
+  SELECT * INTO v_bld FROM public.buildings WHERE id = p_building_id ORDER BY id ASC FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'BUILDING_NOT_FOUND'; END IF;
+
+  IF v_bld.corp_id = p_corp_id THEN
+    RAISE EXCEPTION 'ALREADY_OWNED_BY_CORP';
+  END IF;
+
+  IF v_bld.corp_id IS NOT NULL AND v_bld.hp > 0 AND v_bld.infra_state <> 'RUINED' THEN
+    RAISE EXCEPTION 'BUILDING_STILL_DEFENDED: El edificio rival aún tiene HP > 0.';
+  END IF;
+
+  SELECT * INTO v_spec FROM public.get_building_catalog_spec(v_bld.building_type, v_bld.level);
+
+  UPDATE public.buildings
+  SET corp_id = p_corp_id,
+      owner_user_id = v_user_id,
+      hp = GREATEST(10.0, v_spec.max_hp * 0.5),
+      max_hp = v_spec.max_hp,
+      infra_state = 'OPERATIONAL',
+      is_disabled = false,
+      is_production_halted = false,
+      ruined_at = NULL,
+      stored_resources = '{"alloys":0,"fuel":0,"chips":0}'::jsonb,
+      last_collected_at = timezone('utc'::text, now()),
+      updated_at = timezone('utc'::text, now())
+  WHERE id = p_building_id
+  RETURNING * INTO v_bld;
+
+  v_res := jsonb_build_object('building', to_jsonb(v_bld));
+
+  IF p_idempotency_key IS NOT NULL THEN
+    INSERT INTO public.economy_rpc_idempotency (idempotency_key, user_id, rpc_name, response)
+    VALUES (p_idempotency_key, v_user_id, 'claim_or_capture_building', v_res);
+  END IF;
+
+  RETURN v_res;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.remodel_building(UUID, UUID, VARCHAR, BOOLEAN, BOOLEAN, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.remodel_building(UUID, UUID, VARCHAR, BOOLEAN, BOOLEAN, UUID) TO authenticated;
+
+REVOKE ALL ON FUNCTION public.purchase_unit_from_barracks(UUID, UUID, TEXT, INT, JSONB, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.purchase_unit_from_barracks(UUID, UUID, TEXT, INT, JSONB, UUID) TO authenticated;
+
+REVOKE ALL ON FUNCTION public.collect_housing_citizens(UUID, UUID, BOOLEAN, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.collect_housing_citizens(UUID, UUID, BOOLEAN, UUID) TO authenticated;
+
+REVOKE ALL ON FUNCTION public.recruit_and_deploy_unit(UUID, UUID, TEXT, INT, BIGINT, NUMERIC, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.recruit_and_deploy_unit(UUID, UUID, TEXT, INT, BIGINT, NUMERIC, UUID) TO authenticated;
+
+REVOKE ALL ON FUNCTION public.repair_infrastructure(TEXT, UUID, UUID, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.repair_infrastructure(TEXT, UUID, UUID, UUID) TO authenticated;
+
+REVOKE ALL ON FUNCTION public.damage_infrastructure(TEXT, UUID, UUID, NUMERIC, BOOLEAN, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.damage_infrastructure(TEXT, UUID, UUID, NUMERIC, BOOLEAN, UUID) TO authenticated;
+
+REVOKE ALL ON FUNCTION public.claim_or_capture_building(UUID, UUID, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.claim_or_capture_building(UUID, UUID, UUID) TO authenticated;
+
+-- >>> FIN MIGRACIÓN: 20261118000006_canonical_lock_order_unification.sql <<<
+
+
+-- >>> INICIO MIGRACIÓN: 20261118000007_corporation_treasury_sharding_and_counters.sql <<<
+-- ==============================================================================
+-- MIGRATION: 20261118000007_corporation_treasury_sharding_and_counters.sql
+-- OBJETIVO: Sharding de tesorería corporativa (16 shards/corporación),
+--           contadores desacoplados de miembros y refactor de las 7 RPCs
+--           asignadas respetando el Orden Canónico Global de Locks (Contrato v3).
+-- ==============================================================================
+
+-- ------------------------------------------------------------------------------
+-- 1. TABLA DE SHARDS DE TESORERÍA (16 SHARDS POR CORPORACIÓN)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.corporation_treasury_shards (
+  corp_id UUID NOT NULL REFERENCES public.corporations(id) ON DELETE CASCADE,
+  shard_id SMALLINT NOT NULL CHECK (shard_id >= 0 AND shard_id < 16),
+  treasury_ec BIGINT NOT NULL DEFAULT 0,
+  treasury_alloys BIGINT NOT NULL DEFAULT 0,
+  treasury_fuel BIGINT NOT NULL DEFAULT 0,
+  treasury_chips BIGINT NOT NULL DEFAULT 0,
+  treasury_rare_earth BIGINT NOT NULL DEFAULT 0,
+  treasury_composites BIGINT NOT NULL DEFAULT 0,
+  treasury_tech_scrap BIGINT NOT NULL DEFAULT 0,
+  treasury_citizens INT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  PRIMARY KEY (corp_id, shard_id)
+);
+
+ALTER TABLE public.corporation_treasury_shards ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON public.corporation_treasury_shards FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.corporation_treasury_shards TO authenticated;
+
+DROP POLICY IF EXISTS "corporation_treasury_shards_read" ON public.corporation_treasury_shards;
+CREATE POLICY "corporation_treasury_shards_read"
+  ON public.corporation_treasury_shards
+  FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- Backfill idempotente: crea 16 shards para toda corporación existente sin shards aún
+INSERT INTO public.corporation_treasury_shards (
+  corp_id,
+  shard_id,
+  treasury_ec,
+  treasury_alloys,
+  treasury_fuel,
+  treasury_chips,
+  treasury_rare_earth,
+  treasury_composites,
+  treasury_tech_scrap,
+  treasury_citizens
+)
+SELECT
+  c.id,
+  s.shard_id::SMALLINT,
+  CASE WHEN s.shard_id = 0 THEN COALESCE(c.treasury_ec, 0) ELSE 0 END,
+  CASE WHEN s.shard_id = 0 THEN COALESCE(c.treasury_alloys, 0) ELSE 0 END,
+  CASE WHEN s.shard_id = 0 THEN COALESCE(c.treasury_fuel, 0) ELSE 0 END,
+  CASE WHEN s.shard_id = 0 THEN COALESCE(c.treasury_chips, 0) ELSE 0 END,
+  CASE WHEN s.shard_id = 0 THEN COALESCE(c.treasury_rare_earth, 0) ELSE 0 END,
+  CASE WHEN s.shard_id = 0 THEN COALESCE(c.treasury_composites, 0) ELSE 0 END,
+  CASE WHEN s.shard_id = 0 THEN COALESCE(c.treasury_tech_scrap, 0) ELSE 0 END,
+  CASE WHEN s.shard_id = 0 THEN COALESCE(c.treasury_citizens, 0) ELSE 0 END
+FROM public.corporations c
+CROSS JOIN generate_series(0, 15) AS s(shard_id)
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM public.corporation_treasury_shards existing
+  WHERE existing.corp_id = c.id
+)
+ON CONFLICT (corp_id, shard_id) DO NOTHING;
+
+-- Vista retrocompatible en tiempo real sobre los 16 shards (sin lockear corporations)
+CREATE OR REPLACE VIEW public.corporation_treasury_totals AS
+SELECT
+  s.corp_id,
+  COALESCE(SUM(s.treasury_ec), 0)::BIGINT AS treasury_ec,
+  COALESCE(SUM(s.treasury_alloys), 0)::BIGINT AS treasury_alloys,
+  COALESCE(SUM(s.treasury_fuel), 0)::BIGINT AS treasury_fuel,
+  COALESCE(SUM(s.treasury_chips), 0)::BIGINT AS treasury_chips,
+  COALESCE(SUM(s.treasury_rare_earth), 0)::BIGINT AS treasury_rare_earth,
+  COALESCE(SUM(s.treasury_composites), 0)::BIGINT AS treasury_composites,
+  COALESCE(SUM(s.treasury_tech_scrap), 0)::BIGINT AS treasury_tech_scrap,
+  COALESCE(SUM(s.treasury_citizens), 0)::INT AS treasury_citizens,
+  MAX(s.updated_at) AS updated_at
+FROM public.corporation_treasury_shards s
+GROUP BY s.corp_id;
+
+GRANT SELECT ON public.corporation_treasury_totals TO anon, authenticated;
+
+-- ------------------------------------------------------------------------------
+-- 2. TABLA DE CONTADORES DE MIEMBROS POR CORPORACIÓN
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.corporation_member_counts (
+  corp_id UUID PRIMARY KEY REFERENCES public.corporations(id) ON DELETE CASCADE,
+  member_count INTEGER NOT NULL DEFAULT 0 CHECK (member_count >= 0),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.corporation_member_counts ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON public.corporation_member_counts FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.corporation_member_counts TO anon, authenticated;
+
+DROP POLICY IF EXISTS "corporation_member_counts_public_read" ON public.corporation_member_counts;
+CREATE POLICY "corporation_member_counts_public_read"
+  ON public.corporation_member_counts
+  FOR SELECT
+  USING (true);
+
+-- Backfill idempotente de contadores de miembros
+INSERT INTO public.corporation_member_counts (corp_id, member_count, updated_at)
+SELECT
+  c.id,
+  COALESCE(COUNT(m.user_id), 0)::INTEGER,
+  timezone('utc'::text, now())
+FROM public.corporations c
+LEFT JOIN public.corporation_members m ON m.corp_id = c.id
+GROUP BY c.id
+ON CONFLICT (corp_id) DO UPDATE
+  SET member_count = EXCLUDED.member_count,
+      updated_at = EXCLUDED.updated_at;
+
+-- Trigger para mantener corporation_member_counts sin escanear corporation_members
+CREATE OR REPLACE FUNCTION public.trg_sync_corporation_member_counts()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    INSERT INTO public.corporation_member_counts (corp_id, member_count, updated_at)
+    VALUES (NEW.corp_id, 1, timezone('utc'::text, now()))
+    ON CONFLICT (corp_id) DO UPDATE
+      SET member_count = public.corporation_member_counts.member_count + 1,
+          updated_at = timezone('utc'::text, now());
+    RETURN NEW;
+  ELSIF TG_OP = 'DELETE' THEN
+    UPDATE public.corporation_member_counts
+    SET member_count = GREATEST(0, member_count - 1),
+        updated_at = timezone('utc'::text, now())
+    WHERE corp_id = OLD.corp_id;
+    RETURN OLD;
+  END IF;
+  RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_corporation_members_count_sync ON public.corporation_members;
+CREATE TRIGGER trg_corporation_members_count_sync
+  AFTER INSERT OR DELETE ON public.corporation_members
+  FOR EACH ROW
+  EXECUTE FUNCTION public.trg_sync_corporation_member_counts();
+
+-- ------------------------------------------------------------------------------
+-- 3. HELPERS DE TESORERÍA SHARDED Y SINCRONIZACIÓN RETROCOMPATIBLE
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.init_corp_treasury_shards(
+  p_corp_id UUID
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  INSERT INTO public.corporation_treasury_shards (corp_id, shard_id)
+  SELECT p_corp_id, s.shard_id::SMALLINT
+  FROM generate_series(0, 15) AS s(shard_id)
+  ON CONFLICT (corp_id, shard_id) DO NOTHING;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.init_corp_treasury_shards(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.init_corp_treasury_shards(UUID) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.get_corp_treasury_totals(
+  p_corp_id UUID
+)
+RETURNS TABLE(
+  treasury_ec BIGINT,
+  treasury_alloys BIGINT,
+  treasury_fuel BIGINT,
+  treasury_chips BIGINT,
+  treasury_rare_earth BIGINT,
+  treasury_composites BIGINT,
+  treasury_tech_scrap BIGINT,
+  treasury_citizens INT
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  SELECT
+    COALESCE(SUM(s.treasury_ec), 0)::BIGINT,
+    COALESCE(SUM(s.treasury_alloys), 0)::BIGINT,
+    COALESCE(SUM(s.treasury_fuel), 0)::BIGINT,
+    COALESCE(SUM(s.treasury_chips), 0)::BIGINT,
+    COALESCE(SUM(s.treasury_rare_earth), 0)::BIGINT,
+    COALESCE(SUM(s.treasury_composites), 0)::BIGINT,
+    COALESCE(SUM(s.treasury_tech_scrap), 0)::BIGINT,
+    COALESCE(SUM(s.treasury_citizens), 0)::INT
+  FROM public.corporation_treasury_shards s
+  WHERE s.corp_id = p_corp_id;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_corp_treasury_totals(UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_corp_treasury_totals(UUID) TO authenticated, service_role;
+
+-- Aplica deltas atómicos sobre corporation_treasury_shards sin lockear public.corporations.
+-- - Créditos puros (todos los deltas >= 0): lockea únicamente 1 shard determinístico.
+-- - Débitos (algún delta < 0): lockea los 16 shards en orden ascendente (shard_id ASC)
+--   y valida que el total agregado >= 0 antes de descontar.
+CREATE OR REPLACE FUNCTION public.apply_corp_treasury_delta(
+  p_corp_id UUID,
+  p_delta_ec BIGINT DEFAULT 0,
+  p_delta_alloys BIGINT DEFAULT 0,
+  p_delta_fuel BIGINT DEFAULT 0,
+  p_delta_chips BIGINT DEFAULT 0,
+  p_delta_rare_earth BIGINT DEFAULT 0,
+  p_delta_composites BIGINT DEFAULT 0,
+  p_delta_tech_scrap BIGINT DEFAULT 0,
+  p_delta_citizens INT DEFAULT 0,
+  p_shard_seed TEXT DEFAULT NULL
+)
+RETURNS TABLE(
+  treasury_ec BIGINT,
+  treasury_alloys BIGINT,
+  treasury_fuel BIGINT,
+  treasury_chips BIGINT,
+  treasury_rare_earth BIGINT,
+  treasury_composites BIGINT,
+  treasury_tech_scrap BIGINT,
+  treasury_citizens INT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_shard_id SMALLINT;
+  v_has_debit BOOLEAN;
+  v_tot_ec BIGINT;
+  v_tot_alloys BIGINT;
+  v_tot_fuel BIGINT;
+  v_tot_chips BIGINT;
+  v_tot_rare BIGINT;
+  v_tot_comp BIGINT;
+  v_tot_scrap BIGINT;
+  v_tot_citizens INT;
+BEGIN
+  IF p_corp_id IS NULL THEN
+    RAISE EXCEPTION 'CORP_REQUIRED: p_corp_id es obligatorio.';
+  END IF;
+
+  v_shard_id := (hashtext(COALESCE(p_shard_seed, (SELECT auth.uid())::text, txid_current()::text)) & 15)::SMALLINT;
+
+  -- Asegurar existencia de shards si la corporación fue creada fuera del flujo normal
+  IF NOT EXISTS (SELECT 1 FROM public.corporation_treasury_shards WHERE corp_id = p_corp_id AND shard_id = v_shard_id) THEN
+    IF NOT EXISTS (SELECT 1 FROM public.corporations WHERE id = p_corp_id) THEN
+      RAISE EXCEPTION 'CORP_NOT_FOUND';
+    END IF;
+    PERFORM public.init_corp_treasury_shards(p_corp_id);
+  END IF;
+
+  v_has_debit := (
+    p_delta_ec < 0 OR p_delta_alloys < 0 OR p_delta_fuel < 0 OR p_delta_chips < 0
+    OR p_delta_rare_earth < 0 OR p_delta_composites < 0 OR p_delta_tech_scrap < 0 OR p_delta_citizens < 0
+  );
+
+  IF v_has_debit THEN
+    -- Orden canónico determinístico sobre los 16 shards para evitar deadlocks en débitos concurrentes
+    PERFORM 1
+    FROM public.corporation_treasury_shards s
+    WHERE s.corp_id = p_corp_id
+    ORDER BY s.shard_id ASC
+    FOR UPDATE;
+
+    SELECT
+      COALESCE(SUM(s.treasury_ec), 0)::BIGINT,
+      COALESCE(SUM(s.treasury_alloys), 0)::BIGINT,
+      COALESCE(SUM(s.treasury_fuel), 0)::BIGINT,
+      COALESCE(SUM(s.treasury_chips), 0)::BIGINT,
+      COALESCE(SUM(s.treasury_rare_earth), 0)::BIGINT,
+      COALESCE(SUM(s.treasury_composites), 0)::BIGINT,
+      COALESCE(SUM(s.treasury_tech_scrap), 0)::BIGINT,
+      COALESCE(SUM(s.treasury_citizens), 0)::INT
+    INTO
+      v_tot_ec, v_tot_alloys, v_tot_fuel, v_tot_chips,
+      v_tot_rare, v_tot_comp, v_tot_scrap, v_tot_citizens
+    FROM public.corporation_treasury_shards s
+    WHERE s.corp_id = p_corp_id;
+
+    IF (v_tot_ec + p_delta_ec) < 0
+       OR (v_tot_alloys + p_delta_alloys) < 0
+       OR (v_tot_fuel + p_delta_fuel) < 0
+       OR (v_tot_chips + p_delta_chips) < 0
+       OR (v_tot_rare + p_delta_rare_earth) < 0
+       OR (v_tot_comp + p_delta_composites) < 0
+       OR (v_tot_scrap + p_delta_tech_scrap) < 0
+       OR (v_tot_citizens + p_delta_citizens) < 0 THEN
+      RAISE EXCEPTION 'INSUFFICIENT_CORP_TREASURY: Tesorería corporativa insuficiente.';
+    END IF;
+  END IF;
+
+  UPDATE public.corporation_treasury_shards
+  SET
+    treasury_ec = treasury_ec + p_delta_ec,
+    treasury_alloys = treasury_alloys + p_delta_alloys,
+    treasury_fuel = treasury_fuel + p_delta_fuel,
+    treasury_chips = treasury_chips + p_delta_chips,
+    treasury_rare_earth = treasury_rare_earth + p_delta_rare_earth,
+    treasury_composites = treasury_composites + p_delta_composites,
+    treasury_tech_scrap = treasury_tech_scrap + p_delta_tech_scrap,
+    treasury_citizens = treasury_citizens + p_delta_citizens,
+    updated_at = timezone('utc'::text, now())
+  WHERE corp_id = p_corp_id AND shard_id = v_shard_id;
+
+  RETURN QUERY
+  SELECT
+    COALESCE(SUM(s.treasury_ec), 0)::BIGINT,
+    COALESCE(SUM(s.treasury_alloys), 0)::BIGINT,
+    COALESCE(SUM(s.treasury_fuel), 0)::BIGINT,
+    COALESCE(SUM(s.treasury_chips), 0)::BIGINT,
+    COALESCE(SUM(s.treasury_rare_earth), 0)::BIGINT,
+    COALESCE(SUM(s.treasury_composites), 0)::BIGINT,
+    COALESCE(SUM(s.treasury_tech_scrap), 0)::BIGINT,
+    COALESCE(SUM(s.treasury_citizens), 0)::INT
+  FROM public.corporation_treasury_shards s
+  WHERE s.corp_id = p_corp_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.apply_corp_treasury_delta(UUID, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, INT, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_corp_treasury_delta(UUID, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, BIGINT, INT, TEXT) TO service_role;
+
+-- Sincronización batch/bajo demanda hacia public.corporations (para snapshots/lecturas legacy sin bloquear transacciones frecuentes)
+CREATE OR REPLACE FUNCTION public.sync_corporation_treasury_rollups(
+  p_corp_id UUID DEFAULT NULL
+)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_updated INTEGER := 0;
+BEGIN
+  UPDATE public.corporations c
+  SET
+    treasury_ec = t.treasury_ec,
+    treasury_alloys = t.treasury_alloys,
+    treasury_fuel = t.treasury_fuel,
+    treasury_chips = t.treasury_chips,
+    treasury_rare_earth = t.treasury_rare_earth,
+    treasury_composites = t.treasury_composites,
+    treasury_tech_scrap = t.treasury_tech_scrap,
+    treasury_citizens = t.treasury_citizens,
+    updated_at = timezone('utc'::text, now())
+  FROM public.corporation_treasury_totals t
+  WHERE c.id = t.corp_id
+    AND (p_corp_id IS NULL OR c.id = p_corp_id)
+    AND (
+      c.treasury_ec IS DISTINCT FROM t.treasury_ec
+      OR c.treasury_alloys IS DISTINCT FROM t.treasury_alloys
+      OR c.treasury_fuel IS DISTINCT FROM t.treasury_fuel
+      OR c.treasury_chips IS DISTINCT FROM t.treasury_chips
+      OR c.treasury_rare_earth IS DISTINCT FROM t.treasury_rare_earth
+      OR c.treasury_composites IS DISTINCT FROM t.treasury_composites
+      OR c.treasury_tech_scrap IS DISTINCT FROM t.treasury_tech_scrap
+      OR c.treasury_citizens IS DISTINCT FROM t.treasury_citizens
+    );
+
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
+  RETURN v_updated;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.sync_corporation_treasury_rollups(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.sync_corporation_treasury_rollups(UUID) TO service_role;
+
+-- ------------------------------------------------------------------------------
+-- 4. REFACTOR DE LAS 7 RPCS ASIGNADAS (CONTRATO v3 + ORDEN CANÓNICO DE LOCKS)
+-- ------------------------------------------------------------------------------
+
+-- (1/7) CREATE_CORPORATION
+CREATE OR REPLACE FUNCTION public.create_corporation(
+  p_name TEXT,
+  p_tag TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_email_confirmed TIMESTAMPTZ;
+  v_profile public.profiles%ROWTYPE;
+  v_corp public.corporations%ROWTYPE;
+  v_clean_name TEXT := trim(p_name);
+  v_clean_tag TEXT := upper(trim(p_tag));
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED: Debes iniciar sesión.';
+  END IF;
+
+  SELECT email_confirmed_at INTO v_email_confirmed
+  FROM auth.users WHERE id = v_user_id;
+
+  IF v_email_confirmed IS NULL THEN
+    RAISE EXCEPTION 'EMAIL_VERIFICATION_REQUIRED: Debes verificar tu correo electrónico antes de fundar una Corporación.';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.account_risk_signals
+    WHERE user_id = v_user_id AND review_status = 'restricted'
+  ) THEN
+    RAISE EXCEPTION 'ACCOUNT_RESTRICTED_RISK: Cuenta restringida por señales de seguridad.';
+  END IF;
+
+  IF length(v_clean_name) < 3 OR length(v_clean_name) > 50 THEN
+    RAISE EXCEPTION 'INVALID_NAME: El nombre debe tener entre 3 y 50 caracteres.';
+  END IF;
+
+  IF length(v_clean_tag) < 2 OR length(v_clean_tag) > 5 THEN
+    RAISE EXCEPTION 'INVALID_TAG: El tag debe tener entre 2 y 5 caracteres.';
+  END IF;
+
+  SELECT * INTO v_profile FROM public.profiles WHERE id = v_user_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'PROFILE_NOT_FOUND: Perfil de usuario inexistente.';
+  END IF;
+
+  IF v_profile.corp_id IS NOT NULL THEN
+    RAISE EXCEPTION 'ALREADY_IN_CORP: Ya perteneces a una Corporación.';
+  END IF;
+
+  INSERT INTO public.corporations (name, tag, leader_user_id, treasury_ec, treasury_alloys, treasury_fuel, treasury_chips)
+  VALUES (v_clean_name, v_clean_tag, v_user_id, 500, 50, 25, 10)
+  RETURNING * INTO v_corp;
+
+  -- Inicializar los 16 shards de tesorería (balance inicial en shard 0)
+  INSERT INTO public.corporation_treasury_shards (
+    corp_id, shard_id, treasury_ec, treasury_alloys, treasury_fuel, treasury_chips
+  )
+  SELECT
+    v_corp.id,
+    s.shard_id::SMALLINT,
+    CASE WHEN s.shard_id = 0 THEN 500 ELSE 0 END,
+    CASE WHEN s.shard_id = 0 THEN 50 ELSE 0 END,
+    CASE WHEN s.shard_id = 0 THEN 25 ELSE 0 END,
+    CASE WHEN s.shard_id = 0 THEN 10 ELSE 0 END
+  FROM generate_series(0, 15) AS s(shard_id)
+  ON CONFLICT (corp_id, shard_id) DO NOTHING;
+
+  -- El trigger trg_corporation_members_count_sync actualiza corporation_member_counts
+  INSERT INTO public.corporation_members (corp_id, user_id, role, shares, delegated_permissions)
+  VALUES (
+    v_corp.id,
+    v_user_id,
+    'majority_shareholder',
+    100,
+    '{"can_use_treasury":true,"can_construct":true,"can_remodel":true,"can_collect":true,"can_purchase_units":true,"can_control_units":true}'::jsonb
+  );
+
+  PERFORM set_config('app.bypass_profile_guard', 'on', true);
+  UPDATE public.profiles SET corp_id = v_corp.id WHERE id = v_user_id;
+
+  RETURN jsonb_build_object(
+    'corp_id', v_corp.id,
+    'name', v_corp.name,
+    'tag', v_corp.tag,
+    'role', 'majority_shareholder',
+    'shares', 100
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.create_corporation(TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.create_corporation(TEXT, TEXT) TO authenticated;
+
+-- (2/7) JOIN_CORPORATION
+CREATE OR REPLACE FUNCTION public.join_corporation(p_corp_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_email_confirmed TIMESTAMPTZ;
+  v_profile public.profiles%ROWTYPE;
+  v_corp public.corporations%ROWTYPE;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED';
+  END IF;
+
+  SELECT email_confirmed_at INTO v_email_confirmed
+  FROM auth.users WHERE id = v_user_id;
+
+  IF v_email_confirmed IS NULL THEN
+    RAISE EXCEPTION 'EMAIL_VERIFICATION_REQUIRED: Debes verificar tu correo electrónico antes de unirte a una Corporación.';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.account_risk_signals
+    WHERE user_id = v_user_id AND review_status = 'restricted'
+  ) THEN
+    RAISE EXCEPTION 'ACCOUNT_RESTRICTED_RISK: Cuenta restringida por señales de seguridad.';
+  END IF;
+
+  SELECT * INTO v_corp FROM public.corporations WHERE id = p_corp_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'CORP_NOT_FOUND';
+  END IF;
+
+  SELECT * INTO v_profile FROM public.profiles WHERE id = v_user_id FOR UPDATE;
+  IF v_profile.corp_id IS NOT NULL THEN
+    RAISE EXCEPTION 'ALREADY_IN_CORP: Ya perteneces a una Corporación.';
+  END IF;
+
+  -- El trigger trg_corporation_members_count_sync incrementa corporation_member_counts
+  INSERT INTO public.corporation_members (corp_id, user_id, role, shares)
+  VALUES (p_corp_id, v_user_id, 'member', 0);
+
+  PERFORM set_config('app.bypass_profile_guard', 'on', true);
+  UPDATE public.profiles SET corp_id = p_corp_id WHERE id = v_user_id;
+
+  RETURN jsonb_build_object(
+    'corp_id', v_corp.id,
+    'name', v_corp.name,
+    'tag', v_corp.tag,
+    'role', 'member'
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.join_corporation(UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.join_corporation(UUID) TO authenticated;
+
+-- (3/7) LEAVE_CORPORATION
+CREATE OR REPLACE FUNCTION public.leave_corporation()
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_profile public.profiles%ROWTYPE;
+  v_member public.corporation_members%ROWTYPE;
+  v_next_leader_id UUID;
+  v_dissolved BOOLEAN := false;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED';
+  END IF;
+
+  SELECT * INTO v_profile FROM public.profiles WHERE id = v_user_id FOR UPDATE;
+  IF v_profile.corp_id IS NULL THEN
+    RAISE EXCEPTION 'NOT_IN_CORP: No perteneces a ninguna Corporación.';
+  END IF;
+
+  SELECT * INTO v_member
+  FROM public.corporation_members
+  WHERE corp_id = v_profile.corp_id AND user_id = v_user_id
+  FOR UPDATE;
+
+  -- El trigger trg_corporation_members_count_sync decrementa corporation_member_counts
+  DELETE FROM public.corporation_members
+  WHERE corp_id = v_profile.corp_id AND user_id = v_user_id;
+
+  PERFORM set_config('app.bypass_profile_guard', 'on', true);
+  UPDATE public.profiles SET corp_id = NULL WHERE id = v_user_id;
+
+  SELECT user_id INTO v_next_leader_id
+  FROM public.corporation_members
+  WHERE corp_id = v_profile.corp_id
+  ORDER BY shares DESC, joined_at ASC
+  LIMIT 1;
+
+  IF v_next_leader_id IS NULL THEN
+    DELETE FROM public.corporations WHERE id = v_profile.corp_id;
+    v_dissolved := true;
+  ELSIF v_member.role = 'majority_shareholder' THEN
+    UPDATE public.corporation_members
+    SET
+      role = 'majority_shareholder',
+      shares = GREATEST(shares, 100),
+      delegated_permissions = '{"can_use_treasury":true,"can_construct":true,"can_remodel":true,"can_collect":true,"can_purchase_units":true,"can_control_units":true}'::jsonb
+    WHERE corp_id = v_profile.corp_id AND user_id = v_next_leader_id;
+
+    UPDATE public.corporations
+    SET leader_user_id = v_next_leader_id, updated_at = timezone('utc'::text, now())
+    WHERE id = v_profile.corp_id;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'left', true,
+    'corp_id', v_profile.corp_id,
+    'dissolved', v_dissolved,
+    'new_leader_user_id', v_next_leader_id
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.leave_corporation() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.leave_corporation() TO authenticated;
+
+-- (4/7) DONATE_TO_CORPORATION
+-- Orden canónico: corporation_treasury_shards (1 shard) -> profiles -> user_industrial_inventory
+CREATE OR REPLACE FUNCTION public.donate_to_corporation(
+  p_corp_id UUID,
+  p_ec INT DEFAULT 0,
+  p_alloys INT DEFAULT 0,
+  p_fuel INT DEFAULT 0,
+  p_chips INT DEFAULT 0
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_email_confirmed TIMESTAMPTZ;
+  v_profile public.profiles%ROWTYPE;
+  v_inv public.user_industrial_inventory%ROWTYPE;
+  v_shard_id SMALLINT;
+  v_totals RECORD;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED';
+  END IF;
+
+  SELECT email_confirmed_at INTO v_email_confirmed FROM auth.users WHERE id = v_user_id;
+  IF v_email_confirmed IS NULL THEN
+    RAISE EXCEPTION 'EMAIL_VERIFICATION_REQUIRED';
+  END IF;
+
+  IF p_ec < 0 OR p_alloys < 0 OR p_fuel < 0 OR p_chips < 0 THEN
+    RAISE EXCEPTION 'INVALID_AMOUNT: Las donaciones no pueden ser negativas.';
+  END IF;
+
+  IF (p_ec + p_alloys + p_fuel + p_chips) <= 0 THEN
+    RAISE EXCEPTION 'EMPTY_DONATION: Debes especificar al menos 1 recurso para donar.';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.corporation_members
+    WHERE corp_id = p_corp_id AND user_id = v_user_id
+  ) THEN
+    RAISE EXCEPTION 'NOT_A_MEMBER: No perteneces a esta Corporación.';
+  END IF;
+
+  -- 1. Lock de shard único ANTES de profiles / user_industrial_inventory (sin lockear corporations)
+  v_shard_id := (hashtext(v_user_id::text) & 15)::SMALLINT;
+  IF NOT EXISTS (SELECT 1 FROM public.corporation_treasury_shards WHERE corp_id = p_corp_id AND shard_id = v_shard_id) THEN
+    IF NOT EXISTS (SELECT 1 FROM public.corporations WHERE id = p_corp_id) THEN
+      RAISE EXCEPTION 'CORP_NOT_FOUND';
+    END IF;
+    PERFORM public.init_corp_treasury_shards(p_corp_id);
+  END IF;
+
+  PERFORM 1
+  FROM public.corporation_treasury_shards
+  WHERE corp_id = p_corp_id AND shard_id = v_shard_id
+  FOR UPDATE;
+
+  -- 2. Lock de profiles
+  SELECT * INTO v_profile FROM public.profiles WHERE id = v_user_id FOR UPDATE;
+  IF COALESCE(v_profile.battle_credits, 0) < p_ec THEN
+    RAISE EXCEPTION 'INSUFFICIENT_EC: Créditos insuficientes.';
+  END IF;
+
+  -- 3. Lock de user_industrial_inventory
+  IF p_alloys > 0 OR p_fuel > 0 OR p_chips > 0 THEN
+    SELECT * INTO v_inv FROM public.user_industrial_inventory WHERE user_id = v_user_id FOR UPDATE;
+    IF NOT FOUND
+       OR COALESCE(v_inv.refined_steel, 0) < p_alloys
+       OR COALESCE(v_inv.campaign_fuel, 0) < p_fuel
+       OR COALESCE(v_inv.refined_microchip, 0) < p_chips THEN
+      RAISE EXCEPTION 'INSUFFICIENT_MATERIALS: Materiales industriales insuficientes.';
+    END IF;
+
+    UPDATE public.user_industrial_inventory
+    SET
+      refined_steel = refined_steel - p_alloys,
+      campaign_fuel = campaign_fuel - p_fuel,
+      refined_microchip = refined_microchip - p_chips,
+      updated_at = timezone('utc'::text, now())
+    WHERE user_id = v_user_id;
+  END IF;
+
+  IF p_ec > 0 THEN
+    PERFORM set_config('app.bypass_profile_guard', 'on', true);
+    UPDATE public.profiles
+    SET battle_credits = battle_credits - p_ec
+    WHERE id = v_user_id;
+  END IF;
+
+  SELECT * INTO v_totals
+  FROM public.apply_corp_treasury_delta(
+    p_corp_id,
+    p_ec::BIGINT,
+    p_alloys::BIGINT,
+    p_fuel::BIGINT,
+    p_chips::BIGINT,
+    0, 0, 0, 0,
+    v_user_id::text
+  );
+
+  RETURN jsonb_build_object(
+    'corp_id', p_corp_id,
+    'treasury_ec', v_totals.treasury_ec,
+    'treasury_alloys', v_totals.treasury_alloys,
+    'treasury_fuel', v_totals.treasury_fuel,
+    'treasury_chips', v_totals.treasury_chips
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.donate_to_corporation(UUID, INT, INT, INT, INT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.donate_to_corporation(UUID, INT, INT, INT, INT) TO authenticated;
+
+-- (5/7) CONSTRUCT_BUILDING
+-- Orden canónico: [corporations si housing ->] corporation_treasury_shards (ORDER BY shard_id ASC) -> buildings -> profiles -> user_industrial_inventory
+CREATE OR REPLACE FUNCTION public.construct_building(
+  p_h3_index BIGINT,
+  p_municipality_id VARCHAR,
+  p_corp_id UUID,
+  p_building_type VARCHAR,
+  p_use_personal_topup BOOLEAN DEFAULT false,
+  p_idempotency_key UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_cached JSONB;
+  v_spec RECORD;
+  v_tot_ec BIGINT := 0;
+  v_tot_alloys BIGINT := 0;
+  v_profile public.profiles%ROWTYPE;
+  v_inv public.user_industrial_inventory%ROWTYPE;
+  v_corp_ec_spend BIGINT := 0;
+  v_personal_ec_spend BIGINT := 0;
+  v_corp_alloy_spend BIGINT := 0;
+  v_personal_alloy_spend BIGINT := 0;
+  v_building public.buildings%ROWTYPE;
+  v_res JSONB;
+BEGIN
+  IF p_idempotency_key IS NOT NULL THEN
+    SELECT response INTO v_cached FROM public.economy_rpc_idempotency WHERE idempotency_key = p_idempotency_key;
+    IF FOUND THEN RETURN v_cached; END IF;
+  END IF;
+
+  PERFORM public.assert_corp_permission(v_user_id, p_corp_id, 'can_construct');
+
+  SELECT * INTO v_spec FROM public.get_building_catalog_spec(p_building_type, 1);
+
+  -- 1. Lock de corporations únicamente si es housing (population_cap), antes de shards/buildings/profiles
+  IF p_building_type = 'housing' THEN
+    UPDATE public.corporations
+    SET population_cap = population_cap + 10,
+        updated_at = timezone('utc'::text, now())
+    WHERE id = p_corp_id;
+    IF NOT FOUND THEN RAISE EXCEPTION 'CORP_NOT_FOUND'; END IF;
+  END IF;
+
+  -- 2. Lock de shards en orden ascendente (sin lockear corporations para edificios frecuentes)
+  IF NOT EXISTS (SELECT 1 FROM public.corporation_treasury_shards WHERE corp_id = p_corp_id) THEN
+    IF NOT EXISTS (SELECT 1 FROM public.corporations WHERE id = p_corp_id) THEN
+      RAISE EXCEPTION 'CORP_NOT_FOUND';
+    END IF;
+    PERFORM public.init_corp_treasury_shards(p_corp_id);
+  END IF;
+
+  PERFORM 1
+  FROM public.corporation_treasury_shards s
+  WHERE s.corp_id = p_corp_id
+  ORDER BY s.shard_id ASC
+  FOR UPDATE;
+
+  SELECT
+    COALESCE(SUM(s.treasury_ec), 0)::BIGINT,
+    COALESCE(SUM(s.treasury_alloys), 0)::BIGINT
+  INTO v_tot_ec, v_tot_alloys
+  FROM public.corporation_treasury_shards s
+  WHERE s.corp_id = p_corp_id;
+
+  IF p_use_personal_topup THEN
+    v_corp_ec_spend := LEAST(v_tot_ec, v_spec.cost_ec);
+    v_personal_ec_spend := v_spec.cost_ec - v_corp_ec_spend;
+    v_corp_alloy_spend := LEAST(v_tot_alloys, v_spec.cost_alloys);
+    v_personal_alloy_spend := v_spec.cost_alloys - v_corp_alloy_spend;
+  ELSE
+    IF v_tot_ec < v_spec.cost_ec OR v_tot_alloys < v_spec.cost_alloys THEN
+      RAISE EXCEPTION 'INSUFFICIENT_CORP_TREASURY: Tesorería corporativa insuficiente.';
+    END IF;
+    v_corp_ec_spend := v_spec.cost_ec;
+    v_corp_alloy_spend := v_spec.cost_alloys;
+  END IF;
+
+  -- 3. Escritura en territories y buildings ANTES de lockear profiles/user_industrial_inventory
+  INSERT INTO public.territories (id, name, level)
+  VALUES (p_municipality_id, p_municipality_id, 'MUNICIPALITY')
+  ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO public.buildings (
+    h3_index, municipality_id, owner_user_id, corp_id, building_type, level, hp, max_hp,
+    infra_state, is_production_halted, storage_cap, last_collected_at
+  ) VALUES (
+    p_h3_index, p_municipality_id, v_user_id, p_corp_id, p_building_type, 1, v_spec.max_hp, v_spec.max_hp,
+    'OPERATIONAL', false, 250, timezone('utc'::text, now())
+  )
+  RETURNING * INTO v_building;
+
+  -- 4. Lock de profiles y user_industrial_inventory si aplica topup personal
+  IF p_use_personal_topup THEN
+    SELECT * INTO v_profile FROM public.profiles WHERE id = v_user_id FOR UPDATE;
+    IF COALESCE(v_profile.battle_credits, 0) < v_personal_ec_spend THEN
+      RAISE EXCEPTION 'INSUFFICIENT_EC: Créditos insuficientes incluso con aporte personal.';
+    END IF;
+
+    SELECT * INTO v_inv FROM public.user_industrial_inventory WHERE user_id = v_user_id FOR UPDATE;
+    IF COALESCE(v_inv.refined_steel, 0) < v_personal_alloy_spend THEN
+      RAISE EXCEPTION 'INSUFFICIENT_ALLOYS: Aleaciones insuficientes incluso con aporte personal.';
+    END IF;
+
+    IF v_personal_ec_spend > 0 THEN
+      PERFORM set_config('app.bypass_profile_guard', 'on', true);
+      UPDATE public.profiles SET battle_credits = battle_credits - v_personal_ec_spend WHERE id = v_user_id;
+    END IF;
+    IF v_personal_alloy_spend > 0 THEN
+      UPDATE public.user_industrial_inventory SET refined_steel = refined_steel - v_personal_alloy_spend WHERE user_id = v_user_id;
+    END IF;
+  END IF;
+
+  -- 5. Aplicar delta en shards (ya lockeados en paso 2)
+  PERFORM public.apply_corp_treasury_delta(
+    p_corp_id,
+    -v_corp_ec_spend,
+    -v_corp_alloy_spend,
+    0, 0, 0, 0, 0, 0,
+    v_user_id::text
+  );
+
+  v_res := jsonb_build_object(
+    'building', to_jsonb(v_building),
+    'spent_corp_ec', v_corp_ec_spend,
+    'spent_personal_ec', v_personal_ec_spend
+  );
+
+  IF p_idempotency_key IS NOT NULL THEN
+    INSERT INTO public.economy_rpc_idempotency (idempotency_key, user_id, rpc_name, response)
+    VALUES (p_idempotency_key, v_user_id, 'construct_building', v_res);
+  END IF;
+
+  RETURN v_res;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.construct_building(BIGINT, VARCHAR, UUID, VARCHAR, BOOLEAN, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.construct_building(BIGINT, VARCHAR, UUID, VARCHAR, BOOLEAN, UUID) TO authenticated;
+
+-- (6/7) CREATE_INFRA_EDGE
+-- Orden canónico: corporation_treasury_shards (ORDER BY shard_id ASC) -> buildings -> infra_edges -> profiles -> user_industrial_inventory
+CREATE OR REPLACE FUNCTION public.create_infra_edge(
+  p_corp_id UUID,
+  p_edge_type TEXT,
+  p_from_h3 BIGINT,
+  p_to_h3 BIGINT,
+  p_from_building_id UUID DEFAULT NULL,
+  p_to_building_id UUID DEFAULT NULL,
+  p_use_personal_topup BOOLEAN DEFAULT false,
+  p_idempotency_key UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_cached JSONB;
+  v_spec RECORD;
+  v_tot_ec BIGINT := 0;
+  v_tot_alloys BIGINT := 0;
+  v_profile public.profiles%ROWTYPE;
+  v_inv public.user_industrial_inventory%ROWTYPE;
+  v_corp_ec_spend BIGINT := 0;
+  v_personal_ec_spend BIGINT := 0;
+  v_corp_alloy_spend BIGINT := 0;
+  v_personal_alloy_spend BIGINT := 0;
+  v_edge public.infra_edges%ROWTYPE;
+  v_res JSONB;
+BEGIN
+  IF v_user_id IS NULL THEN RAISE EXCEPTION 'AUTH_REQUIRED'; END IF;
+  IF p_edge_type NOT IN ('pipeline', 'road', 'bridge') THEN
+    RAISE EXCEPTION 'INVALID_EDGE_TYPE: Tipo de arista no válido (%).', p_edge_type;
+  END IF;
+  IF p_from_h3 IS NULL OR p_to_h3 IS NULL OR p_from_h3 = p_to_h3 THEN
+    RAISE EXCEPTION 'INVALID_EDGE_ENDPOINTS: Debe conectar dos hexágonos H3 distintos.';
+  END IF;
+
+  IF p_idempotency_key IS NOT NULL THEN
+    SELECT response INTO v_cached FROM public.economy_rpc_idempotency WHERE idempotency_key = p_idempotency_key;
+    IF FOUND THEN RETURN v_cached; END IF;
+  END IF;
+
+  PERFORM public.assert_corp_permission(v_user_id, p_corp_id, 'can_construct');
+
+  SELECT * INTO v_spec FROM public.get_building_catalog_spec(p_edge_type, 1);
+
+  -- 1. Lock de shards en orden ascendente (sin lockear corporations)
+  IF NOT EXISTS (SELECT 1 FROM public.corporation_treasury_shards WHERE corp_id = p_corp_id) THEN
+    IF NOT EXISTS (SELECT 1 FROM public.corporations WHERE id = p_corp_id) THEN
+      RAISE EXCEPTION 'CORP_NOT_FOUND';
+    END IF;
+    PERFORM public.init_corp_treasury_shards(p_corp_id);
+  END IF;
+
+  PERFORM 1
+  FROM public.corporation_treasury_shards s
+  WHERE s.corp_id = p_corp_id
+  ORDER BY s.shard_id ASC
+  FOR UPDATE;
+
+  SELECT
+    COALESCE(SUM(s.treasury_ec), 0)::BIGINT,
+    COALESCE(SUM(s.treasury_alloys), 0)::BIGINT
+  INTO v_tot_ec, v_tot_alloys
+  FROM public.corporation_treasury_shards s
+  WHERE s.corp_id = p_corp_id;
+
+  IF p_use_personal_topup THEN
+    v_corp_ec_spend := LEAST(v_tot_ec, v_spec.cost_ec);
+    v_personal_ec_spend := v_spec.cost_ec - v_corp_ec_spend;
+    v_corp_alloy_spend := LEAST(v_tot_alloys, v_spec.cost_alloys);
+    v_personal_alloy_spend := v_spec.cost_alloys - v_corp_alloy_spend;
+  ELSE
+    IF v_tot_ec < v_spec.cost_ec OR v_tot_alloys < v_spec.cost_alloys THEN
+      RAISE EXCEPTION 'INSUFFICIENT_CORP_TREASURY';
+    END IF;
+    v_corp_ec_spend := v_spec.cost_ec;
+    v_corp_alloy_spend := v_spec.cost_alloys;
+  END IF;
+
+  -- 2. Escritura en infra_edges y buildings (si pipeline) ANTES de profiles/user_industrial_inventory
+  INSERT INTO public.infra_edges (
+    corp_id, edge_type, from_h3, to_h3, from_building_id, to_building_id, hp, max_hp, status
+  ) VALUES (
+    p_corp_id, p_edge_type, p_from_h3, p_to_h3, p_from_building_id, p_to_building_id, v_spec.max_hp, v_spec.max_hp, 'operational'
+  )
+  ON CONFLICT (edge_type, from_h3, to_h3) DO UPDATE SET
+    corp_id = EXCLUDED.corp_id,
+    from_building_id = COALESCE(EXCLUDED.from_building_id, public.infra_edges.from_building_id),
+    to_building_id = COALESCE(EXCLUDED.to_building_id, public.infra_edges.to_building_id),
+    hp = EXCLUDED.max_hp,
+    max_hp = EXCLUDED.max_hp,
+    status = 'operational',
+    ruined_at = NULL
+  RETURNING * INTO v_edge;
+
+  IF p_edge_type = 'pipeline' THEN
+    WITH RECURSIVE pipe_reach AS (
+      SELECT b.h3_index
+      FROM public.buildings b
+      WHERE b.corp_id = p_corp_id
+        AND b.building_type IN ('depot', 'hq')
+        AND b.infra_state = 'OPERATIONAL'
+        AND NOT b.is_disabled
+      UNION
+      SELECT CASE WHEN e.from_h3 = pr.h3_index THEN e.to_h3 ELSE e.from_h3 END
+      FROM public.infra_edges e
+      JOIN pipe_reach pr ON e.from_h3 = pr.h3_index OR e.to_h3 = pr.h3_index
+      WHERE e.corp_id = p_corp_id
+        AND e.edge_type = 'pipeline'
+        AND e.status = 'operational'
+    )
+    UPDATE public.buildings b
+    SET is_production_halted = false, updated_at = timezone('utc'::text, now())
+    FROM pipe_reach pr
+    WHERE b.corp_id = p_corp_id
+      AND b.building_type = 'extractor'
+      AND b.h3_index = pr.h3_index
+      AND b.is_production_halted = true;
+  END IF;
+
+  -- 3. Lock de profiles y user_industrial_inventory si aplica topup personal
+  IF p_use_personal_topup THEN
+    SELECT * INTO v_profile FROM public.profiles WHERE id = v_user_id FOR UPDATE;
+    IF COALESCE(v_profile.battle_credits, 0) < v_personal_ec_spend THEN
+      RAISE EXCEPTION 'INSUFFICIENT_EC';
+    END IF;
+
+    SELECT * INTO v_inv FROM public.user_industrial_inventory WHERE user_id = v_user_id FOR UPDATE;
+    IF COALESCE(v_inv.refined_steel, 0) < v_personal_alloy_spend THEN
+      RAISE EXCEPTION 'INSUFFICIENT_ALLOYS';
+    END IF;
+
+    IF v_personal_ec_spend > 0 THEN
+      PERFORM set_config('app.bypass_profile_guard', 'on', true);
+      UPDATE public.profiles SET battle_credits = battle_credits - v_personal_ec_spend WHERE id = v_user_id;
+    END IF;
+    IF v_personal_alloy_spend > 0 THEN
+      UPDATE public.user_industrial_inventory SET refined_steel = refined_steel - v_personal_alloy_spend WHERE user_id = v_user_id;
+    END IF;
+  END IF;
+
+  -- 4. Aplicar delta en shards (ya lockeados en paso 1)
+  PERFORM public.apply_corp_treasury_delta(
+    p_corp_id,
+    -v_corp_ec_spend,
+    -v_corp_alloy_spend,
+    0, 0, 0, 0, 0, 0,
+    v_user_id::text
+  );
+
+  v_res := jsonb_build_object('edge', to_jsonb(v_edge));
+  IF p_idempotency_key IS NOT NULL THEN
+    INSERT INTO public.economy_rpc_idempotency (idempotency_key, user_id, rpc_name, response)
+    VALUES (p_idempotency_key, v_user_id, 'create_infra_edge', v_res);
+  END IF;
+  RETURN v_res;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.create_infra_edge(UUID, TEXT, BIGINT, BIGINT, UUID, UUID, BOOLEAN, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.create_infra_edge(UUID, TEXT, BIGINT, BIGINT, UUID, UUID, BOOLEAN, UUID) TO authenticated;
+
+-- (7/7) COLLECT_BUILDING_RESOURCES
+-- Orden canónico: corporation_treasury_shards (1 shard) -> buildings (1 fila)
+CREATE OR REPLACE FUNCTION public.collect_building_resources(
+  p_building_id UUID,
+  p_corp_id UUID,
+  p_idempotency_key UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_cached JSONB;
+  v_shard_id SMALLINT;
+  v_bld public.buildings%ROWTYPE;
+  v_spec RECORD;
+  v_elapsed_hours NUMERIC;
+  v_alloys BIGINT;
+  v_fuel BIGINT;
+  v_chips BIGINT;
+  v_ec BIGINT;
+  v_res JSONB;
+BEGIN
+  IF p_idempotency_key IS NOT NULL THEN
+    SELECT response INTO v_cached FROM public.economy_rpc_idempotency WHERE idempotency_key = p_idempotency_key;
+    IF FOUND THEN RETURN v_cached; END IF;
+  END IF;
+
+  PERFORM public.assert_corp_permission(v_user_id, p_corp_id, 'can_collect');
+
+  -- 1. Lock de shard único ANTES de buildings (sin lockear corporations)
+  v_shard_id := (hashtext(p_building_id::text) & 15)::SMALLINT;
+  IF NOT EXISTS (SELECT 1 FROM public.corporation_treasury_shards WHERE corp_id = p_corp_id AND shard_id = v_shard_id) THEN
+    IF NOT EXISTS (SELECT 1 FROM public.corporations WHERE id = p_corp_id) THEN
+      RAISE EXCEPTION 'CORP_NOT_FOUND';
+    END IF;
+    PERFORM public.init_corp_treasury_shards(p_corp_id);
+  END IF;
+
+  PERFORM 1
+  FROM public.corporation_treasury_shards
+  WHERE corp_id = p_corp_id AND shard_id = v_shard_id
+  FOR UPDATE;
+
+  -- 2. Lock de buildings
+  SELECT * INTO v_bld FROM public.buildings WHERE id = p_building_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'BUILDING_NOT_FOUND'; END IF;
+  IF v_bld.corp_id <> p_corp_id THEN RAISE EXCEPTION 'NOT_BUILDING_OWNER'; END IF;
+  IF v_bld.is_disabled THEN RAISE EXCEPTION 'BUILDING_DISABLED'; END IF;
+
+  SELECT * INTO v_spec FROM public.get_building_catalog_spec(v_bld.building_type, v_bld.level);
+
+  v_elapsed_hours := LEAST(16.0, GREATEST(0.0, EXTRACT(EPOCH FROM (timezone('utc'::text, now()) - v_bld.last_collected_at)) / 3600.0));
+
+  v_alloys := COALESCE((v_bld.stored_resources->>'alloys')::bigint, 0) + FLOOR(v_spec.alloys_per_hour * v_elapsed_hours)::bigint;
+  v_fuel   := COALESCE((v_bld.stored_resources->>'fuel')::bigint, 0)   + FLOOR(v_spec.fuel_per_hour * v_elapsed_hours)::bigint;
+  v_chips  := COALESCE((v_bld.stored_resources->>'chips')::bigint, 0)  + FLOOR(v_spec.chips_per_hour * v_elapsed_hours)::bigint;
+  v_ec     := FLOOR(v_spec.ec_per_hour * v_elapsed_hours)::bigint;
+
+  -- 3. Aplicar crédito sobre el shard ya lockeado
+  PERFORM public.apply_corp_treasury_delta(
+    p_corp_id,
+    v_ec,
+    v_alloys,
+    v_fuel,
+    v_chips,
+    0, 0, 0, 0,
+    p_building_id::text
+  );
+
+  UPDATE public.buildings
+  SET stored_resources = '{"alloys":0,"fuel":0,"chips":0}'::jsonb,
+      last_collected_at = timezone('utc'::text, now()),
+      updated_at = timezone('utc'::text, now())
+  WHERE id = p_building_id;
+
+  v_res := jsonb_build_object(
+    'elapsed_hours', ROUND(v_elapsed_hours, 4),
+    'collected', jsonb_build_object('ec', v_ec, 'alloys', v_alloys, 'fuel', v_fuel, 'chips', v_chips)
+  );
+
+  IF p_idempotency_key IS NOT NULL THEN
+    INSERT INTO public.economy_rpc_idempotency (idempotency_key, user_id, rpc_name, response)
+    VALUES (p_idempotency_key, v_user_id, 'collect_building_resources', v_res);
+  END IF;
+
+  RETURN v_res;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.collect_building_resources(UUID, UUID, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.collect_building_resources(UUID, UUID, UUID) TO authenticated;
+
+-- >>> FIN MIGRACIÓN: 20261118000007_corporation_treasury_sharding_and_counters.sql <<<
+
+
+-- >>> INICIO MIGRACIÓN: 20261118000008_spatial_viewport_culling_rpcs.sql <<<
+-- ==============================================================================
+-- MIGRATION: 20261118000008_spatial_viewport_culling_rpcs.sql
+-- OBJETIVO: Spatial Viewport Culling para 10,000+ CCU (Contrato SQL/RPC v3)
+--   1. Helper IMMUTABLE `h3_res9_to_lat_lng(BIGINT)` en paridad con `src/shared/utils/h3.ts`.
+--   2. Columnas `lat`, `lng` (+ `from_lat`, `from_lng`, `to_lat`, `to_lng` en `infra_edges`),
+--      backfill idempotente desde `h3_index` / `from_h3` / `to_h3`, triggers de sincronización
+--      automática en INSERT/UPDATE e índices B-tree compuestos para culling O(log N).
+--   3. RPCs retrocompatibles `SETOF`:
+--      - `get_buildings_in_viewport`
+--      - `get_infra_edges_in_viewport`
+--      - `get_units_in_viewport`
+-- ==============================================================================
+
+-- ------------------------------------------------------------------------------
+-- 1. FUNCIÓN INVERSA H3 RES 9 -> (LAT, LNG) EN SQL (PARIDAD CON h3Res9ToLatLng)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.h3_res9_to_lat_lng(
+  p_h3_index BIGINT,
+  OUT lat DOUBLE PRECISION,
+  OUT lng DOUBLE PRECISION
+)
+RETURNS RECORD
+LANGUAGE plpgsql
+IMMUTABLE
+STRICT
+AS $$
+DECLARE
+  v_q BIGINT;
+  v_r BIGINT;
+  v_xm DOUBLE PRECISION;
+  v_ym DOUBLE PRECISION;
+  v_mercator_r CONSTANT DOUBLE PRECISION := 6378137.0;
+  v_edge_m CONSTANT DOUBLE PRECISION := 174.0;
+BEGIN
+  IF p_h3_index <= 0 THEN
+    lat := NULL;
+    lng := NULL;
+    RETURN;
+  END IF;
+
+  v_q := ((p_h3_index >> 24) & 16777215::BIGINT) - 8388608::BIGINT;
+  v_r := (p_h3_index & 16777215::BIGINT) - 8388608::BIGINT;
+
+  v_xm := v_edge_m * sqrt(3.0) * (v_q::DOUBLE PRECISION + v_r::DOUBLE PRECISION / 2.0);
+  v_ym := v_edge_m * 1.5 * v_r::DOUBLE PRECISION;
+
+  lng := round(((v_xm / v_mercator_r) * (180.0 / pi()))::NUMERIC, 6)::DOUBLE PRECISION;
+  lat := round(((2.0 * atan(exp(v_ym / v_mercator_r)) - pi() / 2.0) * (180.0 / pi()))::NUMERIC, 6)::DOUBLE PRECISION;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.h3_res9_to_lat_lng(BIGINT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.h3_res9_to_lat_lng(BIGINT) TO anon, authenticated, service_role;
+
+-- ------------------------------------------------------------------------------
+-- 2. COLUMNAS ESPACIALES Y BACKFILL IDEMPOTENTE
+-- ------------------------------------------------------------------------------
+
+-- 2a. public.buildings
+ALTER TABLE public.buildings
+  ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION;
+
+UPDATE public.buildings b
+SET
+  lat = COALESCE(b.lat, coords.lat),
+  lng = COALESCE(b.lng, coords.lng)
+FROM LATERAL public.h3_res9_to_lat_lng(b.h3_index) AS coords
+WHERE b.h3_index IS NOT NULL
+  AND (b.lat IS NULL OR b.lng IS NULL);
+
+-- 2b. public.infra_edges
+ALTER TABLE public.infra_edges
+  ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS from_lat DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS from_lng DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS to_lat DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS to_lng DOUBLE PRECISION;
+
+UPDATE public.infra_edges e
+SET
+  from_lat = COALESCE(e.from_lat, fc.lat),
+  from_lng = COALESCE(e.from_lng, fc.lng),
+  to_lat   = COALESCE(e.to_lat, tc.lat),
+  to_lng   = COALESCE(e.to_lng, tc.lng),
+  lat      = COALESCE(e.lat, round(((fc.lat + tc.lat) / 2.0)::NUMERIC, 6)::DOUBLE PRECISION),
+  lng      = COALESCE(e.lng, round(((fc.lng + tc.lng) / 2.0)::NUMERIC, 6)::DOUBLE PRECISION)
+FROM LATERAL public.h3_res9_to_lat_lng(e.from_h3) AS fc,
+     LATERAL public.h3_res9_to_lat_lng(e.to_h3) AS tc
+WHERE (
+  e.lat IS NULL OR e.lng IS NULL
+  OR e.from_lat IS NULL OR e.from_lng IS NULL
+  OR e.to_lat IS NULL OR e.to_lng IS NULL
+);
+
+-- 2c. public.operational_units
+ALTER TABLE public.operational_units
+  ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION;
+
+UPDATE public.operational_units u
+SET
+  lat = COALESCE(u.lat, coords.lat),
+  lng = COALESCE(u.lng, coords.lng)
+FROM LATERAL public.h3_res9_to_lat_lng(u.h3_index) AS coords
+WHERE u.h3_index IS NOT NULL
+  AND (u.lat IS NULL OR u.lng IS NULL);
+
+-- ------------------------------------------------------------------------------
+-- 3. TRIGGERS DE SINCRONIZACIÓN AUTOMÁTICA H3 -> (LAT, LNG) EN INSERT/UPDATE
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.sync_h3_lat_lng_from_index()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_coords RECORD;
+BEGIN
+  IF NEW.h3_index IS NOT NULL AND (
+    TG_OP = 'INSERT'
+    OR NEW.h3_index IS DISTINCT FROM OLD.h3_index
+    OR NEW.lat IS NULL
+    OR NEW.lng IS NULL
+  ) THEN
+    IF TG_OP = 'INSERT' AND NEW.lat IS NOT NULL AND NEW.lng IS NOT NULL THEN
+      RETURN NEW;
+    END IF;
+    SELECT c.lat, c.lng INTO v_coords FROM public.h3_res9_to_lat_lng(NEW.h3_index) AS c;
+    NEW.lat := v_coords.lat;
+    NEW.lng := v_coords.lng;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_buildings_sync_lat_lng ON public.buildings;
+CREATE TRIGGER trg_buildings_sync_lat_lng
+  BEFORE INSERT OR UPDATE OF h3_index, lat, lng ON public.buildings
+  FOR EACH ROW
+  EXECUTE FUNCTION public.sync_h3_lat_lng_from_index();
+
+DROP TRIGGER IF EXISTS trg_operational_units_sync_lat_lng ON public.operational_units;
+CREATE TRIGGER trg_operational_units_sync_lat_lng
+  BEFORE INSERT OR UPDATE OF h3_index, lat, lng ON public.operational_units
+  FOR EACH ROW
+  EXECUTE FUNCTION public.sync_h3_lat_lng_from_index();
+
+CREATE OR REPLACE FUNCTION public.sync_infra_edge_lat_lng()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_from RECORD;
+  v_to RECORD;
+BEGIN
+  IF TG_OP = 'INSERT'
+     OR NEW.from_h3 IS DISTINCT FROM OLD.from_h3
+     OR NEW.to_h3 IS DISTINCT FROM OLD.to_h3
+     OR NEW.lat IS NULL OR NEW.lng IS NULL
+     OR NEW.from_lat IS NULL OR NEW.from_lng IS NULL
+     OR NEW.to_lat IS NULL OR NEW.to_lng IS NULL
+  THEN
+    IF NEW.from_h3 IS NOT NULL AND (
+      TG_OP = 'INSERT' OR NEW.from_h3 IS DISTINCT FROM OLD.from_h3
+      OR NEW.from_lat IS NULL OR NEW.from_lng IS NULL
+    ) THEN
+      SELECT c.lat, c.lng INTO v_from FROM public.h3_res9_to_lat_lng(NEW.from_h3) AS c;
+      NEW.from_lat := COALESCE(NEW.from_lat, v_from.lat);
+      NEW.from_lng := COALESCE(NEW.from_lng, v_from.lng);
+      IF TG_OP = 'UPDATE' AND NEW.from_h3 IS DISTINCT FROM OLD.from_h3 THEN
+        NEW.from_lat := v_from.lat;
+        NEW.from_lng := v_from.lng;
+      END IF;
+    END IF;
+
+    IF NEW.to_h3 IS NOT NULL AND (
+      TG_OP = 'INSERT' OR NEW.to_h3 IS DISTINCT FROM OLD.to_h3
+      OR NEW.to_lat IS NULL OR NEW.to_lng IS NULL
+    ) THEN
+      SELECT c.lat, c.lng INTO v_to FROM public.h3_res9_to_lat_lng(NEW.to_h3) AS c;
+      NEW.to_lat := COALESCE(NEW.to_lat, v_to.lat);
+      NEW.to_lng := COALESCE(NEW.to_lng, v_to.lng);
+      IF TG_OP = 'UPDATE' AND NEW.to_h3 IS DISTINCT FROM OLD.to_h3 THEN
+        NEW.to_lat := v_to.lat;
+        NEW.to_lng := v_to.lng;
+      END IF;
+    END IF;
+
+    IF NEW.from_lat IS NOT NULL AND NEW.to_lat IS NOT NULL
+       AND NEW.from_lng IS NOT NULL AND NEW.to_lng IS NOT NULL THEN
+      NEW.lat := round(((NEW.from_lat + NEW.to_lat) / 2.0)::NUMERIC, 6)::DOUBLE PRECISION;
+      NEW.lng := round(((NEW.from_lng + NEW.to_lng) / 2.0)::NUMERIC, 6)::DOUBLE PRECISION;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_infra_edges_sync_lat_lng ON public.infra_edges;
+CREATE TRIGGER trg_infra_edges_sync_lat_lng
+  BEFORE INSERT OR UPDATE OF from_h3, to_h3, lat, lng, from_lat, from_lng, to_lat, to_lng ON public.infra_edges
+  FOR EACH ROW
+  EXECUTE FUNCTION public.sync_infra_edge_lat_lng();
+
+-- ------------------------------------------------------------------------------
+-- 4. ÍNDICES B-TREE COMPUESTOS PARA VIEWPORT CULLING
+-- ------------------------------------------------------------------------------
+CREATE INDEX IF NOT EXISTS idx_buildings_lat_lng
+  ON public.buildings (lat, lng);
+
+CREATE INDEX IF NOT EXISTS idx_buildings_corp_lat_lng
+  ON public.buildings (corp_id, lat, lng)
+  WHERE corp_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_infra_edges_lat_lng
+  ON public.infra_edges (lat, lng);
+
+CREATE INDEX IF NOT EXISTS idx_infra_edges_from_lat_lng
+  ON public.infra_edges (from_lat, from_lng);
+
+CREATE INDEX IF NOT EXISTS idx_infra_edges_to_lat_lng
+  ON public.infra_edges (to_lat, to_lng);
+
+CREATE INDEX IF NOT EXISTS idx_infra_edges_corp_lat_lng
+  ON public.infra_edges (corp_id, lat, lng)
+  WHERE corp_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_operational_units_status_lat_lng
+  ON public.operational_units (status, lat, lng);
+
+CREATE INDEX IF NOT EXISTS idx_operational_units_corp_status_lat_lng
+  ON public.operational_units (corp_id, status, lat, lng);
+
+-- ------------------------------------------------------------------------------
+-- 5. RPCs DE VIEWPORT CULLING (CONTRATO v3, SETOF 100% RETROCOMPATIBLE)
+-- ------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.get_buildings_in_viewport(
+  p_min_lat DOUBLE PRECISION,
+  p_max_lat DOUBLE PRECISION,
+  p_min_lng DOUBLE PRECISION,
+  p_max_lng DOUBLE PRECISION,
+  p_corp_id UUID DEFAULT NULL,
+  p_limit INT DEFAULT 400
+)
+RETURNS SETOF public.buildings
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+  SELECT b.*
+  FROM public.buildings b
+  WHERE b.lat BETWEEN LEAST(p_min_lat, p_max_lat) AND GREATEST(p_min_lat, p_max_lat)
+    AND b.lng BETWEEN LEAST(p_min_lng, p_max_lng) AND GREATEST(p_min_lng, p_max_lng)
+    AND (p_corp_id IS NULL OR b.corp_id = p_corp_id)
+  ORDER BY b.is_historical DESC, b.level DESC, b.id ASC
+  LIMIT LEAST(GREATEST(COALESCE(p_limit, 400), 1), 1000);
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_infra_edges_in_viewport(
+  p_min_lat DOUBLE PRECISION,
+  p_max_lat DOUBLE PRECISION,
+  p_min_lng DOUBLE PRECISION,
+  p_max_lng DOUBLE PRECISION,
+  p_corp_id UUID DEFAULT NULL,
+  p_limit INT DEFAULT 400
+)
+RETURNS SETOF public.infra_edges
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+  SELECT e.*
+  FROM public.infra_edges e
+  WHERE (
+      (
+        e.from_lat BETWEEN LEAST(p_min_lat, p_max_lat) AND GREATEST(p_min_lat, p_max_lat)
+        AND e.from_lng BETWEEN LEAST(p_min_lng, p_max_lng) AND GREATEST(p_min_lng, p_max_lng)
+      )
+      OR (
+        e.to_lat BETWEEN LEAST(p_min_lat, p_max_lat) AND GREATEST(p_min_lat, p_max_lat)
+        AND e.to_lng BETWEEN LEAST(p_min_lng, p_max_lng) AND GREATEST(p_min_lng, p_max_lng)
+      )
+      OR (
+        e.lat BETWEEN LEAST(p_min_lat, p_max_lat) AND GREATEST(p_min_lat, p_max_lat)
+        AND e.lng BETWEEN LEAST(p_min_lng, p_max_lng) AND GREATEST(p_min_lng, p_max_lng)
+      )
+    )
+    AND (p_corp_id IS NULL OR e.corp_id = p_corp_id)
+  ORDER BY e.is_historical_anchor DESC, e.created_at DESC, e.id ASC
+  LIMIT LEAST(GREATEST(COALESCE(p_limit, 400), 1), 1000);
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_units_in_viewport(
+  p_min_lat DOUBLE PRECISION,
+  p_max_lat DOUBLE PRECISION,
+  p_min_lng DOUBLE PRECISION,
+  p_max_lng DOUBLE PRECISION,
+  p_corp_id UUID DEFAULT NULL,
+  p_status TEXT DEFAULT 'active',
+  p_limit INT DEFAULT 400
+)
+RETURNS SETOF public.operational_units
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+  SELECT u.*
+  FROM public.operational_units u
+  WHERE u.lat BETWEEN LEAST(p_min_lat, p_max_lat) AND GREATEST(p_min_lat, p_max_lat)
+    AND u.lng BETWEEN LEAST(p_min_lng, p_max_lng) AND GREATEST(p_min_lng, p_max_lng)
+    AND (p_corp_id IS NULL OR u.corp_id = p_corp_id)
+    AND (p_status IS NULL OR u.status = p_status)
+  ORDER BY u.tier DESC, u.updated_at DESC, u.id ASC
+  LIMIT LEAST(GREATEST(COALESCE(p_limit, 400), 1), 1000);
+$$;
+
+-- ------------------------------------------------------------------------------
+-- 6. PERMISOS EXPLÍCITOS (MENOR PRIVILEGIO)
+-- ------------------------------------------------------------------------------
+REVOKE ALL ON FUNCTION public.get_buildings_in_viewport(DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, UUID, INT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_buildings_in_viewport(DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, UUID, INT) TO anon, authenticated;
+
+REVOKE ALL ON FUNCTION public.get_infra_edges_in_viewport(DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, UUID, INT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_infra_edges_in_viewport(DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, UUID, INT) TO anon, authenticated;
+
+REVOKE ALL ON FUNCTION public.get_units_in_viewport(DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, UUID, TEXT, INT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_units_in_viewport(DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, UUID, TEXT, INT) TO authenticated;
+
+-- >>> FIN MIGRACIÓN: 20261118000008_spatial_viewport_culling_rpcs.sql <<<
+
+
+-- >>> INICIO MIGRACIÓN: 20261118000009_wal_replica_identity_and_broadcast_triggers.sql <<<
+-- ==============================================================================
+-- MIGRATION: 20261118000009_wal_replica_identity_and_broadcast_triggers.sql
+-- OBJETIVO (Contrato SQL/RPC v3 - 10,000+ CCU):
+--   1. Cambiar REPLICA IDENTITY FULL a DEFAULT en territorial_battle_sessions,
+--      tactical_spatial_deployments, tactical_fief_constructions y tablas de
+--      alto churn para eliminar el WAL bloat en UPDATE/DELETE.
+--   2. Remover tablas de alto churn (buildings, infra_edges, operational_units,
+--      unit_command_schedules, unit_action_logs, p2p_market_orders,
+--      state_sovereignty, territorial_battle_sessions) de supabase_realtime.
+--   3. Crear función de trigger unificada y triggers AFTER INSERT OR UPDATE OR
+--      DELETE que emitan el payload Broadcast v3 por canal segmentado usando
+--      realtime.send (con guarda en pg_proc) y pg_notify como fallback.
+-- ==============================================================================
+
+-- ------------------------------------------------------------------------------
+-- 1. REPLICA IDENTITY DEFAULT EN TABLAS DE ALTO CHURN
+-- ------------------------------------------------------------------------------
+DO $$
+DECLARE
+  v_table TEXT;
+  v_tables TEXT[] := ARRAY[
+    'territorial_battle_sessions',
+    'tactical_spatial_deployments',
+    'tactical_fief_constructions',
+    'region_operational_state',
+    'state_sovereignty',
+    'buildings',
+    'infra_edges',
+    'operational_units',
+    'unit_command_schedules',
+    'unit_action_logs',
+    'p2p_market_orders',
+    'match_action_deltas',
+    'matchmaking_queue',
+    'active_matches',
+    'match_participants',
+    'chat_messages'
+  ];
+BEGIN
+  FOREACH v_table IN ARRAY v_tables LOOP
+    IF to_regclass(format('public.%I', v_table)) IS NOT NULL THEN
+      EXECUTE format('ALTER TABLE public.%I REPLICA IDENTITY DEFAULT', v_table);
+    END IF;
+  END LOOP;
+END $$;
+
+-- ------------------------------------------------------------------------------
+-- 2. REMOVER TABLAS DE ALTO CHURN DE LA PUBLICACIÓN supabase_realtime
+-- ------------------------------------------------------------------------------
+DO $$
+DECLARE
+  v_table TEXT;
+  v_tables TEXT[] := ARRAY[
+    'buildings',
+    'infra_edges',
+    'operational_units',
+    'unit_command_schedules',
+    'unit_action_logs',
+    'p2p_market_orders',
+    'state_sovereignty',
+    'territorial_battle_sessions'
+  ];
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    FOREACH v_table IN ARRAY v_tables LOOP
+      IF EXISTS (
+        SELECT 1
+        FROM pg_publication_tables
+        WHERE pubname = 'supabase_realtime'
+          AND schemaname = 'public'
+          AND tablename = v_table
+      ) THEN
+        EXECUTE format('ALTER PUBLICATION supabase_realtime DROP TABLE public.%I', v_table);
+      END IF;
+    END LOOP;
+  END IF;
+END $$;
+
+-- ------------------------------------------------------------------------------
+-- 3. FUNCIÓN DE TRIGGER UNIFICADA: BROADCAST v3 (realtime.send + pg_notify)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.broadcast_wal_change_v3()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_catalog
+AS $$
+DECLARE
+  v_row_json  JSONB;
+  v_topic     TEXT;
+  v_event     TEXT;
+  v_region_id TEXT := 'GLOBAL';
+  v_h3_cell   BIGINT := NULL;
+  v_payload   JSONB;
+  v_has_send  BOOLEAN;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_row_json := to_jsonb(OLD);
+  ELSE
+    v_row_json := to_jsonb(NEW);
+  END IF;
+
+  CASE TG_TABLE_NAME
+    WHEN 'buildings' THEN
+      v_region_id := COALESCE(NULLIF(v_row_json ->> 'municipality_id', ''), 'GLOBAL');
+      v_h3_cell   := NULLIF(v_row_json ->> 'h3_index', '')::BIGINT;
+      v_topic     := 'world:region:' || v_region_id;
+      v_event     := CASE WHEN TG_OP = 'DELETE' THEN 'ENTITY_DELETE' ELSE 'ENTITY_UPSERT' END;
+
+    WHEN 'operational_units' THEN
+      v_region_id := COALESCE(NULLIF(v_row_json ->> 'municipality_id', ''), 'GLOBAL');
+      v_h3_cell   := NULLIF(v_row_json ->> 'h3_index', '')::BIGINT;
+      v_topic     := 'world:region:' || v_region_id;
+      v_event     := CASE WHEN TG_OP = 'DELETE' THEN 'ENTITY_DELETE' ELSE 'ENTITY_UPSERT' END;
+
+    WHEN 'infra_edges' THEN
+      v_region_id := COALESCE(
+        NULLIF(v_row_json ->> 'municipality_id', ''),
+        (
+          SELECT b.municipality_id
+          FROM public.buildings b
+          WHERE b.id = NULLIF(v_row_json ->> 'from_building_id', '')::UUID
+          LIMIT 1
+        ),
+        'GLOBAL'
+      );
+      v_h3_cell := COALESCE(
+        NULLIF(v_row_json ->> 'h3_index', '')::BIGINT,
+        NULLIF(v_row_json ->> 'from_h3', '')::BIGINT
+      );
+      v_topic := 'world:region:' || v_region_id;
+      v_event := CASE WHEN TG_OP = 'DELETE' THEN 'ENTITY_DELETE' ELSE 'ENTITY_UPSERT' END;
+
+    WHEN 'state_sovereignty' THEN
+      v_region_id := COALESCE(NULLIF(v_row_json ->> 'state_id', ''), 'GLOBAL');
+      v_topic     := 'world:region:' || v_region_id;
+      v_event     := CASE WHEN TG_OP = 'DELETE' THEN 'ENTITY_DELETE' ELSE 'ENTITY_UPSERT' END;
+
+    WHEN 'territorial_battle_sessions' THEN
+      v_region_id := COALESCE(NULLIF(v_row_json ->> 'region_id', ''), 'GLOBAL');
+      v_topic     := 'siege:region:' || v_region_id;
+      v_event     := 'SIEGE_STATE';
+
+    WHEN 'p2p_market_orders' THEN
+      v_region_id := COALESCE(
+        NULLIF(v_row_json ->> 'province_terminal_id', ''),
+        NULLIF(v_row_json ->> 'origin_province_id', ''),
+        'GLOBAL'
+      );
+      v_topic := 'market:p2p:' || COALESCE(NULLIF(v_row_json ->> 'item_category', ''), 'all');
+      v_event := 'MARKET_ORDER';
+
+    WHEN 'match_action_deltas' THEN
+      v_region_id := COALESCE(NULLIF(v_row_json ->> 'match_id', ''), 'GLOBAL');
+      v_topic     := 'match:' || v_region_id;
+      v_event     := 'MATCH_ACTION';
+
+    ELSE
+      v_topic := 'world:region:GLOBAL';
+      v_event := CASE WHEN TG_OP = 'DELETE' THEN 'ENTITY_DELETE' ELSE 'ENTITY_UPSERT' END;
+  END CASE;
+
+  v_payload := jsonb_build_object(
+    'v',         3,
+    'event',     v_event,
+    'table',     TG_TABLE_NAME,
+    'region_id', v_region_id,
+    'h3_cell',   v_h3_cell,
+    'op',        TG_OP,
+    'seq',       (floor(extract(epoch FROM clock_timestamp()) * 1000))::BIGINT,
+    'ts',        to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+    'record',    v_row_json
+  );
+
+  BEGIN
+    SELECT EXISTS (
+      SELECT 1
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'realtime'
+        AND p.proname = 'send'
+    ) INTO v_has_send;
+
+    IF v_has_send THEN
+      PERFORM realtime.send(v_payload, v_event, v_topic, false);
+    ELSE
+      PERFORM pg_notify(left(v_topic, 63), left(v_payload::TEXT, 7900));
+    END IF;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'broadcast_wal_change_v3 emit failed for % on %: %', TG_TABLE_NAME, v_topic, SQLERRM;
+  END;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- ------------------------------------------------------------------------------
+-- 4. ADJUNTAR TRIGGERS AFTER INSERT OR UPDATE OR DELETE
+-- ------------------------------------------------------------------------------
+DO $$
+DECLARE
+  v_table TEXT;
+  v_tables TEXT[] := ARRAY[
+    'buildings',
+    'infra_edges',
+    'operational_units',
+    'state_sovereignty',
+    'territorial_battle_sessions',
+    'p2p_market_orders',
+    'match_action_deltas'
+  ];
+BEGIN
+  FOREACH v_table IN ARRAY v_tables LOOP
+    IF to_regclass(format('public.%I', v_table)) IS NOT NULL THEN
+      EXECUTE format('DROP TRIGGER IF EXISTS trg_broadcast_wal_v3 ON public.%I', v_table);
+      EXECUTE format(
+        'CREATE TRIGGER trg_broadcast_wal_v3 AFTER INSERT OR UPDATE OR DELETE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.broadcast_wal_change_v3()',
+        v_table
+      );
+    END IF;
+  END LOOP;
+END $$;
+
+-- >>> FIN MIGRACIÓN: 20261118000009_wal_replica_identity_and_broadcast_triggers.sql <<<
+
+
+-- >>> INICIO MIGRACIÓN: 20261118000010_scheduler_batch_worker_and_pg_cron.sql <<<
+-- ==============================================================================
+-- DRONEPUNK: MIGRACIÓN 20261118000010 — SCHEDULER BATCH WORKER & PG_CRON
+-- Contrato SQL/RPC v3 (10,000+ CCU) — db-scheduler-worker
+-- 1. Columnas de backoff/reintento en unit_command_schedules (idempotente)
+-- 2. Refactor de public.process_due_unit_schedules(p_batch_limit INT DEFAULT 25)
+--    con FOR UPDATE SKIP LOCKED, batching acotado, backoff exponencial en fallos
+--    y emisión de deltas agrupados por región (en lugar de N eventos WAL).
+-- 3. Registro idempotente del job pg_cron protegido con IF EXISTS.
+-- ==============================================================================
+
+-- 1. Columnas de observabilidad y backoff en unit_command_schedules
+ALTER TABLE public.unit_command_schedules
+  ADD COLUMN IF NOT EXISTS retry_count INT NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS last_error_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_ucs_due
+  ON public.unit_command_schedules(next_tick_at, status)
+  WHERE status IN ('pending', 'active');
+
+-- 2. Refactor de process_due_unit_schedules con SKIP LOCKED, backoff y deltas por región
+CREATE OR REPLACE FUNCTION public.process_due_unit_schedules(p_batch_limit INT DEFAULT 25)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_now              TIMESTAMPTZ := timezone('utc'::text, now());
+  v_limit            INT := GREATEST(1, LEAST(100, COALESCE(p_batch_limit, 25)));
+  v_sched            public.unit_command_schedules%ROWTYPE;
+  v_wp               JSONB;
+  v_next_h3          BIGINT;
+  v_processed        INT := 0;
+  v_succeeded        INT := 0;
+  v_failed           INT := 0;
+  v_regions_notified INT := 0;
+  v_slot             public.user_unit_hangar%ROWTYPE;
+  v_unit             public.operational_units%ROWTYPE;
+  v_region_id        TEXT;
+  v_unit_delta       JSONB;
+  v_region_deltas    JSONB := '{}'::jsonb;
+  v_region_key       TEXT;
+  v_region_units     JSONB;
+  v_last_h3          BIGINT;
+  v_seq              BIGINT;
+  v_payload          JSONB;
+  v_has_realtime     BOOLEAN := false;
+  v_backoff_sec      INT;
+  v_err_msg          TEXT;
+BEGIN
+  -- Reclamo acotado de schedules vencidos sin contención entre workers
+  FOR v_sched IN
+    SELECT ucs.*
+    FROM public.unit_command_schedules ucs
+    WHERE ucs.status IN ('pending', 'active')
+      AND ucs.next_tick_at <= v_now
+    ORDER BY ucs.next_tick_at ASC, ucs.id ASC
+    LIMIT v_limit
+    FOR UPDATE OF ucs SKIP LOCKED
+  LOOP
+    v_processed := v_processed + 1;
+
+    BEGIN
+      IF v_sched.status = 'pending' THEN
+        UPDATE public.unit_command_schedules
+        SET status = 'active',
+            updated_at = v_now
+        WHERE id = v_sched.id;
+
+        INSERT INTO public.unit_action_logs (unit_id, schedule_id, corp_id, action_type, summary)
+        VALUES (v_sched.unit_id, v_sched.id, v_sched.corp_id, 'order_started', 'Ejecución iniciada: ' || v_sched.command_type);
+      END IF;
+
+      -- Caso A: Despliegue programado desde hangar (orden de locks: operational_units -> user_unit_hangar)
+      IF v_sched.command_type = 'scheduled_deploy' AND v_sched.hangar_slot_id IS NOT NULL THEN
+        SELECT * INTO v_slot
+        FROM public.user_unit_hangar
+        WHERE id = v_sched.hangar_slot_id
+        FOR UPDATE;
+
+        IF FOUND AND v_slot.quantity >= 1 THEN
+          v_next_h3 := COALESCE((v_sched.waypoints -> 0 ->> 'h3')::BIGINT, public.lat_lng_to_h3_res9(10.3994, -71.4539));
+          v_region_id := NULLIF(v_sched.waypoints -> 0 ->> 'municipality_id', '');
+
+          IF v_region_id IS NULL AND v_sched.target_building_id IS NOT NULL THEN
+            SELECT b.municipality_id INTO v_region_id
+            FROM public.buildings b
+            WHERE b.id = v_sched.target_building_id;
+          END IF;
+
+          IF v_slot.quantity = 1 THEN
+            DELETE FROM public.user_unit_hangar WHERE id = v_slot.id;
+          ELSE
+            UPDATE public.user_unit_hangar
+            SET quantity = quantity - 1
+            WHERE id = v_slot.id;
+          END IF;
+
+          INSERT INTO public.operational_units (
+            owner_user_id, corp_id, unit_code, tier, hp, h3_index, municipality_id, status, unit_role
+          ) VALUES (
+            v_sched.created_by,
+            v_sched.corp_id,
+            v_slot.unit_code,
+            v_slot.tier,
+            v_slot.hp,
+            v_next_h3,
+            v_region_id,
+            'active',
+            CASE WHEN v_slot.unit_code IN ('apc', 't_copter', 'lander') THEN 'collector' ELSE 'combat' END
+          )
+          RETURNING * INTO v_unit;
+
+          UPDATE public.unit_command_schedules
+          SET unit_id = v_unit.id,
+              status = 'completed',
+              retry_count = 0,
+              failure_reason = NULL,
+              updated_at = v_now
+          WHERE id = v_sched.id;
+
+          INSERT INTO public.unit_action_logs (unit_id, schedule_id, corp_id, action_type, summary, h3_index)
+          VALUES (v_unit.id, v_sched.id, v_sched.corp_id, 'deployed', 'Despliegue programado ejecutado: ' || v_unit.unit_code, v_next_h3);
+
+          v_region_key := COALESCE(v_unit.municipality_id, 'GLOBAL');
+          v_unit_delta := jsonb_build_object(
+            'id', v_unit.id,
+            'corp_id', v_unit.corp_id,
+            'unit_code', v_unit.unit_code,
+            'tier', v_unit.tier,
+            'hp', v_unit.hp,
+            'h3_index', v_unit.h3_index,
+            'municipality_id', v_unit.municipality_id,
+            'status', v_unit.status,
+            'op', 'INSERT'
+          );
+          v_region_deltas := jsonb_set(
+            v_region_deltas,
+            ARRAY[v_region_key],
+            COALESCE(v_region_deltas -> v_region_key, '[]'::jsonb) || jsonb_build_array(v_unit_delta),
+            true
+          );
+
+          v_succeeded := v_succeeded + 1;
+        ELSE
+          UPDATE public.unit_command_schedules
+          SET status = 'failed',
+              failure_reason = 'HANGAR_SLOT_EMPTY',
+              last_error_at = v_now,
+              updated_at = v_now
+          WHERE id = v_sched.id;
+
+          INSERT INTO public.unit_action_logs (unit_id, schedule_id, corp_id, action_type, summary)
+          VALUES (v_sched.unit_id, v_sched.id, v_sched.corp_id, 'order_failed', 'Despliegue fallido: hangar vacío');
+
+          v_failed := v_failed + 1;
+        END IF;
+
+      -- Caso B: Movimiento por waypoints / patrulla / recolección / escaramuza
+      ELSIF jsonb_array_length(v_sched.waypoints) > 0 AND v_sched.unit_id IS NOT NULL THEN
+        v_wp := v_sched.waypoints -> v_sched.waypoint_cursor;
+        v_next_h3 := (v_wp ->> 'h3')::BIGINT;
+
+        IF v_next_h3 IS NOT NULL THEN
+          UPDATE public.operational_units
+          SET h3_index = v_next_h3,
+              updated_at = v_now
+          WHERE id = v_sched.unit_id
+            AND status IN ('active', 'engaged')
+          RETURNING * INTO v_unit;
+
+          IF NOT FOUND THEN
+            UPDATE public.unit_command_schedules
+            SET status = 'failed',
+                failure_reason = 'UNIT_NOT_ACTIVE',
+                last_error_at = v_now,
+                updated_at = v_now
+            WHERE id = v_sched.id;
+
+            v_failed := v_failed + 1;
+            CONTINUE;
+          END IF;
+
+          INSERT INTO public.unit_action_logs (unit_id, schedule_id, corp_id, action_type, summary, h3_index)
+          VALUES (
+            v_sched.unit_id,
+            v_sched.id,
+            v_sched.corp_id,
+            CASE
+              WHEN v_sched.command_type = 'auto_collect' THEN 'collected'
+              WHEN v_sched.command_type = 'skirmish' THEN 'skirmish'
+              ELSE 'waypoint_step'
+            END,
+            CASE
+              WHEN v_sched.command_type = 'auto_collect' THEN 'Ciclo auto_collect ejecutado en ruta'
+              WHEN v_sched.command_type = 'skirmish' THEN 'Escaramuza táctica ejecutada en objetivo'
+              ELSE 'Paso ejecutado en ruta'
+            END,
+            v_next_h3
+          );
+
+          v_region_key := COALESCE(v_unit.municipality_id, 'GLOBAL');
+          v_unit_delta := jsonb_build_object(
+            'id', v_unit.id,
+            'corp_id', v_unit.corp_id,
+            'unit_code', v_unit.unit_code,
+            'tier', v_unit.tier,
+            'hp', v_unit.hp,
+            'h3_index', v_unit.h3_index,
+            'municipality_id', v_unit.municipality_id,
+            'status', v_unit.status,
+            'op', 'UPDATE'
+          );
+          v_region_deltas := jsonb_set(
+            v_region_deltas,
+            ARRAY[v_region_key],
+            COALESCE(v_region_deltas -> v_region_key, '[]'::jsonb) || jsonb_build_array(v_unit_delta),
+            true
+          );
+        END IF;
+
+        IF v_sched.waypoint_cursor + 1 < jsonb_array_length(v_sched.waypoints) THEN
+          UPDATE public.unit_command_schedules
+          SET waypoint_cursor = waypoint_cursor + 1,
+              next_tick_at = v_now + interval '5 seconds',
+              retry_count = 0,
+              failure_reason = NULL,
+              updated_at = v_now
+          WHERE id = v_sched.id;
+        ELSIF v_sched.command_type IN ('patrol', 'auto_collect') THEN
+          UPDATE public.unit_command_schedules
+          SET waypoint_cursor = 0,
+              next_tick_at = v_now + make_interval(secs => COALESCE(v_sched.repeat_interval_sec, 10)),
+              retry_count = 0,
+              failure_reason = NULL,
+              updated_at = v_now
+          WHERE id = v_sched.id;
+        ELSIF v_sched.repeat_interval_sec IS NOT NULL THEN
+          UPDATE public.unit_command_schedules
+          SET waypoint_cursor = 0,
+              status = 'pending',
+              next_tick_at = v_now + make_interval(secs => v_sched.repeat_interval_sec),
+              retry_count = 0,
+              failure_reason = NULL,
+              updated_at = v_now
+          WHERE id = v_sched.id;
+        ELSE
+          UPDATE public.unit_command_schedules
+          SET status = 'completed',
+              retry_count = 0,
+              failure_reason = NULL,
+              updated_at = v_now
+          WHERE id = v_sched.id;
+
+          INSERT INTO public.unit_action_logs (unit_id, schedule_id, corp_id, action_type, summary, h3_index)
+          VALUES (v_sched.unit_id, v_sched.id, v_sched.corp_id, 'order_completed', 'Orden completada', v_next_h3);
+        END IF;
+
+        v_succeeded := v_succeeded + 1;
+      ELSE
+        UPDATE public.unit_command_schedules
+        SET status = 'completed',
+            retry_count = 0,
+            failure_reason = NULL,
+            updated_at = v_now
+        WHERE id = v_sched.id;
+
+        v_succeeded := v_succeeded + 1;
+      END IF;
+
+    EXCEPTION WHEN OTHERS THEN
+      -- Backoff exponencial por schedule ante fallos transitorios sin abortar el lote
+      GET STACKED DIAGNOSTICS v_err_msg = MESSAGE_TEXT;
+      v_failed := v_failed + 1;
+
+      IF v_sched.retry_count + 1 >= 5 THEN
+        UPDATE public.unit_command_schedules
+        SET status = 'failed',
+            retry_count = v_sched.retry_count + 1,
+            failure_reason = LEFT(v_err_msg, 240),
+            last_error_at = v_now,
+            updated_at = v_now
+        WHERE id = v_sched.id;
+
+        INSERT INTO public.unit_action_logs (unit_id, schedule_id, corp_id, action_type, summary)
+        VALUES (v_sched.unit_id, v_sched.id, v_sched.corp_id, 'order_failed', 'Orden fallida tras reintentos: ' || LEFT(v_err_msg, 180));
+      ELSE
+        v_backoff_sec := LEAST(3600, (POWER(2, LEAST(10, v_sched.retry_count + 1)) * 5)::INT);
+        UPDATE public.unit_command_schedules
+        SET retry_count = v_sched.retry_count + 1,
+            next_tick_at = v_now + make_interval(secs => v_backoff_sec),
+            failure_reason = LEFT(v_err_msg, 240),
+            last_error_at = v_now,
+            updated_at = v_now
+        WHERE id = v_sched.id;
+      END IF;
+    END;
+  END LOOP;
+
+  -- Emisión de deltas agrupados por región (1 Broadcast v3 por región en lugar de N eventos WAL)
+  IF v_region_deltas <> '{}'::jsonb THEN
+    SELECT EXISTS (
+      SELECT 1
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'realtime'
+        AND p.proname = 'send'
+    ) INTO v_has_realtime;
+
+    v_seq := (EXTRACT(EPOCH FROM v_now) * 1000)::BIGINT;
+
+    FOR v_region_key, v_region_units IN
+      SELECT key, value
+      FROM jsonb_each(v_region_deltas)
+    LOOP
+      v_last_h3 := (v_region_units -> (jsonb_array_length(v_region_units) - 1) ->> 'h3_index')::BIGINT;
+      v_payload := jsonb_build_object(
+        'v', 3,
+        'event', 'ENTITY_UPSERT',
+        'table', 'operational_units',
+        'region_id', v_region_key,
+        'h3_cell', v_last_h3,
+        'op', 'UPDATE',
+        'seq', v_seq,
+        'ts', to_char(v_now AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+        'record', jsonb_build_object(
+          'batch', true,
+          'units', v_region_units
+        )
+      );
+
+      IF v_has_realtime THEN
+        BEGIN
+          PERFORM realtime.send(
+            v_payload,
+            'ENTITY_UPSERT',
+            'world:region:' || v_region_key,
+            false
+          );
+        EXCEPTION WHEN OTHERS THEN
+          PERFORM pg_notify('world:region:' || v_region_key, v_payload::text);
+        END;
+      ELSE
+        PERFORM pg_notify('world:region:' || v_region_key, v_payload::text);
+      END IF;
+
+      v_regions_notified := v_regions_notified + 1;
+    END LOOP;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'processed', v_processed,
+    'succeeded', v_succeeded,
+    'failed', v_failed,
+    'regions_notified', v_regions_notified
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.process_due_unit_schedules(INT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.process_due_unit_schedules(INT) TO authenticated, service_role;
+
+-- 3. Registro idempotente del job pg_cron (protegido para entornos sin pg_cron)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+    IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'process_due_unit_schedules_worker') THEN
+      PERFORM cron.unschedule('process_due_unit_schedules_worker');
+    END IF;
+
+    BEGIN
+      PERFORM cron.schedule(
+        'process_due_unit_schedules_worker',
+        '15 seconds',
+        $cron$SELECT public.process_due_unit_schedules(25);$cron$
+      );
+    EXCEPTION WHEN OTHERS THEN
+      PERFORM cron.schedule(
+        'process_due_unit_schedules_worker',
+        '* * * * *',
+        $cron$SELECT public.process_due_unit_schedules(25);$cron$
+      );
+    END;
+  END IF;
+END;
+$$;
+
+-- >>> FIN MIGRACIÓN: 20261118000010_scheduler_batch_worker_and_pg_cron.sql <<<
+
+
+-- >>> INICIO MIGRACIÓN: 20261118000011_idempotency_ttl_partitioning_and_purge.sql <<<
+-- ==============================================================================
+-- MIGRACIÓN: 20261118000011_idempotency_ttl_partitioning_and_purge.sql
+-- OBJETIVO:
+--   1. Añadir columna TTL `expires_at` e índices eficientes (B-tree / BRIN) en:
+--      - public.economy_rpc_idempotency
+--      - public.unit_action_logs
+--      - public.auth_audit_logs
+--   2. Crear RPC de purga por lotes `public.purge_expired_idempotency_and_logs`
+--      con soporte para el trigger de inmutabilidad en `auth_audit_logs`.
+--   3. Programar la purga periódica en `pg_cron` (protegida con `IF EXISTS`).
+-- ==============================================================================
+
+-- ------------------------------------------------------------------------------
+-- 1. COLUMNAS TTL `expires_at` E ÍNDICES EFICIENTES
+-- ------------------------------------------------------------------------------
+
+-- 1a. economy_rpc_idempotency: tabla de alto churn (TTL 24h).
+--     B-tree sobre expires_at permite borrado por lotes ordenado sin full-scan.
+ALTER TABLE public.economy_rpc_idempotency
+  ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '24 hours');
+
+CREATE INDEX IF NOT EXISTS idx_economy_rpc_idempotency_expires_at
+  ON public.economy_rpc_idempotency (expires_at);
+
+-- 1b. unit_action_logs: tabla append-only de telemetría de unidades.
+--     BRIN sobre expires_at mantiene overhead mínimo de escritura y almacenamiento.
+ALTER TABLE public.unit_action_logs
+  ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '24 hours');
+
+CREATE INDEX IF NOT EXISTS idx_unit_action_logs_expires_at_brin
+  ON public.unit_action_logs USING brin (expires_at)
+  WITH (pages_per_range = 32);
+
+-- 1c. auth_audit_logs: tabla append-only de auditoría de autenticación.
+--     BRIN sobre expires_at para poda eficiente por rangos de páginas.
+ALTER TABLE public.auth_audit_logs
+  ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '24 hours');
+
+CREATE INDEX IF NOT EXISTS idx_auth_audit_logs_expires_at_brin
+  ON public.auth_audit_logs USING brin (expires_at)
+  WITH (pages_per_range = 32);
+
+-- ------------------------------------------------------------------------------
+-- 2. FUNCIÓN DE PURGA POR LOTES CON RESPETO A INMUTABILIDAD ISO 27001
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.purge_expired_idempotency_and_logs(
+  p_batch_size INT DEFAULT 5000
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_batch_size          INT := GREATEST(1, LEAST(COALESCE(p_batch_size, 5000), 50000));
+  v_now                 TIMESTAMPTZ := timezone('utc'::text, now());
+  v_deleted_idempotency INT := 0;
+  v_deleted_unit_logs   INT := 0;
+  v_deleted_auth_logs   INT := 0;
+BEGIN
+  -- 2a. Purga por lotes en economy_rpc_idempotency (usa B-tree ordenado)
+  WITH expired_idem AS (
+    SELECT idempotency_key
+    FROM public.economy_rpc_idempotency
+    WHERE expires_at < v_now
+    ORDER BY expires_at ASC
+    LIMIT v_batch_size
+  )
+  DELETE FROM public.economy_rpc_idempotency t
+  USING expired_idem e
+  WHERE t.idempotency_key = e.idempotency_key;
+  GET DIAGNOSTICS v_deleted_idempotency = ROW_COUNT;
+
+  -- 2b. Purga por lotes en unit_action_logs (usa BRIN sin sort)
+  WITH expired_ual AS (
+    SELECT id
+    FROM public.unit_action_logs
+    WHERE expires_at < v_now
+    LIMIT v_batch_size
+  )
+  DELETE FROM public.unit_action_logs t
+  USING expired_ual e
+  WHERE t.id = e.id;
+  GET DIAGNOSTICS v_deleted_unit_logs = ROW_COUNT;
+
+  -- 2c. Purga por lotes en auth_audit_logs (habilita guarda transaccional del trigger)
+  PERFORM set_config('app.allow_telemetry_purge', 'on', true);
+
+  WITH expired_audit AS (
+    SELECT id
+    FROM public.auth_audit_logs
+    WHERE expires_at < v_now
+    LIMIT v_batch_size
+  )
+  DELETE FROM public.auth_audit_logs t
+  USING expired_audit e
+  WHERE t.id = e.id;
+  GET DIAGNOSTICS v_deleted_auth_logs = ROW_COUNT;
+
+  PERFORM set_config('app.allow_telemetry_purge', 'off', true);
+
+  RETURN jsonb_build_object(
+    'batch_size', v_batch_size,
+    'purged_idempotency', v_deleted_idempotency,
+    'purged_unit_action_logs', v_deleted_unit_logs,
+    'purged_auth_audit_logs', v_deleted_auth_logs,
+    'executed_at', v_now
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.purge_expired_idempotency_and_logs(INT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.purge_expired_idempotency_and_logs(INT) TO service_role;
+
+-- ------------------------------------------------------------------------------
+-- 3. PROGRAMACIÓN IDEMPOTENTE EN pg_cron (PROTEGIDA CON IF EXISTS)
+-- ------------------------------------------------------------------------------
+DO $$
+DECLARE
+  v_existing_job_id BIGINT;
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron')
+     AND EXISTS (
+       SELECT 1
+       FROM pg_proc p
+       JOIN pg_namespace n ON n.oid = p.pronamespace
+       WHERE n.nspname = 'cron' AND p.proname = 'schedule'
+     )
+  THEN
+    SELECT jobid INTO v_existing_job_id
+    FROM cron.job
+    WHERE jobname = 'purge_expired_idempotency_and_logs_job'
+    LIMIT 1;
+
+    IF v_existing_job_id IS NOT NULL THEN
+      PERFORM cron.unschedule(v_existing_job_id);
+    END IF;
+
+    PERFORM cron.schedule(
+      'purge_expired_idempotency_and_logs_job',
+      '*/15 * * * *',
+      $cron$SELECT public.purge_expired_idempotency_and_logs(5000);$cron$
+    );
+  END IF;
+END;
+$$;
+
+-- >>> FIN MIGRACIÓN: 20261118000011_idempotency_ttl_partitioning_and_purge.sql <<<
+
+
+-- >>> INICIO MIGRACIÓN: 20261118000012_logistics_graph_materialized_bfs_and_collectors.sql <<<
+-- ==============================================================================
+-- MIGRATION: 20261118000012_logistics_graph_materialized_bfs_and_collectors.sql
+-- CONTRATO SQL/RPC v3 (10,000+ CCU) - db-logistics-graph
+-- 1. Índices compuestos en public.infra_edges para grafos logísticos y status.
+-- 2. Materialización de alcance BFS acotado + dirty-graph recompute.
+-- 3. Refactorización de sync_pipeline_logistics y execute_collector_haul con
+--    orden canónico de locks:
+--    corporations -> buildings (ORDER BY id ASC) -> operational_units (ORDER BY id ASC)
+-- ==============================================================================
+
+-- ------------------------------------------------------------------------------
+-- 1. ÍNDICES COMPUESTOS EN INFRA_EDGES
+-- ------------------------------------------------------------------------------
+CREATE INDEX IF NOT EXISTS idx_infra_edges_corp_from_building
+  ON public.infra_edges (corp_id, from_building_id);
+
+CREATE INDEX IF NOT EXISTS idx_infra_edges_corp_to_building
+  ON public.infra_edges (corp_id, to_building_id);
+
+CREATE INDEX IF NOT EXISTS idx_infra_edges_status
+  ON public.infra_edges (status);
+
+CREATE INDEX IF NOT EXISTS idx_infra_edges_pipeline_from_h3
+  ON public.infra_edges (corp_id, edge_type, status, from_h3)
+  INCLUDE (to_h3);
+
+CREATE INDEX IF NOT EXISTS idx_infra_edges_pipeline_to_h3
+  ON public.infra_edges (corp_id, edge_type, status, to_h3)
+  INCLUDE (from_h3);
+
+-- ------------------------------------------------------------------------------
+-- 2. TABLAS MATERIALIZADAS PARA DIRTY-GRAPH RECOMPUTE Y BFS ACOTADO
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.corp_logistics_dirty (
+  corp_id    UUID PRIMARY KEY REFERENCES public.corporations(id) ON DELETE CASCADE,
+  is_dirty   BOOLEAN NOT NULL DEFAULT true,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.corp_logistics_dirty ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.corp_logistics_dirty FROM PUBLIC, anon, authenticated;
+
+CREATE TABLE IF NOT EXISTS public.corp_pipeline_reachability (
+  corp_id   UUID NOT NULL REFERENCES public.corporations(id) ON DELETE CASCADE,
+  h3_index  BIGINT NOT NULL,
+  hop_depth INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (corp_id, h3_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_corp_pipeline_reachability_corp_depth
+  ON public.corp_pipeline_reachability (corp_id, hop_depth, h3_index);
+
+ALTER TABLE public.corp_pipeline_reachability ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.corp_pipeline_reachability FROM PUBLIC, anon, authenticated;
+
+-- Triggers para marcar el grafo logístico como dirty cuando mutan tuberías o nodos HQ/Depot
+CREATE OR REPLACE FUNCTION public.mark_corp_logistics_dirty_from_edge()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF (TG_OP = 'DELETE' OR TG_OP = 'UPDATE') AND OLD.corp_id IS NOT NULL AND OLD.edge_type = 'pipeline' THEN
+    INSERT INTO public.corp_logistics_dirty (corp_id, is_dirty, updated_at)
+    VALUES (OLD.corp_id, true, timezone('utc'::text, now()))
+    ON CONFLICT (corp_id) DO UPDATE
+      SET is_dirty = true,
+          updated_at = timezone('utc'::text, now());
+  END IF;
+
+  IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') AND NEW.corp_id IS NOT NULL AND NEW.edge_type = 'pipeline' THEN
+    INSERT INTO public.corp_logistics_dirty (corp_id, is_dirty, updated_at)
+    VALUES (NEW.corp_id, true, timezone('utc'::text, now()))
+    ON CONFLICT (corp_id) DO UPDATE
+      SET is_dirty = true,
+          updated_at = timezone('utc'::text, now());
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_infra_edges_mark_logistics_dirty ON public.infra_edges;
+CREATE TRIGGER trg_infra_edges_mark_logistics_dirty
+  AFTER INSERT OR UPDATE OF corp_id, edge_type, status, from_h3, to_h3 OR DELETE
+  ON public.infra_edges
+  FOR EACH ROW
+  EXECUTE FUNCTION public.mark_corp_logistics_dirty_from_edge();
+
+CREATE OR REPLACE FUNCTION public.mark_corp_logistics_dirty_from_building()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF (TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+     AND OLD.corp_id IS NOT NULL
+     AND OLD.building_type IN ('depot', 'hq') THEN
+    INSERT INTO public.corp_logistics_dirty (corp_id, is_dirty, updated_at)
+    VALUES (OLD.corp_id, true, timezone('utc'::text, now()))
+    ON CONFLICT (corp_id) DO UPDATE
+      SET is_dirty = true,
+          updated_at = timezone('utc'::text, now());
+  END IF;
+
+  IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE')
+     AND NEW.corp_id IS NOT NULL
+     AND NEW.building_type IN ('depot', 'hq') THEN
+    INSERT INTO public.corp_logistics_dirty (corp_id, is_dirty, updated_at)
+    VALUES (NEW.corp_id, true, timezone('utc'::text, now()))
+    ON CONFLICT (corp_id) DO UPDATE
+      SET is_dirty = true,
+          updated_at = timezone('utc'::text, now());
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_buildings_mark_logistics_dirty ON public.buildings;
+CREATE TRIGGER trg_buildings_mark_logistics_dirty
+  AFTER INSERT OR UPDATE OF corp_id, building_type, h3_index, infra_state, is_disabled OR DELETE
+  ON public.buildings
+  FOR EACH ROW
+  EXECUTE FUNCTION public.mark_corp_logistics_dirty_from_building();
+
+-- ------------------------------------------------------------------------------
+-- 3. REFACTOR: sync_pipeline_logistics
+--    - Elimina dobles WITH RECURSIVE ... FOR UPDATE OF b
+--    - Usa dirty-graph recompute + BFS acotado (máx 64 saltos)
+--    - Orden canónico de locks: corporations -> buildings (ORDER BY id ASC)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.sync_pipeline_logistics(
+  p_corp_id UUID,
+  p_idempotency_key UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_cached JSONB;
+  v_is_dirty BOOLEAN;
+  v_depth INT := 0;
+  v_added INT := 0;
+  v_rec RECORD;
+  v_spec RECORD;
+  v_elapsed NUMERIC;
+  v_total_alloys INT := 0;
+  v_total_fuel INT := 0;
+  v_total_chips INT := 0;
+  v_halted_count INT := 0;
+  v_cur_alloys INT;
+  v_cur_fuel INT;
+  v_cur_chips INT;
+  v_add_alloys INT;
+  v_add_fuel INT;
+  v_add_chips INT;
+  v_cur_sum INT;
+  v_cap INT;
+  v_room INT;
+  v_new_halted BOOLEAN;
+  v_now TIMESTAMPTZ := timezone('utc'::text, now());
+  v_res JSONB;
+BEGIN
+  IF v_user_id IS NULL THEN RAISE EXCEPTION 'AUTH_REQUIRED'; END IF;
+  PERFORM public.assert_corp_permission(v_user_id, p_corp_id, 'can_collect');
+
+  IF p_idempotency_key IS NOT NULL THEN
+    SELECT response INTO v_cached
+    FROM public.economy_rpc_idempotency
+    WHERE idempotency_key = p_idempotency_key;
+    IF FOUND THEN RETURN v_cached; END IF;
+  END IF;
+
+  -- Orden canónico de locks #1: corporations primero
+  PERFORM 1 FROM public.corporations WHERE id = p_corp_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'CORP_NOT_FOUND'; END IF;
+
+  -- Recomputar alcance de tuberías solo si el grafo está dirty (BFS acotado <= 64 saltos)
+  SELECT is_dirty INTO v_is_dirty
+  FROM public.corp_logistics_dirty
+  WHERE corp_id = p_corp_id;
+
+  IF NOT FOUND OR v_is_dirty THEN
+    DELETE FROM public.corp_pipeline_reachability WHERE corp_id = p_corp_id;
+
+    INSERT INTO public.corp_pipeline_reachability (corp_id, h3_index, hop_depth)
+    SELECT DISTINCT p_corp_id, b.h3_index, 0
+    FROM public.buildings b
+    WHERE b.corp_id = p_corp_id
+      AND b.building_type IN ('depot', 'hq')
+      AND b.infra_state = 'OPERATIONAL'
+      AND NOT b.is_disabled
+    ON CONFLICT (corp_id, h3_index) DO NOTHING;
+
+    GET DIAGNOSTICS v_added = ROW_COUNT;
+    v_depth := 0;
+
+    WHILE v_added > 0 AND v_depth < 64 LOOP
+      INSERT INTO public.corp_pipeline_reachability (corp_id, h3_index, hop_depth)
+      SELECT p_corp_id, next_h3, v_depth + 1
+      FROM (
+        SELECT e.to_h3 AS next_h3
+        FROM public.corp_pipeline_reachability r
+        JOIN public.infra_edges e
+          ON e.corp_id = p_corp_id
+         AND e.edge_type = 'pipeline'
+         AND e.status = 'operational'
+         AND e.from_h3 = r.h3_index
+        WHERE r.corp_id = p_corp_id
+          AND r.hop_depth = v_depth
+        UNION
+        SELECT e.from_h3 AS next_h3
+        FROM public.corp_pipeline_reachability r
+        JOIN public.infra_edges e
+          ON e.corp_id = p_corp_id
+         AND e.edge_type = 'pipeline'
+         AND e.status = 'operational'
+         AND e.to_h3 = r.h3_index
+        WHERE r.corp_id = p_corp_id
+          AND r.hop_depth = v_depth
+      ) frontier
+      ON CONFLICT (corp_id, h3_index) DO NOTHING;
+
+      GET DIAGNOSTICS v_added = ROW_COUNT;
+      v_depth := v_depth + 1;
+    END LOOP;
+
+    INSERT INTO public.corp_logistics_dirty (corp_id, is_dirty, updated_at)
+    VALUES (p_corp_id, false, v_now)
+    ON CONFLICT (corp_id) DO UPDATE
+      SET is_dirty = false,
+          updated_at = v_now;
+  END IF;
+
+  -- Orden canónico de locks #2: buildings en una sola pasada ORDER BY id ASC
+  FOR v_rec IN
+    SELECT b.*,
+           (r.h3_index IS NOT NULL) AS is_pipe_connected
+    FROM public.buildings b
+    LEFT JOIN public.corp_pipeline_reachability r
+      ON r.corp_id = p_corp_id
+     AND r.h3_index = b.h3_index
+    WHERE b.corp_id = p_corp_id
+      AND b.building_type = 'extractor'
+      AND b.infra_state = 'OPERATIONAL'
+      AND NOT b.is_disabled
+    ORDER BY b.id ASC
+    FOR UPDATE OF b
+  LOOP
+    IF v_rec.is_pipe_connected THEN
+      -- Flujo 1: Extractor conectado vía tubería operacional a algún Depot/HQ operacional
+      SELECT * INTO v_spec FROM public.get_building_catalog_spec('extractor', v_rec.level);
+      v_elapsed := LEAST(16.0, GREATEST(0.0, EXTRACT(EPOCH FROM (v_now - v_rec.last_collected_at)) / 3600.0));
+      v_total_alloys := v_total_alloys + FLOOR(COALESCE(v_spec.alloys_per_hour, 0) * v_elapsed)::INT + COALESCE((v_rec.stored_resources->>'alloys')::INT, 0);
+      v_total_fuel := v_total_fuel + FLOOR(COALESCE(v_spec.fuel_per_hour, 0) * v_elapsed)::INT + COALESCE((v_rec.stored_resources->>'fuel')::INT, 0);
+      v_total_chips := v_total_chips + FLOOR(COALESCE(v_spec.chips_per_hour, 0) * v_elapsed)::INT + COALESCE((v_rec.stored_resources->>'chips')::INT, 0);
+
+      UPDATE public.buildings
+      SET stored_resources = '{"alloys":0,"fuel":0,"chips":0}'::jsonb,
+          is_production_halted = false,
+          last_collected_at = v_now,
+          updated_at = v_now
+      WHERE id = v_rec.id;
+    ELSE
+      -- Flujo 2: Extractor SIN salida por tubería -> acumula hasta storage_cap y se detiene
+      v_cur_alloys := COALESCE((v_rec.stored_resources->>'alloys')::INT, 0);
+      v_cur_fuel := COALESCE((v_rec.stored_resources->>'fuel')::INT, 0);
+      v_cur_chips := COALESCE((v_rec.stored_resources->>'chips')::INT, 0);
+      v_cur_sum := v_cur_alloys + v_cur_fuel + v_cur_chips;
+      v_cap := GREATEST(1, COALESCE(v_rec.storage_cap, 250)::INT);
+      v_room := GREATEST(0, v_cap - v_cur_sum);
+
+      IF NOT v_rec.is_production_halted AND v_room > 0 THEN
+        SELECT * INTO v_spec FROM public.get_building_catalog_spec('extractor', v_rec.level);
+        v_elapsed := LEAST(16.0, GREATEST(0.0, EXTRACT(EPOCH FROM (v_now - v_rec.last_collected_at)) / 3600.0));
+        v_add_alloys := LEAST(v_room, FLOOR(COALESCE(v_spec.alloys_per_hour, 0) * v_elapsed)::INT);
+        v_room := GREATEST(0, v_room - v_add_alloys);
+        v_add_fuel := LEAST(v_room, FLOOR(COALESCE(v_spec.fuel_per_hour, 0) * v_elapsed)::INT);
+        v_room := GREATEST(0, v_room - v_add_fuel);
+        v_add_chips := LEAST(v_room, FLOOR(COALESCE(v_spec.chips_per_hour, 0) * v_elapsed)::INT);
+
+        v_cur_alloys := v_cur_alloys + v_add_alloys;
+        v_cur_fuel := v_cur_fuel + v_add_fuel;
+        v_cur_chips := v_cur_chips + v_add_chips;
+      END IF;
+
+      v_new_halted := (v_cur_alloys + v_cur_fuel + v_cur_chips) >= v_cap;
+      IF v_new_halted THEN
+        v_halted_count := v_halted_count + 1;
+      END IF;
+
+      UPDATE public.buildings
+      SET stored_resources = jsonb_build_object('alloys', v_cur_alloys, 'fuel', v_cur_fuel, 'chips', v_cur_chips),
+          is_production_halted = v_new_halted,
+          last_collected_at = v_now,
+          updated_at = v_now
+      WHERE id = v_rec.id;
+    END IF;
+  END LOOP;
+
+  IF (v_total_alloys + v_total_fuel + v_total_chips) > 0 THEN
+    UPDATE public.corporations
+    SET treasury_alloys = treasury_alloys + v_total_alloys,
+        treasury_fuel = treasury_fuel + v_total_fuel,
+        treasury_chips = treasury_chips + v_total_chips,
+        updated_at = v_now
+    WHERE id = p_corp_id;
+  END IF;
+
+  v_res := jsonb_build_object(
+    'alloys', v_total_alloys,
+    'fuel', v_total_fuel,
+    'chips', v_total_chips,
+    'halted_extractors', v_halted_count
+  );
+  IF p_idempotency_key IS NOT NULL THEN
+    INSERT INTO public.economy_rpc_idempotency (idempotency_key, user_id, rpc_name, response)
+    VALUES (p_idempotency_key, v_user_id, 'sync_pipeline_logistics', v_res);
+  END IF;
+  RETURN v_res;
+END;
+$$;
+
+-- ------------------------------------------------------------------------------
+-- 4. REFACTOR: execute_collector_haul
+--    - Orden canónico estricto de locks:
+--      corporations -> buildings (ORDER BY id ASC) -> operational_units (ORDER BY id ASC)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.execute_collector_haul(
+  p_unit_id UUID,
+  p_extractor_building_id UUID DEFAULT NULL,
+  p_depot_building_id UUID DEFAULT NULL,
+  p_idempotency_key UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_cached JSONB;
+  v_unit_meta RECORD;
+  v_ext_id UUID;
+  v_depot_id UUID;
+  v_b public.buildings%ROWTYPE;
+  v_unit public.operational_units%ROWTYPE;
+  v_ext public.buildings%ROWTYPE;
+  v_depot public.buildings%ROWTYPE;
+  v_spec RECORD;
+  v_elapsed NUMERIC;
+  v_cur_alloys INT;
+  v_cur_fuel INT;
+  v_cur_chips INT;
+  v_cap INT;
+  v_room INT;
+  v_add_alloys INT;
+  v_add_fuel INT;
+  v_add_chips INT;
+  v_haul_cap INT;
+  v_take_alloys INT;
+  v_take_fuel INT;
+  v_take_chips INT;
+  v_rem_alloys INT;
+  v_rem_fuel INT;
+  v_rem_chips INT;
+  v_halted_after BOOLEAN;
+  v_now TIMESTAMPTZ := timezone('utc'::text, now());
+  v_res JSONB;
+BEGIN
+  IF v_user_id IS NULL THEN RAISE EXCEPTION 'AUTH_REQUIRED'; END IF;
+
+  IF p_idempotency_key IS NOT NULL THEN
+    SELECT response INTO v_cached
+    FROM public.economy_rpc_idempotency
+    WHERE idempotency_key = p_idempotency_key;
+    IF FOUND THEN RETURN v_cached; END IF;
+  END IF;
+
+  -- Lectura sin lock para resolver corp_id y edificios candidatos antes de adquirir locks
+  SELECT corp_id, status, unit_role, source_building_id, depot_building_id
+  INTO v_unit_meta
+  FROM public.operational_units
+  WHERE id = p_unit_id;
+
+  IF NOT FOUND OR v_unit_meta.status <> 'active' THEN
+    RAISE EXCEPTION 'OPERATIONAL_UNIT_NOT_FOUND';
+  END IF;
+  IF v_unit_meta.unit_role <> 'collector' THEN
+    RAISE EXCEPTION 'INVALID_UNIT_ROLE: Solo unidades con rol collector pueden acarrear logística.';
+  END IF;
+
+  PERFORM public.assert_corp_permission(v_user_id, v_unit_meta.corp_id, 'can_collect');
+
+  v_ext_id := COALESCE(p_extractor_building_id, v_unit_meta.source_building_id);
+  IF v_ext_id IS NULL THEN
+    SELECT id INTO v_ext_id
+    FROM public.buildings
+    WHERE corp_id = v_unit_meta.corp_id
+      AND building_type = 'extractor'
+      AND infra_state <> 'RUINED'
+      AND NOT is_disabled
+    ORDER BY is_production_halted DESC, last_collected_at ASC, id ASC
+    LIMIT 1;
+  END IF;
+  IF v_ext_id IS NULL THEN
+    RAISE EXCEPTION 'INVALID_EXTRACTOR_BUILDING';
+  END IF;
+
+  v_depot_id := COALESCE(p_depot_building_id, v_unit_meta.depot_building_id);
+  IF v_depot_id IS NULL THEN
+    SELECT id INTO v_depot_id
+    FROM public.buildings
+    WHERE corp_id = v_unit_meta.corp_id
+      AND building_type IN ('depot', 'hq')
+      AND infra_state = 'OPERATIONAL'
+      AND NOT is_disabled
+    ORDER BY CASE WHEN building_type = 'depot' THEN 0 ELSE 1 END, created_at ASC, id ASC
+    LIMIT 1;
+  END IF;
+  IF v_depot_id IS NULL THEN
+    RAISE EXCEPTION 'INVALID_DEPOT_BUILDING';
+  END IF;
+
+  -- Orden canónico de locks #1: corporations
+  PERFORM 1 FROM public.corporations WHERE id = v_unit_meta.corp_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'CORP_NOT_FOUND'; END IF;
+
+  -- Orden canónico de locks #2: buildings ORDER BY id ASC
+  FOR v_b IN
+    SELECT *
+    FROM public.buildings
+    WHERE id IN (v_ext_id, v_depot_id)
+    ORDER BY id ASC
+    FOR UPDATE
+  LOOP
+    IF v_b.id = v_ext_id THEN v_ext := v_b; END IF;
+    IF v_b.id = v_depot_id THEN v_depot := v_b; END IF;
+  END LOOP;
+
+  IF v_ext.id IS NULL OR v_ext.corp_id <> v_unit_meta.corp_id OR v_ext.building_type <> 'extractor' THEN
+    RAISE EXCEPTION 'INVALID_EXTRACTOR_BUILDING';
+  END IF;
+  IF v_ext.infra_state = 'RUINED' OR v_ext.is_disabled THEN
+    RAISE EXCEPTION 'EXTRACTOR_RUINED';
+  END IF;
+
+  IF v_depot.id IS NULL OR v_depot.corp_id <> v_unit_meta.corp_id OR v_depot.building_type NOT IN ('depot', 'hq') THEN
+    RAISE EXCEPTION 'INVALID_DEPOT_BUILDING';
+  END IF;
+  IF v_depot.infra_state = 'RUINED' OR v_depot.is_disabled THEN
+    RAISE EXCEPTION 'DEPOT_RUINED';
+  END IF;
+
+  -- Orden canónico de locks #3: operational_units ORDER BY id ASC
+  SELECT * INTO v_unit
+  FROM public.operational_units
+  WHERE id = p_unit_id
+  ORDER BY id ASC
+  FOR UPDATE;
+
+  IF NOT FOUND OR v_unit.status <> 'active' OR v_unit.corp_id <> v_unit_meta.corp_id THEN
+    RAISE EXCEPTION 'OPERATIONAL_UNIT_NOT_FOUND';
+  END IF;
+  IF v_unit.unit_role <> 'collector' THEN
+    RAISE EXCEPTION 'INVALID_UNIT_ROLE: Solo unidades con rol collector pueden acarrear logística.';
+  END IF;
+
+  v_cur_alloys := COALESCE((v_ext.stored_resources->>'alloys')::INT, 0);
+  v_cur_fuel := COALESCE((v_ext.stored_resources->>'fuel')::INT, 0);
+  v_cur_chips := COALESCE((v_ext.stored_resources->>'chips')::INT, 0);
+  v_cap := GREATEST(1, COALESCE(v_ext.storage_cap, 250)::INT);
+  v_room := GREATEST(0, v_cap - (v_cur_alloys + v_cur_fuel + v_cur_chips));
+
+  IF NOT v_ext.is_production_halted AND v_room > 0 THEN
+    SELECT * INTO v_spec FROM public.get_building_catalog_spec('extractor', v_ext.level);
+    v_elapsed := LEAST(16.0, GREATEST(0.0, EXTRACT(EPOCH FROM (v_now - v_ext.last_collected_at)) / 3600.0));
+    v_add_alloys := LEAST(v_room, FLOOR(COALESCE(v_spec.alloys_per_hour, 0) * v_elapsed)::INT);
+    v_room := GREATEST(0, v_room - v_add_alloys);
+    v_add_fuel := LEAST(v_room, FLOOR(COALESCE(v_spec.fuel_per_hour, 0) * v_elapsed)::INT);
+    v_room := GREATEST(0, v_room - v_add_fuel);
+    v_add_chips := LEAST(v_room, FLOOR(COALESCE(v_spec.chips_per_hour, 0) * v_elapsed)::INT);
+
+    v_cur_alloys := v_cur_alloys + v_add_alloys;
+    v_cur_fuel := v_cur_fuel + v_add_fuel;
+    v_cur_chips := v_cur_chips + v_add_chips;
+  END IF;
+
+  v_haul_cap := GREATEST(50, COALESCE(NULLIF(v_unit.cargo_cap, 0), 150)::INT);
+  v_take_alloys := LEAST(v_cur_alloys, v_haul_cap);
+  v_haul_cap := GREATEST(0, v_haul_cap - v_take_alloys);
+  v_take_fuel := LEAST(v_cur_fuel, v_haul_cap);
+  v_haul_cap := GREATEST(0, v_haul_cap - v_take_fuel);
+  v_take_chips := LEAST(v_cur_chips, v_haul_cap);
+
+  v_rem_alloys := GREATEST(0, v_cur_alloys - v_take_alloys);
+  v_rem_fuel := GREATEST(0, v_cur_fuel - v_take_fuel);
+  v_rem_chips := GREATEST(0, v_cur_chips - v_take_chips);
+  v_halted_after := (v_rem_alloys + v_rem_fuel + v_rem_chips) >= v_cap;
+
+  UPDATE public.buildings
+  SET stored_resources = jsonb_build_object('alloys', v_rem_alloys, 'fuel', v_rem_fuel, 'chips', v_rem_chips),
+      is_production_halted = v_halted_after,
+      last_collected_at = v_now,
+      updated_at = v_now
+  WHERE id = v_ext.id;
+
+  IF (v_take_alloys + v_take_fuel + v_take_chips) > 0 THEN
+    UPDATE public.corporations
+    SET treasury_alloys = treasury_alloys + v_take_alloys,
+        treasury_fuel = treasury_fuel + v_take_fuel,
+        treasury_chips = treasury_chips + v_take_chips,
+        updated_at = v_now
+    WHERE id = v_unit.corp_id;
+  END IF;
+
+  UPDATE public.operational_units
+  SET h3_index = v_depot.h3_index,
+      source_building_id = v_ext.id,
+      depot_building_id = v_depot.id,
+      cargo = '{"alloys":0,"fuel":0,"chips":0}'::jsonb,
+      next_haul_at = v_now + interval '15 seconds',
+      updated_at = v_now
+  WHERE id = v_unit.id;
+
+  INSERT INTO public.unit_action_logs (unit_id, corp_id, action_type, summary, h3_index, metadata)
+  VALUES (
+    v_unit.id,
+    v_unit.corp_id,
+    'collected',
+    'Acarreo logístico completado: +' || v_take_alloys || ' Alloys, +' || v_take_fuel || ' Fuel, +' || v_take_chips || ' Chips',
+    v_depot.h3_index,
+    jsonb_build_object(
+      'extractor_id', v_ext.id,
+      'depot_id', v_depot.id,
+      'hauled', jsonb_build_object('alloys', v_take_alloys, 'fuel', v_take_fuel, 'chips', v_take_chips),
+      'extractor_halted_after', v_halted_after
+    )
+  );
+
+  v_res := jsonb_build_object(
+    'unit_id', v_unit.id,
+    'extractor_id', v_ext.id,
+    'depot_id', v_depot.id,
+    'hauled', jsonb_build_object('alloys', v_take_alloys, 'fuel', v_take_fuel, 'chips', v_take_chips),
+    'extractor_halted_after', v_halted_after
+  );
+  IF p_idempotency_key IS NOT NULL THEN
+    INSERT INTO public.economy_rpc_idempotency (idempotency_key, user_id, rpc_name, response)
+    VALUES (p_idempotency_key, v_user_id, 'execute_collector_haul', v_res);
+  END IF;
+  RETURN v_res;
+END;
+$$;
+
+-- ------------------------------------------------------------------------------
+-- 5. PERMISOS SEGUROS
+-- ------------------------------------------------------------------------------
+REVOKE ALL ON FUNCTION public.sync_pipeline_logistics(UUID, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.sync_pipeline_logistics(UUID, UUID) TO authenticated;
+
+REVOKE ALL ON FUNCTION public.execute_collector_haul(UUID, UUID, UUID, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.execute_collector_haul(UUID, UUID, UUID, UUID) TO authenticated;
+
+-- >>> FIN MIGRACIÓN: 20261118000012_logistics_graph_materialized_bfs_and_collectors.sql <<<
+
+
+-- >>> INICIO MIGRACIÓN: 20261118000013_p2p_market_paginated_rpcs_and_escrow.sql <<<
+-- ==============================================================================
+-- MIGRACIÓN: 20261118000013_p2p_market_paginated_rpcs_and_escrow.sql
+-- CONTRATO SQL/RPC v3 (10,000+ CCU) — MERCADO P2P ESCALABLE & ESCROW ATÓMICO
+-- ==============================================================================
+-- 1. Índices parciales (WHERE status = 'active') para libro de órdenes y keyset.
+-- 2. RPC get_p2p_market_orders_page (keyset pagination O(log N) sin OFFSET).
+-- 3. RPC publish_p2p_market_order (escrow atómico de inventario/hangar + idempotencia).
+-- 4. RPC cancel_p2p_market_order (reembolso atómico de escrow + idempotencia).
+-- 5. Refactor execute_p2p_market_transaction con Orden Canónico Global de Locks:
+--    clans -> user_unit_hangar (ORDER BY id ASC) -> profiles (ORDER BY id ASC)
+--    -> user_industrial_inventory (ORDER BY user_id ASC) -> p2p_market_orders (ORDER BY id ASC).
+-- ==============================================================================
+
+-- ------------------------------------------------------------------------------
+-- 1. ÍNDICES PARCIALES DE ALTO RENDIMIENTO EN p2p_market_orders
+-- ------------------------------------------------------------------------------
+CREATE INDEX IF NOT EXISTS idx_p2p_orders_active_book
+    ON public.p2p_market_orders (item_category, item_code, unit_price_ec, created_at, id)
+    WHERE status = 'active';
+
+CREATE INDEX IF NOT EXISTS idx_p2p_orders_active_keyset
+    ON public.p2p_market_orders (created_at DESC, id DESC)
+    WHERE status = 'active';
+
+CREATE INDEX IF NOT EXISTS idx_p2p_orders_seller_status_created
+    ON public.p2p_market_orders (seller_id, status, created_at DESC, id DESC);
+
+-- ------------------------------------------------------------------------------
+-- 2. RPC: get_p2p_market_orders_page (Paginación Keyset Retrocompatible)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_p2p_market_orders_page(
+    p_item_category TEXT DEFAULT NULL,
+    p_item_code TEXT DEFAULT NULL,
+    p_seller_id UUID DEFAULT NULL,
+    p_status TEXT DEFAULT 'active',
+    p_cursor_created_at TIMESTAMPTZ DEFAULT NULL,
+    p_cursor_id UUID DEFAULT NULL,
+    p_limit INT DEFAULT 50
+)
+RETURNS TABLE (
+    id UUID,
+    seller_id UUID,
+    buyer_id UUID,
+    origin_province_id VARCHAR(32),
+    province_terminal_id VARCHAR(32),
+    item_category VARCHAR(32),
+    item_code VARCHAR(64),
+    tier INTEGER,
+    quantity INTEGER,
+    unit_price_ec INTEGER,
+    total_price_ec INTEGER,
+    platform_burn_ec INTEGER,
+    province_royalty_ec INTEGER,
+    net_seller_revenue_ec INTEGER,
+    status VARCHAR(16),
+    created_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    total_active_count BIGINT
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_status TEXT := COALESCE(NULLIF(trim(p_status), ''), 'active');
+    v_limit INT := LEAST(GREATEST(COALESCE(p_limit, 50), 1), 200);
+    v_total_count BIGINT := 0;
+BEGIN
+    SELECT COUNT(*)::BIGINT
+    INTO v_total_count
+    FROM public.p2p_market_orders o
+    WHERE o.status = v_status
+      AND (p_item_category IS NULL OR o.item_category = p_item_category)
+      AND (p_item_code IS NULL OR o.item_code = p_item_code)
+      AND (p_seller_id IS NULL OR o.seller_id = p_seller_id);
+
+    RETURN QUERY
+    SELECT
+        o.id,
+        o.seller_id,
+        o.buyer_id,
+        o.origin_province_id,
+        o.province_terminal_id,
+        o.item_category,
+        o.item_code,
+        o.tier,
+        o.quantity,
+        o.unit_price_ec,
+        o.total_price_ec,
+        o.platform_burn_ec,
+        o.province_royalty_ec,
+        o.net_seller_revenue_ec,
+        o.status,
+        o.created_at,
+        o.completed_at,
+        v_total_count AS total_active_count
+    FROM public.p2p_market_orders o
+    WHERE o.status = v_status
+      AND (p_item_category IS NULL OR o.item_category = p_item_category)
+      AND (p_item_code IS NULL OR o.item_code = p_item_code)
+      AND (p_seller_id IS NULL OR o.seller_id = p_seller_id)
+      AND (
+          p_cursor_created_at IS NULL
+          OR (p_cursor_id IS NOT NULL AND (o.created_at, o.id) < (p_cursor_created_at, p_cursor_id))
+          OR (p_cursor_id IS NULL AND o.created_at < p_cursor_created_at)
+      )
+    ORDER BY o.created_at DESC, o.id DESC
+    LIMIT v_limit;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_p2p_market_orders_page(TEXT, TEXT, UUID, TEXT, TIMESTAMPTZ, UUID, INT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_p2p_market_orders_page(TEXT, TEXT, UUID, TEXT, TIMESTAMPTZ, UUID, INT) TO authenticated, anon;
+
+-- ------------------------------------------------------------------------------
+-- 3. RPC: publish_p2p_market_order (Escrow Atómico + Idempotencia)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.publish_p2p_market_order(
+    p_item_category TEXT,
+    p_item_code TEXT,
+    p_tier INT,
+    p_quantity INT,
+    p_unit_price_ec INT,
+    p_origin_province_id VARCHAR(32) DEFAULT 'ES_MADRID',
+    p_province_terminal_id VARCHAR(32) DEFAULT 'ES_MADRID',
+    p_idempotency_key UUID DEFAULT NULL
+)
+RETURNS public.p2p_market_orders
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_seller_id UUID := (SELECT auth.uid());
+    v_cached JSONB;
+    v_item_code TEXT;
+    v_total_price_bigint BIGINT;
+    v_total_price_ec INTEGER;
+    v_tax_total INTEGER;
+    v_burn_ec INTEGER;
+    v_royalty_ec INTEGER;
+    v_net_seller_revenue_ec INTEGER;
+    v_now TIMESTAMPTZ := timezone('utc'::text, now());
+    v_hangar_row public.user_unit_hangar%ROWTYPE;
+    v_inv public.user_industrial_inventory%ROWTYPE;
+    v_profile public.profiles%ROWTYPE;
+    v_current_stock INTEGER := 0;
+    v_order public.p2p_market_orders%ROWTYPE;
+BEGIN
+    IF v_seller_id IS NULL THEN
+        RAISE EXCEPTION 'UNAUTHENTICATED: Sesión militar requerida para publicar orden P2P';
+    END IF;
+
+    IF p_idempotency_key IS NOT NULL THEN
+        SELECT response INTO v_cached
+        FROM public.economy_rpc_idempotency
+        WHERE idempotency_key = p_idempotency_key
+          AND user_id = v_seller_id
+          AND rpc_name = 'publish_p2p_market_order';
+
+        IF FOUND THEN
+            v_order := jsonb_populate_record(NULL::public.p2p_market_orders, v_cached);
+            RETURN v_order;
+        END IF;
+    END IF;
+
+    IF p_item_category NOT IN (
+        'raw_resource', 'refined_material', 'patent_blueprint', 'buff_consumable', 'unit_chassis', 'cosmetic'
+    ) THEN
+        RAISE EXCEPTION 'INVALID_ITEM_CATEGORY: Categoría P2P no válida (%)', p_item_category;
+    END IF;
+
+    IF p_item_code IS NULL OR length(trim(p_item_code)) = 0 THEN
+        RAISE EXCEPTION 'INVALID_ITEM_CODE: Código de ítem requerido';
+    END IF;
+
+    IF p_tier IS NULL OR p_tier < 1 OR p_tier > 5 THEN
+        RAISE EXCEPTION 'INVALID_TIER: Tier debe estar entre 1 y 5';
+    END IF;
+
+    IF p_quantity IS NULL OR p_quantity <= 0 THEN
+        RAISE EXCEPTION 'INVALID_QUANTITY: La cantidad debe ser mayor a cero';
+    END IF;
+
+    IF p_unit_price_ec IS NULL OR p_unit_price_ec <= 0 THEN
+        RAISE EXCEPTION 'INVALID_PRICE: El precio unitario debe ser mayor a cero';
+    END IF;
+
+    v_total_price_bigint := p_quantity::BIGINT * p_unit_price_ec::BIGINT;
+    IF v_total_price_bigint <= 0 OR v_total_price_bigint > 2147483647 THEN
+        RAISE EXCEPTION 'PRICE_OVERFLOW: Precio total fuera de rango permitido';
+    END IF;
+
+    v_total_price_ec := v_total_price_bigint::INTEGER;
+    v_tax_total := FLOOR(v_total_price_ec * 0.02);
+    v_burn_ec := FLOOR(v_total_price_ec * 0.01);
+    v_royalty_ec := v_tax_total - v_burn_ec;
+    v_net_seller_revenue_ec := v_total_price_ec - v_tax_total;
+
+    v_item_code := CASE
+        WHEN p_item_category = 'unit_chassis' THEN lower(trim(p_item_code))
+        ELSE trim(p_item_code)
+    END;
+
+    -- Bloqueos y débito de escrow en Orden Canónico Global:
+    -- user_unit_hangar (ORDER BY id ASC) -> profiles (ORDER BY id ASC) -> user_industrial_inventory (ORDER BY user_id ASC)
+    IF p_item_category = 'unit_chassis' THEN
+        SELECT * INTO v_hangar_row
+        FROM public.user_unit_hangar
+        WHERE user_id = v_seller_id
+          AND lower(unit_code) = v_item_code
+          AND tier = p_tier
+        ORDER BY id ASC
+        FOR UPDATE;
+
+        IF NOT FOUND OR v_hangar_row.quantity < p_quantity THEN
+            RAISE EXCEPTION 'INSUFFICIENT_HANGAR_STOCK: Chasis insuficientes en hangar para escrow';
+        END IF;
+
+        IF v_hangar_row.quantity = p_quantity THEN
+            DELETE FROM public.user_unit_hangar WHERE id = v_hangar_row.id;
+        ELSE
+            UPDATE public.user_unit_hangar
+            SET quantity = quantity - p_quantity,
+                updated_at = v_now
+            WHERE id = v_hangar_row.id;
+        END IF;
+
+    ELSIF p_item_category IN ('raw_resource', 'refined_material') THEN
+        IF v_item_code NOT IN (
+            'raw_iron', 'raw_stone', 'raw_rare_earth',
+            'refined_steel', 'refined_concrete', 'refined_microchip',
+            'campaign_fuel', 'fuel', 'tech_scrap'
+        ) THEN
+            SELECT * INTO v_profile
+            FROM public.profiles
+            WHERE id = v_seller_id
+            ORDER BY id ASC
+            FOR UPDATE;
+
+            v_current_stock := COALESCE((v_profile.metadata ->> v_item_code)::INTEGER, 0);
+            IF v_current_stock < p_quantity THEN
+                RAISE EXCEPTION 'INSUFFICIENT_INVENTORY: Stock insuficiente de % para escrow', v_item_code;
+            END IF;
+
+            PERFORM set_config('app.bypass_profile_guard', 'on', true);
+            UPDATE public.profiles
+            SET metadata = jsonb_set(
+                    COALESCE(metadata, '{}'::jsonb),
+                    ARRAY[v_item_code],
+                    ((v_current_stock - p_quantity)::TEXT)::jsonb
+                ),
+                updated_at = v_now
+            WHERE id = v_seller_id;
+        ELSE
+            SELECT * INTO v_inv
+            FROM public.user_industrial_inventory
+            WHERE user_id = v_seller_id
+            ORDER BY user_id ASC
+            FOR UPDATE;
+
+            IF NOT FOUND THEN
+                RAISE EXCEPTION 'INVENTORY_NOT_FOUND: Inventario industrial no inicializado';
+            END IF;
+
+            CASE v_item_code
+                WHEN 'raw_iron' THEN v_current_stock := v_inv.raw_iron;
+                WHEN 'raw_stone' THEN v_current_stock := v_inv.raw_stone;
+                WHEN 'raw_rare_earth' THEN v_current_stock := v_inv.raw_rare_earth;
+                WHEN 'refined_steel' THEN v_current_stock := v_inv.refined_steel;
+                WHEN 'refined_concrete' THEN v_current_stock := v_inv.refined_concrete;
+                WHEN 'refined_microchip' THEN v_current_stock := v_inv.refined_microchip;
+                WHEN 'campaign_fuel' THEN v_current_stock := v_inv.campaign_fuel;
+                WHEN 'fuel' THEN v_current_stock := v_inv.campaign_fuel;
+                WHEN 'tech_scrap' THEN v_current_stock := v_inv.tech_scrap;
+            END CASE;
+
+            IF v_current_stock < p_quantity THEN
+                RAISE EXCEPTION 'INSUFFICIENT_INVENTORY: Stock insuficiente de % para escrow', v_item_code;
+            END IF;
+
+            CASE v_item_code
+                WHEN 'raw_iron' THEN
+                    UPDATE public.user_industrial_inventory SET raw_iron = raw_iron - p_quantity, updated_at = v_now WHERE user_id = v_seller_id;
+                WHEN 'raw_stone' THEN
+                    UPDATE public.user_industrial_inventory SET raw_stone = raw_stone - p_quantity, updated_at = v_now WHERE user_id = v_seller_id;
+                WHEN 'raw_rare_earth' THEN
+                    UPDATE public.user_industrial_inventory SET raw_rare_earth = raw_rare_earth - p_quantity, updated_at = v_now WHERE user_id = v_seller_id;
+                WHEN 'refined_steel' THEN
+                    UPDATE public.user_industrial_inventory SET refined_steel = refined_steel - p_quantity, updated_at = v_now WHERE user_id = v_seller_id;
+                WHEN 'refined_concrete' THEN
+                    UPDATE public.user_industrial_inventory SET refined_concrete = refined_concrete - p_quantity, updated_at = v_now WHERE user_id = v_seller_id;
+                WHEN 'refined_microchip' THEN
+                    UPDATE public.user_industrial_inventory SET refined_microchip = refined_microchip - p_quantity, updated_at = v_now WHERE user_id = v_seller_id;
+                WHEN 'campaign_fuel' THEN
+                    UPDATE public.user_industrial_inventory SET campaign_fuel = campaign_fuel - p_quantity, updated_at = v_now WHERE user_id = v_seller_id;
+                WHEN 'fuel' THEN
+                    UPDATE public.user_industrial_inventory SET campaign_fuel = campaign_fuel - p_quantity, updated_at = v_now WHERE user_id = v_seller_id;
+                WHEN 'tech_scrap' THEN
+                    UPDATE public.user_industrial_inventory SET tech_scrap = tech_scrap - p_quantity, updated_at = v_now WHERE user_id = v_seller_id;
+            END CASE;
+        END IF;
+
+    ELSE
+        -- patent_blueprint, buff_consumable, cosmetic
+        SELECT * INTO v_profile
+        FROM public.profiles
+        WHERE id = v_seller_id
+        ORDER BY id ASC
+        FOR UPDATE;
+
+        v_current_stock := COALESCE((v_profile.metadata ->> v_item_code)::INTEGER, 0);
+        IF v_current_stock < p_quantity THEN
+            RAISE EXCEPTION 'INSUFFICIENT_INVENTORY: Stock insuficiente de % para escrow', v_item_code;
+        END IF;
+
+        PERFORM set_config('app.bypass_profile_guard', 'on', true);
+        UPDATE public.profiles
+        SET metadata = jsonb_set(
+                COALESCE(metadata, '{}'::jsonb),
+                ARRAY[v_item_code],
+                ((v_current_stock - p_quantity)::TEXT)::jsonb
+            ),
+            updated_at = v_now
+        WHERE id = v_seller_id;
+    END IF;
+
+    INSERT INTO public.p2p_market_orders (
+        seller_id,
+        origin_province_id,
+        province_terminal_id,
+        item_category,
+        item_code,
+        tier,
+        quantity,
+        unit_price_ec,
+        total_price_ec,
+        platform_burn_ec,
+        province_royalty_ec,
+        net_seller_revenue_ec,
+        status,
+        created_at
+    ) VALUES (
+        v_seller_id,
+        COALESCE(p_origin_province_id, 'ES_MADRID'),
+        COALESCE(p_province_terminal_id, 'ES_MADRID'),
+        p_item_category,
+        v_item_code,
+        p_tier,
+        p_quantity,
+        p_unit_price_ec,
+        v_total_price_ec,
+        v_burn_ec,
+        v_royalty_ec,
+        v_net_seller_revenue_ec,
+        'active',
+        v_now
+    )
+    RETURNING * INTO v_order;
+
+    IF p_idempotency_key IS NOT NULL THEN
+        INSERT INTO public.economy_rpc_idempotency (idempotency_key, user_id, rpc_name, response)
+        VALUES (p_idempotency_key, v_seller_id, 'publish_p2p_market_order', to_jsonb(v_order))
+        ON CONFLICT (idempotency_key) DO NOTHING;
+    END IF;
+
+    RETURN v_order;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.publish_p2p_market_order(TEXT, TEXT, INT, INT, INT, VARCHAR, VARCHAR, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.publish_p2p_market_order(TEXT, TEXT, INT, INT, INT, VARCHAR, VARCHAR, UUID) TO authenticated;
+
+-- ------------------------------------------------------------------------------
+-- 4. RPC: cancel_p2p_market_order (Reembolso Atómico de Escrow + Idempotencia)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.cancel_p2p_market_order(
+    p_order_id UUID,
+    p_idempotency_key UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_user_id UUID := (SELECT auth.uid());
+    v_cached JSONB;
+    v_preview public.p2p_market_orders%ROWTYPE;
+    v_order public.p2p_market_orders%ROWTYPE;
+    v_now TIMESTAMPTZ := timezone('utc'::text, now());
+    v_res JSONB;
+BEGIN
+    IF v_user_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'No autenticado');
+    END IF;
+
+    IF p_idempotency_key IS NOT NULL THEN
+        SELECT response INTO v_cached
+        FROM public.economy_rpc_idempotency
+        WHERE idempotency_key = p_idempotency_key
+          AND user_id = v_user_id
+          AND rpc_name = 'cancel_p2p_market_order';
+
+        IF FOUND THEN
+            RETURN v_cached;
+        END IF;
+    END IF;
+
+    -- Lectura sin lock para descubrir entidades y respetar el Orden Canónico Global
+    SELECT * INTO v_preview
+    FROM public.p2p_market_orders
+    WHERE id = p_order_id;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Orden no encontrada');
+    END IF;
+
+    IF v_preview.seller_id <> v_user_id THEN
+        RETURN jsonb_build_object('success', false, 'error', 'No autorizado para cancelar esta orden');
+    END IF;
+
+    IF v_preview.status <> 'active' THEN
+        RETURN jsonb_build_object('success', false, 'error', 'La orden ya no está activa');
+    END IF;
+
+    -- Orden Canónico Global de Locks:
+    -- user_unit_hangar (ORDER BY id ASC) -> profiles (ORDER BY id ASC) -> user_industrial_inventory (ORDER BY user_id ASC) -> p2p_market_orders (ORDER BY id ASC)
+    IF v_preview.item_category = 'unit_chassis' THEN
+        PERFORM 1
+        FROM public.user_unit_hangar
+        WHERE user_id = v_preview.seller_id
+          AND lower(unit_code) = lower(v_preview.item_code)
+          AND tier = v_preview.tier
+        ORDER BY id ASC
+        FOR UPDATE;
+    ELSIF v_preview.item_category IN ('raw_resource', 'refined_material') THEN
+        IF v_preview.item_code NOT IN (
+            'raw_iron', 'raw_stone', 'raw_rare_earth',
+            'refined_steel', 'refined_concrete', 'refined_microchip',
+            'campaign_fuel', 'fuel', 'tech_scrap'
+        ) THEN
+            PERFORM 1
+            FROM public.profiles
+            WHERE id = v_preview.seller_id
+            ORDER BY id ASC
+            FOR UPDATE;
+        ELSE
+            INSERT INTO public.user_industrial_inventory (user_id)
+            VALUES (v_preview.seller_id)
+            ON CONFLICT (user_id) DO NOTHING;
+
+            PERFORM 1
+            FROM public.user_industrial_inventory
+            WHERE user_id = v_preview.seller_id
+            ORDER BY user_id ASC
+            FOR UPDATE;
+        END IF;
+    ELSE
+        PERFORM 1
+        FROM public.profiles
+        WHERE id = v_preview.seller_id
+        ORDER BY id ASC
+        FOR UPDATE;
+    END IF;
+
+    SELECT * INTO v_order
+    FROM public.p2p_market_orders
+    WHERE id = p_order_id
+      AND status = 'active'
+    ORDER BY id ASC
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Orden no disponible o ya finalizada');
+    END IF;
+
+    IF v_order.seller_id <> v_user_id THEN
+        RETURN jsonb_build_object('success', false, 'error', 'No autorizado para cancelar esta orden');
+    END IF;
+
+    -- Reembolso atómico del activo en escrow al vendedor
+    IF v_order.item_category = 'unit_chassis' THEN
+        INSERT INTO public.user_unit_hangar (
+            user_id, unit_code, tier, level, hp, quantity, location_province_id, created_at, updated_at
+        ) VALUES (
+            v_order.seller_id, lower(v_order.item_code), v_order.tier, 1, 100, v_order.quantity, v_order.origin_province_id, v_now, v_now
+        )
+        ON CONFLICT (user_id, unit_code, tier) DO UPDATE
+        SET quantity = public.user_unit_hangar.quantity + EXCLUDED.quantity,
+            updated_at = v_now;
+
+    ELSIF v_order.item_category IN ('raw_resource', 'refined_material') THEN
+        CASE v_order.item_code
+            WHEN 'raw_iron' THEN
+                UPDATE public.user_industrial_inventory SET raw_iron = raw_iron + v_order.quantity, updated_at = v_now WHERE user_id = v_order.seller_id;
+            WHEN 'raw_stone' THEN
+                UPDATE public.user_industrial_inventory SET raw_stone = raw_stone + v_order.quantity, updated_at = v_now WHERE user_id = v_order.seller_id;
+            WHEN 'raw_rare_earth' THEN
+                UPDATE public.user_industrial_inventory SET raw_rare_earth = raw_rare_earth + v_order.quantity, updated_at = v_now WHERE user_id = v_order.seller_id;
+            WHEN 'refined_steel' THEN
+                UPDATE public.user_industrial_inventory SET refined_steel = refined_steel + v_order.quantity, updated_at = v_now WHERE user_id = v_order.seller_id;
+            WHEN 'refined_concrete' THEN
+                UPDATE public.user_industrial_inventory SET refined_concrete = refined_concrete + v_order.quantity, updated_at = v_now WHERE user_id = v_order.seller_id;
+            WHEN 'refined_microchip' THEN
+                UPDATE public.user_industrial_inventory SET refined_microchip = refined_microchip + v_order.quantity, updated_at = v_now WHERE user_id = v_order.seller_id;
+            WHEN 'campaign_fuel' THEN
+                UPDATE public.user_industrial_inventory SET campaign_fuel = campaign_fuel + v_order.quantity, updated_at = v_now WHERE user_id = v_order.seller_id;
+            WHEN 'fuel' THEN
+                UPDATE public.user_industrial_inventory SET campaign_fuel = campaign_fuel + v_order.quantity, updated_at = v_now WHERE user_id = v_order.seller_id;
+            WHEN 'tech_scrap' THEN
+                UPDATE public.user_industrial_inventory SET tech_scrap = tech_scrap + v_order.quantity, updated_at = v_now WHERE user_id = v_order.seller_id;
+            ELSE
+                PERFORM set_config('app.bypass_profile_guard', 'on', true);
+                UPDATE public.profiles
+                SET metadata = jsonb_set(
+                        COALESCE(metadata, '{}'::jsonb),
+                        ARRAY[v_order.item_code],
+                        ((COALESCE((metadata ->> v_order.item_code)::INTEGER, 0) + v_order.quantity)::TEXT)::jsonb
+                    ),
+                    updated_at = v_now
+                WHERE id = v_order.seller_id;
+        END CASE;
+    ELSE
+        PERFORM set_config('app.bypass_profile_guard', 'on', true);
+        UPDATE public.profiles
+        SET metadata = jsonb_set(
+                COALESCE(metadata, '{}'::jsonb),
+                ARRAY[v_order.item_code],
+                ((COALESCE((metadata ->> v_order.item_code)::INTEGER, 0) + v_order.quantity)::TEXT)::jsonb
+            ),
+            updated_at = v_now
+        WHERE id = v_order.seller_id;
+    END IF;
+
+    UPDATE public.p2p_market_orders
+    SET status = 'cancelled'
+    WHERE id = p_order_id;
+
+    v_res := jsonb_build_object(
+        'success', true,
+        'order_id', p_order_id,
+        'status', 'cancelled',
+        'item_category', v_order.item_category,
+        'item_code', v_order.item_code,
+        'refunded_quantity', v_order.quantity
+    );
+
+    IF p_idempotency_key IS NOT NULL THEN
+        INSERT INTO public.economy_rpc_idempotency (idempotency_key, user_id, rpc_name, response)
+        VALUES (p_idempotency_key, v_user_id, 'cancel_p2p_market_order', v_res)
+        ON CONFLICT (idempotency_key) DO NOTHING;
+    END IF;
+
+    RETURN v_res;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.cancel_p2p_market_order(UUID, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.cancel_p2p_market_order(UUID, UUID) TO authenticated;
+
+-- ------------------------------------------------------------------------------
+-- 5. REFACTOR RPC: execute_p2p_market_transaction (Orden Canónico de Locks)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.execute_p2p_market_transaction(p_order_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_buyer_id UUID := (SELECT auth.uid());
+    v_preview public.p2p_market_orders%ROWTYPE;
+    v_order public.p2p_market_orders%ROWTYPE;
+    v_buyer_profile public.profiles%ROWTYPE;
+    v_seller_profile public.profiles%ROWTYPE;
+    v_territory public.territory_control%ROWTYPE;
+    v_controlling_clan_id UUID := NULL;
+    v_tax_total INTEGER;
+    v_burn_ec INTEGER;
+    v_royalty_ec INTEGER;
+    v_net_payout INTEGER;
+    v_now TIMESTAMPTZ := timezone('utc'::text, now());
+BEGIN
+    IF v_buyer_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'No autenticado');
+    END IF;
+
+    -- Lectura previa sin lock para descubrir entidades y respetar Orden Canónico Global
+    SELECT * INTO v_preview
+    FROM public.p2p_market_orders
+    WHERE id = p_order_id;
+
+    IF NOT FOUND OR v_preview.status <> 'active' THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Orden no disponible o ya finalizada');
+    END IF;
+
+    IF v_preview.seller_id = v_buyer_id THEN
+        RETURN jsonb_build_object('success', false, 'error', 'No puedes comprar tu propia orden');
+    END IF;
+
+    IF v_preview.province_terminal_id IS NOT NULL THEN
+        SELECT controlling_clan_id INTO v_controlling_clan_id
+        FROM public.territory_control
+        WHERE province_id = v_preview.province_terminal_id;
+    END IF;
+
+    -- Orden Canónico Global de Locks:
+    -- clans -> user_unit_hangar (ORDER BY id ASC) -> profiles (ORDER BY id ASC)
+    -- -> user_industrial_inventory (ORDER BY user_id ASC) -> p2p_market_orders (ORDER BY id ASC)
+    IF v_controlling_clan_id IS NOT NULL THEN
+        PERFORM 1
+        FROM public.clans
+        WHERE id = v_controlling_clan_id
+        FOR UPDATE;
+    END IF;
+
+    IF v_preview.item_category = 'unit_chassis' THEN
+        PERFORM 1
+        FROM public.user_unit_hangar
+        WHERE user_id = v_buyer_id
+          AND lower(unit_code) = lower(v_preview.item_code)
+          AND tier = v_preview.tier
+        ORDER BY id ASC
+        FOR UPDATE;
+    END IF;
+
+    IF v_buyer_id < v_preview.seller_id THEN
+        SELECT * INTO v_buyer_profile FROM public.profiles WHERE id = v_buyer_id FOR UPDATE;
+        SELECT * INTO v_seller_profile FROM public.profiles WHERE id = v_preview.seller_id FOR UPDATE;
+    ELSE
+        SELECT * INTO v_seller_profile FROM public.profiles WHERE id = v_preview.seller_id FOR UPDATE;
+        SELECT * INTO v_buyer_profile FROM public.profiles WHERE id = v_buyer_id FOR UPDATE;
+    END IF;
+
+    IF v_preview.item_category IN ('raw_resource', 'refined_material') THEN
+        INSERT INTO public.user_industrial_inventory (user_id)
+        VALUES (v_buyer_id)
+        ON CONFLICT (user_id) DO NOTHING;
+
+        PERFORM 1
+        FROM public.user_industrial_inventory
+        WHERE user_id = v_buyer_id
+        ORDER BY user_id ASC
+        FOR UPDATE;
+    END IF;
+
+    SELECT * INTO v_order
+    FROM public.p2p_market_orders
+    WHERE id = p_order_id
+      AND status = 'active'
+    ORDER BY id ASC
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Orden no disponible o ya finalizada');
+    END IF;
+
+    IF v_order.seller_id = v_buyer_id THEN
+        RETURN jsonb_build_object('success', false, 'error', 'No puedes comprar tu propia orden');
+    END IF;
+
+    IF v_buyer_profile.battle_credits < v_order.total_price_ec THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Créditos de batalla insuficientes');
+    END IF;
+
+    v_tax_total := FLOOR(v_order.total_price_ec * 0.02);
+    v_burn_ec := FLOOR(v_order.total_price_ec * 0.01);
+    v_royalty_ec := v_tax_total - v_burn_ec;
+    v_net_payout := v_order.total_price_ec - v_tax_total;
+
+    PERFORM set_config('app.bypass_profile_guard', 'on', true);
+
+    UPDATE public.profiles
+    SET battle_credits = battle_credits - v_order.total_price_ec,
+        wallet_balance = battle_credits - v_order.total_price_ec,
+        updated_at = v_now
+    WHERE id = v_buyer_id;
+
+    UPDATE public.profiles
+    SET battle_credits = battle_credits + v_net_payout,
+        wallet_balance = battle_credits + v_net_payout,
+        updated_at = v_now
+    WHERE id = v_order.seller_id;
+
+    IF v_order.province_terminal_id IS NOT NULL AND v_royalty_ec > 0 THEN
+        SELECT * INTO v_territory
+        FROM public.territory_control
+        WHERE province_id = v_order.province_terminal_id;
+
+        IF FOUND AND v_territory.controlling_clan_id IS NOT NULL THEN
+            UPDATE public.clans
+            SET treasury_gold = treasury_gold + v_royalty_ec
+            WHERE id = v_territory.controlling_clan_id;
+        END IF;
+    END IF;
+
+    -- Entrega del activo físico en escrow al comprador
+    IF v_order.item_category = 'unit_chassis' THEN
+        INSERT INTO public.user_unit_hangar (
+            user_id, unit_code, tier, level, hp, quantity, location_province_id, created_at, updated_at
+        ) VALUES (
+            v_buyer_id, lower(v_order.item_code), v_order.tier, 1, 100, v_order.quantity, v_order.province_terminal_id, v_now, v_now
+        )
+        ON CONFLICT (user_id, unit_code, tier) DO UPDATE
+        SET quantity = public.user_unit_hangar.quantity + EXCLUDED.quantity,
+            updated_at = v_now;
+    ELSIF v_order.item_category IN ('raw_resource', 'refined_material') THEN
+        CASE v_order.item_code
+            WHEN 'raw_iron' THEN
+                UPDATE public.user_industrial_inventory SET raw_iron = raw_iron + v_order.quantity, updated_at = v_now WHERE user_id = v_buyer_id;
+            WHEN 'raw_stone' THEN
+                UPDATE public.user_industrial_inventory SET raw_stone = raw_stone + v_order.quantity, updated_at = v_now WHERE user_id = v_buyer_id;
+            WHEN 'raw_rare_earth' THEN
+                UPDATE public.user_industrial_inventory SET raw_rare_earth = raw_rare_earth + v_order.quantity, updated_at = v_now WHERE user_id = v_buyer_id;
+            WHEN 'refined_steel' THEN
+                UPDATE public.user_industrial_inventory SET refined_steel = refined_steel + v_order.quantity, updated_at = v_now WHERE user_id = v_buyer_id;
+            WHEN 'refined_concrete' THEN
+                UPDATE public.user_industrial_inventory SET refined_concrete = refined_concrete + v_order.quantity, updated_at = v_now WHERE user_id = v_buyer_id;
+            WHEN 'refined_microchip' THEN
+                UPDATE public.user_industrial_inventory SET refined_microchip = refined_microchip + v_order.quantity, updated_at = v_now WHERE user_id = v_buyer_id;
+            WHEN 'campaign_fuel' THEN
+                UPDATE public.user_industrial_inventory SET campaign_fuel = campaign_fuel + v_order.quantity, updated_at = v_now WHERE user_id = v_buyer_id;
+            WHEN 'fuel' THEN
+                UPDATE public.user_industrial_inventory SET campaign_fuel = campaign_fuel + v_order.quantity, updated_at = v_now WHERE user_id = v_buyer_id;
+            WHEN 'tech_scrap' THEN
+                UPDATE public.user_industrial_inventory SET tech_scrap = tech_scrap + v_order.quantity, updated_at = v_now WHERE user_id = v_buyer_id;
+            ELSE
+                UPDATE public.profiles
+                SET metadata = jsonb_set(
+                    COALESCE(metadata, '{}'::jsonb),
+                    ARRAY[v_order.item_code],
+                    (COALESCE((metadata->>v_order.item_code)::integer, 0) + v_order.quantity)::text::jsonb
+                )
+                WHERE id = v_buyer_id;
+        END CASE;
+    ELSE
+        UPDATE public.profiles
+        SET metadata = jsonb_set(
+            COALESCE(metadata, '{}'::jsonb),
+            ARRAY[v_order.item_code],
+            (COALESCE((metadata->>v_order.item_code)::integer, 0) + v_order.quantity)::text::jsonb
+        )
+        WHERE id = v_buyer_id;
+    END IF;
+
+    UPDATE public.p2p_market_orders
+    SET buyer_id = v_buyer_id,
+        platform_burn_ec = v_burn_ec,
+        province_royalty_ec = v_royalty_ec,
+        net_seller_revenue_ec = v_net_payout,
+        status = 'completed',
+        completed_at = v_now
+    WHERE id = p_order_id;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'order_id', p_order_id,
+        'total_price_ec', v_order.total_price_ec,
+        'platform_burn_ec', v_burn_ec,
+        'province_royalty_ec', v_royalty_ec,
+        'seller_received', v_net_payout
+    );
+END;
+$$;
+
+-- >>> FIN MIGRACIÓN: 20261118000013_p2p_market_paginated_rpcs_and_escrow.sql <<<
+
+
+-- >>> INICIO MIGRACIÓN: 20261118000014_combat_authority_siege_and_match_actions.sql <<<
+-- ==============================================================================
+-- MIGRATION 20261118000014: COMBAT AUTHORITY, SIEGE & MATCH ACTIONS (CONTRACT v3)
+-- ==============================================================================
+-- Scope (db-combat-authority):
+-- 1. Ensure `public.match_action_deltas` exists with idempotency, uniqueness,
+--    and strict participant-only RLS (SELECT only; writes via RPC).
+-- 2. Implement the 5 authoritative RPCs defined in Contract v3:
+--    - start_territorial_siege
+--    - claim_territorial_handshake
+--    - resolve_territorial_handshake_timeout
+--    - resolve_territorial_battle
+--    - submit_match_action
+-- 3. Emit v3 Broadcast payloads on `siege:region:{region_id}` and
+--    `match:{match_id}` via `realtime.send` (with safe `pg_notify` fallback).
+-- ==============================================================================
+
+-- ------------------------------------------------------------------------------
+-- 1. TABLE: public.match_action_deltas & STRICT RLS
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.match_action_deltas (
+  id BIGSERIAL PRIMARY KEY,
+  match_id UUID NOT NULL REFERENCES public.active_matches(id) ON DELETE CASCADE,
+  turn_number INTEGER NOT NULL CHECK (turn_number >= 1),
+  action_index INTEGER NOT NULL CHECK (action_index >= 0),
+  action_payload JSONB NOT NULL,
+  actor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  idempotency_key UUID,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now())
+);
+
+ALTER TABLE public.match_action_deltas
+  ADD COLUMN IF NOT EXISTS actor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS idempotency_key UUID;
+
+CREATE INDEX IF NOT EXISTS idx_match_action_deltas_match_turn
+  ON public.match_action_deltas(match_id, turn_number, action_index ASC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_match_action_deltas_turn_action
+  ON public.match_action_deltas(match_id, turn_number, action_index);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_match_action_deltas_idempotency
+  ON public.match_action_deltas(idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
+
+ALTER TABLE public.match_action_deltas ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE public.match_action_deltas FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE public.match_action_deltas TO authenticated, service_role;
+
+DROP POLICY IF EXISTS "match_action_deltas_select" ON public.match_action_deltas;
+CREATE POLICY "match_action_deltas_select"
+  ON public.match_action_deltas
+  FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public.active_matches m
+      WHERE m.id = match_action_deltas.match_id
+        AND (
+          (SELECT auth.uid()) = m.player1_id
+          OR (SELECT auth.uid()) = m.player2_id
+        )
+    )
+  );
+
+-- ------------------------------------------------------------------------------
+-- 2. HELPER: Canonical v3 Broadcast Emitter (`realtime.send` + `pg_notify`)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public._emit_combat_broadcast_v3(
+  p_topic TEXT,
+  p_event TEXT,
+  p_table TEXT,
+  p_op TEXT,
+  p_region_id TEXT,
+  p_record JSONB
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_now TIMESTAMPTZ := clock_timestamp();
+  v_payload JSONB;
+  v_has_realtime_send BOOLEAN := false;
+BEGIN
+  v_payload := jsonb_build_object(
+    'v', 3,
+    'event', p_event,
+    'table', p_table,
+    'region_id', p_region_id,
+    'h3_cell', NULL,
+    'op', p_op,
+    'seq', (EXTRACT(EPOCH FROM v_now) * 1000)::BIGINT,
+    'ts', to_char(timezone('utc', v_now), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+    'record', COALESCE(p_record, '{}'::jsonb)
+  );
+
+  SELECT EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'realtime'
+      AND p.proname = 'send'
+  ) INTO v_has_realtime_send;
+
+  IF v_has_realtime_send THEN
+    EXECUTE 'SELECT realtime.send($1, $2, $3, $4)'
+      USING v_payload, p_event, p_topic, false;
+  ELSE
+    PERFORM pg_notify(left(p_topic, 63), v_payload::TEXT);
+  END IF;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public._emit_combat_broadcast_v3(TEXT, TEXT, TEXT, TEXT, TEXT, JSONB) FROM PUBLIC, anon, authenticated;
+
+-- ------------------------------------------------------------------------------
+-- 3. RPC 1: start_territorial_siege
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.start_territorial_siege(
+  p_region_id TEXT,
+  p_attacker_clan_id UUID,
+  p_attacker_commander_id UUID,
+  p_defender_clan_id UUID DEFAULT NULL
+)
+RETURNS public.territorial_battle_sessions
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_now TIMESTAMPTZ := timezone('utc', now());
+  v_sov public.region_sovereignty%ROWTYPE;
+  v_defender_clan_id UUID;
+  v_session public.territorial_battle_sessions%ROWTYPE;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED';
+  END IF;
+
+  IF p_attacker_commander_id IS DISTINCT FROM v_user_id THEN
+    RAISE EXCEPTION 'UNAUTHORIZED_COMMANDER: auth.uid() must match p_attacker_commander_id';
+  END IF;
+
+  IF p_region_id IS NULL OR btrim(p_region_id) = '' THEN
+    RAISE EXCEPTION 'INVALID_REGION_ID';
+  END IF;
+
+  IF p_attacker_clan_id IS NULL THEN
+    RAISE EXCEPTION 'INVALID_ATTACKER_CLAN_ID';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.clan_members cm
+    WHERE cm.clan_id = p_attacker_clan_id
+      AND cm.user_id = v_user_id
+  ) THEN
+    RAISE EXCEPTION 'UNAUTHORIZED_CLAN_MEMBER: User % is not a member of clan %', v_user_id, p_attacker_clan_id;
+  END IF;
+
+  -- Canonical lock order: region_sovereignty -> territorial_battle_sessions
+  SELECT *
+  INTO v_sov
+  FROM public.region_sovereignty
+  WHERE region_id = p_region_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'REGION_SOVEREIGNTY_NOT_FOUND: %', p_region_id;
+  END IF;
+
+  IF v_sov.cooldown_expires_at IS NOT NULL AND v_sov.cooldown_expires_at > v_now THEN
+    RAISE EXCEPTION 'SIEGE_COOLDOWN_ACTIVE: Region % shielded until %', p_region_id, v_sov.cooldown_expires_at;
+  END IF;
+
+  IF v_sov.status = 'under_siege' OR EXISTS (
+    SELECT 1
+    FROM public.territorial_battle_sessions s
+    WHERE s.region_id = p_region_id
+      AND s.status IN ('handshake_pending', 'in_combat')
+  ) THEN
+    RAISE EXCEPTION 'SIEGE_ALREADY_ACTIVE: Region % already has an active battle session', p_region_id;
+  END IF;
+
+  v_defender_clan_id := COALESCE(p_defender_clan_id, v_sov.controller_clan_id);
+
+  IF v_defender_clan_id IS NOT NULL AND v_defender_clan_id = p_attacker_clan_id THEN
+    RAISE EXCEPTION 'SELF_SIEGE_FORBIDDEN: Cannot siege own clan region';
+  END IF;
+
+  INSERT INTO public.territorial_battle_sessions (
+    region_id,
+    attacker_clan_id,
+    defender_clan_id,
+    attacker_commander_id,
+    defender_commander_id,
+    mode,
+    handshake_expires_at,
+    status
+  ) VALUES (
+    p_region_id,
+    p_attacker_clan_id,
+    v_defender_clan_id,
+    p_attacker_commander_id,
+    NULL,
+    'pve_garrison',
+    v_now + INTERVAL '120 seconds',
+    'handshake_pending'
+  )
+  RETURNING * INTO v_session;
+
+  UPDATE public.region_sovereignty
+  SET
+    status = 'under_siege',
+    active_battle_id = v_session.id,
+    updated_at = v_now
+  WHERE region_id = p_region_id;
+
+  PERFORM public._emit_combat_broadcast_v3(
+    'siege:region:' || p_region_id,
+    'SIEGE_STATE',
+    'territorial_battle_sessions',
+    'INSERT',
+    p_region_id,
+    to_jsonb(v_session)
+  );
+
+  RETURN v_session;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.start_territorial_siege(TEXT, UUID, UUID, UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.start_territorial_siege(TEXT, UUID, UUID, UUID) TO authenticated, service_role;
+
+-- ------------------------------------------------------------------------------
+-- 4. RPC 2: claim_territorial_handshake
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.claim_territorial_handshake(
+  p_session_id UUID,
+  p_defender_commander_id UUID
+)
+RETURNS public.territorial_battle_sessions
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_now TIMESTAMPTZ := timezone('utc', now());
+  v_session public.territorial_battle_sessions%ROWTYPE;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED';
+  END IF;
+
+  IF p_defender_commander_id IS DISTINCT FROM v_user_id THEN
+    RAISE EXCEPTION 'UNAUTHORIZED_COMMANDER: auth.uid() must match p_defender_commander_id';
+  END IF;
+
+  SELECT *
+  INTO v_session
+  FROM public.territorial_battle_sessions
+  WHERE id = p_session_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'SIEGE_SESSION_NOT_FOUND: %', p_session_id;
+  END IF;
+
+  IF v_session.defender_clan_id IS NULL THEN
+    RAISE EXCEPTION 'NO_DEFENDER_CLAN: Neutral region cannot claim PvP handshake';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.clan_members cm
+    WHERE cm.clan_id = v_session.defender_clan_id
+      AND cm.user_id = v_user_id
+  ) THEN
+    RAISE EXCEPTION 'UNAUTHORIZED_DEFENDER_CLAN: User % is not a member of defender clan %', v_user_id, v_session.defender_clan_id;
+  END IF;
+
+  IF v_session.status <> 'handshake_pending' THEN
+    RAISE EXCEPTION 'HANDSHAKE_NOT_PENDING: Session status is %', v_session.status;
+  END IF;
+
+  IF v_now > v_session.handshake_expires_at THEN
+    RAISE EXCEPTION 'HANDSHAKE_EXPIRED: 120s window expired at %', v_session.handshake_expires_at;
+  END IF;
+
+  UPDATE public.territorial_battle_sessions
+  SET
+    defender_commander_id = p_defender_commander_id,
+    mode = 'pvp_realtime',
+    status = 'in_combat'
+  WHERE id = p_session_id
+  RETURNING * INTO v_session;
+
+  PERFORM public._emit_combat_broadcast_v3(
+    'siege:region:' || v_session.region_id,
+    'SIEGE_STATE',
+    'territorial_battle_sessions',
+    'UPDATE',
+    v_session.region_id,
+    to_jsonb(v_session)
+  );
+
+  RETURN v_session;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.claim_territorial_handshake(UUID, UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.claim_territorial_handshake(UUID, UUID) TO authenticated, service_role;
+
+-- ------------------------------------------------------------------------------
+-- 5. RPC 3: resolve_territorial_handshake_timeout
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.resolve_territorial_handshake_timeout(
+  p_session_id UUID,
+  p_bunker_level INT DEFAULT 1
+)
+RETURNS public.territorial_battle_sessions
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_now TIMESTAMPTZ := timezone('utc', now());
+  v_session public.territorial_battle_sessions%ROWTYPE;
+  v_bunker_level INT := GREATEST(1, LEAST(5, COALESCE(p_bunker_level, 1)));
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED';
+  END IF;
+
+  SELECT *
+  INTO v_session
+  FROM public.territorial_battle_sessions
+  WHERE id = p_session_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'SIEGE_SESSION_NOT_FOUND: %', p_session_id;
+  END IF;
+
+  IF NOT (
+    v_session.attacker_commander_id = v_user_id
+    OR EXISTS (
+      SELECT 1
+      FROM public.clan_members cm
+      WHERE cm.user_id = v_user_id
+        AND cm.clan_id IN (v_session.attacker_clan_id, v_session.defender_clan_id)
+    )
+  ) THEN
+    RAISE EXCEPTION 'UNAUTHORIZED_SIEGE_PARTICIPANT';
+  END IF;
+
+  IF v_session.status = 'in_combat' AND v_session.mode = 'pve_garrison' THEN
+    RETURN v_session;
+  END IF;
+
+  IF v_session.status <> 'handshake_pending' THEN
+    RAISE EXCEPTION 'HANDSHAKE_NOT_PENDING: Session status is %', v_session.status;
+  END IF;
+
+  IF v_now < v_session.handshake_expires_at THEN
+    RAISE EXCEPTION 'HANDSHAKE_NOT_EXPIRED_YET: Expires at %', v_session.handshake_expires_at;
+  END IF;
+
+  UPDATE public.territorial_battle_sessions
+  SET
+    mode = 'pve_garrison',
+    status = 'in_combat'
+  WHERE id = p_session_id
+  RETURNING * INTO v_session;
+
+  PERFORM public._emit_combat_broadcast_v3(
+    'siege:region:' || v_session.region_id,
+    'SIEGE_STATE',
+    'territorial_battle_sessions',
+    'UPDATE',
+    v_session.region_id,
+    to_jsonb(v_session) || jsonb_build_object('garrison_ai_level', v_bunker_level)
+  );
+
+  RETURN v_session;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.resolve_territorial_handshake_timeout(UUID, INT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.resolve_territorial_handshake_timeout(UUID, INT) TO authenticated, service_role;
+
+-- ------------------------------------------------------------------------------
+-- 6. RPC 4: resolve_territorial_battle
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.resolve_territorial_battle(
+  p_session_id UUID,
+  p_winner TEXT,
+  p_is_capital BOOLEAN DEFAULT false
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_now TIMESTAMPTZ := timezone('utc', now());
+  v_region_id TEXT;
+  v_sov public.region_sovereignty%ROWTYPE;
+  v_session public.territorial_battle_sessions%ROWTYPE;
+  v_win RECORD;
+  v_utc_time TIME := (v_now AT TIME ZONE 'UTC')::TIME;
+  v_is_vulnerable BOOLEAN := true;
+  v_is_immune BOOLEAN := false;
+  v_base_drain INT;
+  v_mitigation NUMERIC;
+  v_tcp_delta INT := 0;
+  v_max_tcp INT;
+  v_new_tcp INT;
+  v_prev_status TEXT;
+  v_new_status TEXT;
+  v_is_flipped BOOLEAN := false;
+  v_new_owner UUID;
+  v_new_controller UUID;
+  v_cooldown_expires TIMESTAMPTZ;
+  v_grace_expires TIMESTAMPTZ;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED';
+  END IF;
+
+  IF p_winner IS NULL OR p_winner NOT IN ('attacker', 'defender') THEN
+    RAISE EXCEPTION 'INVALID_WINNER: Expected attacker or defender, got %', p_winner;
+  END IF;
+
+  SELECT region_id
+  INTO v_region_id
+  FROM public.territorial_battle_sessions
+  WHERE id = p_session_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'SIEGE_SESSION_NOT_FOUND: %', p_session_id;
+  END IF;
+
+  -- Canonical lock order: region_sovereignty -> territorial_battle_sessions
+  SELECT *
+  INTO v_sov
+  FROM public.region_sovereignty
+  WHERE region_id = v_region_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'REGION_SOVEREIGNTY_NOT_FOUND: %', v_region_id;
+  END IF;
+
+  SELECT *
+  INTO v_session
+  FROM public.territorial_battle_sessions
+  WHERE id = p_session_id
+  FOR UPDATE;
+
+  IF NOT (
+    v_session.attacker_commander_id = v_user_id
+    OR v_session.defender_commander_id = v_user_id
+    OR EXISTS (
+      SELECT 1
+      FROM public.clan_members cm
+      WHERE cm.user_id = v_user_id
+        AND cm.clan_id IN (v_session.attacker_clan_id, v_session.defender_clan_id)
+    )
+  ) THEN
+    RAISE EXCEPTION 'UNAUTHORIZED_SIEGE_PARTICIPANT';
+  END IF;
+
+  IF v_session.status IN ('concluded', 'aborted') THEN
+    RAISE EXCEPTION 'BATTLE_ALREADY_CONCLUDED: Session status is %', v_session.status;
+  END IF;
+
+  -- Evaluate offline raiding protection window if configured
+  SELECT *
+  INTO v_win
+  FROM public.territorial_vulnerability_windows
+  WHERE region_id = v_region_id
+    AND is_active = true;
+
+  IF FOUND THEN
+    IF v_win.window_end_utc > v_win.window_start_utc THEN
+      v_is_vulnerable := (v_utc_time >= v_win.window_start_utc AND v_utc_time < v_win.window_end_utc);
+    ELSE
+      v_is_vulnerable := (v_utc_time >= v_win.window_start_utc OR v_utc_time < v_win.window_end_utc);
+    END IF;
+  END IF;
+
+  IF p_winner = 'attacker' AND NOT v_is_vulnerable THEN
+    v_tcp_delta := 0;
+    v_is_immune := true;
+  ELSIF p_winner = 'defender' THEN
+    v_tcp_delta := 500;
+  ELSE
+    v_base_drain := CASE WHEN COALESCE(p_is_capital, false) THEN 1200 ELSE 1800 END;
+    v_mitigation := GREATEST(0.60, 1.0 - (COALESCE(v_sov.bunker_level, 1) - 1) * 0.10);
+    v_tcp_delta := -LEAST(2500, GREATEST(800, FLOOR(v_base_drain * v_mitigation)::INT));
+  END IF;
+
+  v_max_tcp := COALESCE(
+    v_sov.max_control_points,
+    CASE WHEN COALESCE(p_is_capital, false) THEN 15000 ELSE 10000 END
+  );
+  v_new_tcp := GREATEST(0, LEAST(v_max_tcp, v_sov.control_points + v_tcp_delta));
+
+  v_prev_status := v_sov.status;
+  v_new_status := v_sov.status;
+  v_new_owner := v_sov.owner_clan_id;
+  v_new_controller := v_sov.controller_clan_id;
+  v_cooldown_expires := v_sov.cooldown_expires_at;
+  v_grace_expires := v_sov.grace_expires_at;
+
+  IF p_winner = 'attacker' THEN
+    IF v_new_tcp <= 0 THEN
+      v_is_flipped := true;
+      v_new_status := 'occupied_grace';
+      v_new_controller := v_session.attacker_clan_id;
+      v_new_owner := COALESCE(v_sov.owner_clan_id, v_sov.controller_clan_id);
+      v_cooldown_expires := v_now + INTERVAL '4 hours';
+      v_grace_expires := v_now + INTERVAL '24 hours';
+    ELSE
+      v_new_status := 'under_siege';
+    END IF;
+  ELSE
+    IF v_new_tcp >= v_max_tcp THEN
+      v_new_status := 'stable';
+    ELSE
+      v_new_status := 'under_siege';
+    END IF;
+  END IF;
+
+  UPDATE public.territorial_battle_sessions
+  SET
+    status = 'concluded',
+    concluded_at = v_now
+  WHERE id = p_session_id
+  RETURNING * INTO v_session;
+
+  UPDATE public.region_sovereignty
+  SET
+    control_points = v_new_tcp,
+    status = v_new_status,
+    owner_clan_id = v_new_owner,
+    controller_clan_id = v_new_controller,
+    active_battle_id = NULL,
+    cooldown_expires_at = v_cooldown_expires,
+    grace_expires_at = v_grace_expires,
+    updated_at = v_now
+  WHERE region_id = v_region_id;
+
+  PERFORM public._emit_combat_broadcast_v3(
+    'siege:region:' || v_region_id,
+    'SIEGE_STATE',
+    'territorial_battle_sessions',
+    'UPDATE',
+    v_region_id,
+    to_jsonb(v_session)
+  );
+
+  RETURN jsonb_build_object(
+    'winner', p_winner,
+    'region_id', v_region_id,
+    'session_id', v_session.id,
+    'tcp_delta', v_tcp_delta,
+    'new_control_points', v_new_tcp,
+    'previous_status', v_prev_status,
+    'new_status', v_new_status,
+    'is_sovereignty_flipped', v_is_flipped,
+    'is_immune_offline_protection', v_is_immune,
+    'cooldown_expires_at', v_cooldown_expires,
+    'grace_expires_at', v_grace_expires,
+    'new_owner_clan_id', v_new_owner,
+    'new_controller_clan_id', v_new_controller
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.resolve_territorial_battle(UUID, TEXT, BOOLEAN) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.resolve_territorial_battle(UUID, TEXT, BOOLEAN) TO authenticated, service_role;
+
+-- ------------------------------------------------------------------------------
+-- 7. RPC 5: submit_match_action (Turn Authority, 1-100 HP, Idempotency, Broadcast)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.submit_match_action(
+  p_match_id UUID,
+  p_turn_number INT,
+  p_action_index INT,
+  p_action_payload JSONB,
+  p_idempotency_key UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := (SELECT auth.uid());
+  v_now TIMESTAMPTZ := timezone('utc', now());
+  v_cached JSONB;
+  v_match public.active_matches%ROWTYPE;
+  v_existing public.match_action_deltas%ROWTYPE;
+  v_delta public.match_action_deltas%ROWTYPE;
+  v_action_type TEXT;
+  v_hp_val NUMERIC;
+  v_next_player UUID;
+  v_next_turn INT;
+  v_res JSONB;
+  v_key TEXT;
+  v_hp_keys TEXT[] := ARRAY['hp', 'unitHp', 'unit_hp'];
+  v_combat_hp_keys TEXT[] := ARRAY['newHp', 'new_hp', 'attackerHp', 'attacker_hp', 'defenderHp', 'defender_hp', 'targetHp', 'target_hp', 'damage'];
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED';
+  END IF;
+
+  IF p_idempotency_key IS NOT NULL THEN
+    SELECT response
+    INTO v_cached
+    FROM public.economy_rpc_idempotency
+    WHERE idempotency_key = p_idempotency_key;
+
+    IF FOUND THEN
+      RETURN v_cached;
+    END IF;
+  END IF;
+
+  IF p_match_id IS NULL THEN
+    RAISE EXCEPTION 'INVALID_MATCH_ID';
+  END IF;
+
+  IF p_action_index IS NULL OR p_action_index < 0 THEN
+    RAISE EXCEPTION 'INVALID_ACTION_INDEX';
+  END IF;
+
+  IF p_action_payload IS NULL OR jsonb_typeof(p_action_payload) <> 'object' THEN
+    RAISE EXCEPTION 'INVALID_ACTION_PAYLOAD';
+  END IF;
+
+  v_action_type := UPPER(COALESCE(p_action_payload->>'type', ''));
+  IF v_action_type NOT IN (
+    'MOVE', 'ATTACK', 'CAPTURE', 'JOIN', 'LOAD', 'UNLOAD',
+    'SILO', 'SUPPLY', 'PRODUCE', 'CO_POWER', 'END_TURN'
+  ) THEN
+    RAISE EXCEPTION 'INVALID_ACTION_TYPE: %', v_action_type;
+  END IF;
+
+  -- Validate 1-100 HP canonical invariants on action payload & nested payload
+  FOREACH v_key IN ARRAY v_hp_keys LOOP
+    IF p_action_payload ? v_key AND jsonb_typeof(p_action_payload->v_key) = 'number' THEN
+      v_hp_val := (p_action_payload->>v_key)::NUMERIC;
+      IF v_hp_val < 1 OR v_hp_val > 100 THEN
+        RAISE EXCEPTION 'INVALID_HP_RANGE: % must be between 1 and 100 (got %)', v_key, v_hp_val;
+      END IF;
+    END IF;
+    IF jsonb_typeof(p_action_payload->'payload') = 'object'
+       AND (p_action_payload->'payload') ? v_key
+       AND jsonb_typeof((p_action_payload->'payload')->v_key) = 'number' THEN
+      v_hp_val := ((p_action_payload->'payload')->>v_key)::NUMERIC;
+      IF v_hp_val < 1 OR v_hp_val > 100 THEN
+        RAISE EXCEPTION 'INVALID_HP_RANGE: payload.% must be between 1 and 100 (got %)', v_key, v_hp_val;
+      END IF;
+    END IF;
+  END LOOP;
+
+  FOREACH v_key IN ARRAY v_combat_hp_keys LOOP
+    IF p_action_payload ? v_key AND jsonb_typeof(p_action_payload->v_key) = 'number' THEN
+      v_hp_val := (p_action_payload->>v_key)::NUMERIC;
+      IF v_hp_val < 0 OR v_hp_val > 100 THEN
+        RAISE EXCEPTION 'INVALID_HP_RANGE: % must be between 0 and 100 (got %)', v_key, v_hp_val;
+      END IF;
+    END IF;
+    IF jsonb_typeof(p_action_payload->'payload') = 'object'
+       AND (p_action_payload->'payload') ? v_key
+       AND jsonb_typeof((p_action_payload->'payload')->v_key) = 'number' THEN
+      v_hp_val := ((p_action_payload->'payload')->>v_key)::NUMERIC;
+      IF v_hp_val < 0 OR v_hp_val > 100 THEN
+        RAISE EXCEPTION 'INVALID_HP_RANGE: payload.% must be between 0 and 100 (got %)', v_key, v_hp_val;
+      END IF;
+    END IF;
+  END LOOP;
+
+  -- Lock active match row
+  SELECT *
+  INTO v_match
+  FROM public.active_matches
+  WHERE id = p_match_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'MATCH_NOT_FOUND: %', p_match_id;
+  END IF;
+
+  IF v_match.status <> 'in_progress' THEN
+    RAISE EXCEPTION 'MATCH_NOT_IN_PROGRESS: Status is %', v_match.status;
+  END IF;
+
+  IF v_user_id <> v_match.player1_id AND (v_match.player2_id IS NULL OR v_user_id <> v_match.player2_id) THEN
+    RAISE EXCEPTION 'UNAUTHORIZED_MATCH_PARTICIPANT';
+  END IF;
+
+  -- Idempotency check by (match_id, turn_number, action_index)
+  SELECT *
+  INTO v_existing
+  FROM public.match_action_deltas
+  WHERE match_id = p_match_id
+    AND turn_number = p_turn_number
+    AND action_index = p_action_index;
+
+  IF FOUND THEN
+    RETURN jsonb_build_object(
+      'success', true,
+      'idempotent_replay', true,
+      'delta_id', v_existing.id,
+      'match_id', v_existing.match_id,
+      'turn_number', v_existing.turn_number,
+      'action_index', v_existing.action_index,
+      'action_type', UPPER(COALESCE(v_existing.action_payload->>'type', '')),
+      'actor_id', v_existing.actor_id,
+      'created_at', v_existing.created_at
+    );
+  END IF;
+
+  -- Turn authority validation
+  IF v_match.current_turn_player_id IS NOT NULL AND v_match.current_turn_player_id <> v_user_id THEN
+    RAISE EXCEPTION 'NOT_YOUR_TURN: Current turn belongs to %', v_match.current_turn_player_id;
+  END IF;
+
+  IF p_turn_number IS NULL OR p_turn_number <> v_match.turn_number THEN
+    RAISE EXCEPTION 'INVALID_TURN_NUMBER: Expected %, got %', v_match.turn_number, p_turn_number;
+  END IF;
+
+  INSERT INTO public.match_action_deltas (
+    match_id,
+    turn_number,
+    action_index,
+    action_payload,
+    actor_id,
+    idempotency_key
+  ) VALUES (
+    p_match_id,
+    p_turn_number,
+    p_action_index,
+    p_action_payload,
+    v_user_id,
+    p_idempotency_key
+  )
+  RETURNING * INTO v_delta;
+
+  -- Advance turn atomically on END_TURN
+  IF v_action_type = 'END_TURN' THEN
+    IF v_match.player2_id IS NOT NULL THEN
+      v_next_player := CASE
+        WHEN v_match.current_turn_player_id = v_match.player1_id THEN v_match.player2_id
+        ELSE v_match.player1_id
+      END;
+      v_next_turn := CASE
+        WHEN v_match.current_turn_player_id = v_match.player2_id THEN v_match.turn_number + 1
+        ELSE v_match.turn_number
+      END;
+    ELSE
+      v_next_player := v_match.player1_id;
+      v_next_turn := v_match.turn_number + 1;
+    END IF;
+
+    UPDATE public.active_matches
+    SET
+      current_turn_player_id = v_next_player,
+      turn_number = v_next_turn,
+      updated_at = v_now
+    WHERE id = p_match_id;
+  END IF;
+
+  v_res := jsonb_build_object(
+    'success', true,
+    'idempotent_replay', false,
+    'delta_id', v_delta.id,
+    'match_id', p_match_id,
+    'turn_number', p_turn_number,
+    'action_index', p_action_index,
+    'action_type', v_action_type,
+    'actor_id', v_user_id,
+    'created_at', v_delta.created_at
+  );
+
+  IF p_idempotency_key IS NOT NULL THEN
+    INSERT INTO public.economy_rpc_idempotency (idempotency_key, user_id, rpc_name, response)
+    VALUES (p_idempotency_key, v_user_id, 'submit_match_action', v_res)
+    ON CONFLICT (idempotency_key) DO NOTHING;
+  END IF;
+
+  PERFORM public._emit_combat_broadcast_v3(
+    'match:' || p_match_id::TEXT,
+    'MATCH_ACTION',
+    'match_action_deltas',
+    'INSERT',
+    NULL,
+    jsonb_build_object(
+      'id', v_delta.id,
+      'match_id', p_match_id,
+      'turn_number', p_turn_number,
+      'action_index', p_action_index,
+      'actor_id', v_user_id,
+      'action_payload', p_action_payload,
+      'created_at', v_delta.created_at
+    )
+  );
+
+  RETURN v_res;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.submit_match_action(UUID, INT, INT, JSONB, UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.submit_match_action(UUID, INT, INT, JSONB, UUID) TO authenticated, service_role;
+
+-- >>> FIN MIGRACIÓN: 20261118000014_combat_authority_siege_and_match_actions.sql <<<
 
 
 -- >>> INICIO SEED DATA: seed.sql <<<

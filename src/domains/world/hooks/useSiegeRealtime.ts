@@ -23,6 +23,22 @@ import {
 } from '@domains/world';
 import { audioManager } from '@domains/game-feel';
 
+function mapDbSessionToDomain(raw: Record<string, any>): TerritorialBattleSession {
+  return {
+    id: raw.id,
+    regionId: raw.regionId ?? raw.region_id,
+    attackerClanId: raw.attackerClanId ?? raw.attacker_clan_id,
+    defenderClanId: raw.defenderClanId ?? raw.defender_clan_id ?? null,
+    attackerCommanderId: raw.attackerCommanderId ?? raw.attacker_commander_id,
+    defenderCommanderId: raw.defenderCommanderId ?? raw.defender_commander_id ?? null,
+    mode: (raw.mode as 'pve_garrison' | 'pvp_realtime') ?? 'pve_garrison',
+    handshakeExpiresAt: raw.handshakeExpiresAt ?? raw.handshake_expires_at,
+    status: (raw.status as TerritorialBattleSession['status']) ?? 'handshake_pending',
+    createdAt: raw.createdAt ?? raw.created_at ?? new Date().toISOString(),
+    concludedAt: raw.concludedAt ?? raw.concluded_at ?? null,
+  };
+}
+
 export interface UseSiegeRealtimeReturn {
   activeSession: TerritorialBattleSession | null;
   sovereignty: GeotacticsRegionSovereignty | null;
@@ -98,27 +114,19 @@ export function useSiegeRealtime(
     };
   }, [activeSession]);
 
-  // Suscripción Realtime al canal de batalla territorial
+  // Suscripción Realtime al canal Broadcast de batalla territorial (siege:region:{regionId})
   useEffect(() => {
-    if (!regionId) return;
+    if (!regionId || !supabase) return;
 
-    const channelName = `territorial_siege:${regionId}`;
+    const channelName = `siege:region:${regionId}`;
     const channel = supabase
       .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'territorial_battle_sessions',
-          filter: `region_id=eq.${regionId}`,
-        },
-        payload => {
-          if (payload.new) {
-            setActiveSession(payload.new as TerritorialBattleSession);
-          }
+      .on('broadcast', { event: 'SIEGE_STATE' }, ({ payload }) => {
+        const rawRecord = payload?.record ?? payload?.new ?? payload;
+        if (rawRecord && typeof rawRecord === 'object' && 'id' in rawRecord) {
+          setActiveSession(mapDbSessionToDomain(rawRecord as Record<string, any>));
         }
-      )
+      })
       .subscribe();
 
     return () => {
@@ -152,25 +160,19 @@ export function useSiegeRealtime(
 
       try {
         if (!supabase) throw new Error('Supabase no configurado');
-        await supabase.from('territorial_battle_sessions').insert({
-          id: session.id,
-          region_id: session.regionId,
-          attacker_clan_id: session.attackerClanId,
-          defender_clan_id: session.defenderClanId,
-          attacker_commander_id: session.attackerCommanderId,
-          mode: session.mode,
-          handshake_expires_at: session.handshakeExpiresAt,
-          status: session.status,
+        const { data, error: rpcError } = await supabase.rpc('start_territorial_siege', {
+          p_region_id: currentSovereignty.regionId,
+          p_attacker_clan_id: attackerClanId,
+          p_attacker_commander_id: attackerCommanderId,
+          p_defender_clan_id: currentSovereignty.controllerClanId ?? null,
         });
 
-        await supabase
-          .from('region_sovereignty')
-          .update({
-            status: 'under_siege',
-            active_battle_id: session.id,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('region_id', session.regionId);
+        if (rpcError) throw rpcError;
+        if (data) {
+          const authoritativeSession = mapDbSessionToDomain(data as Record<string, any>);
+          setActiveSession(authoritativeSession);
+          return authoritativeSession;
+        }
       } catch (err: any) {
         console.warn('[SiegeRealtime] Persistencia remota en fallback local:', err.message);
       } finally {
@@ -207,14 +209,14 @@ export function useSiegeRealtime(
 
       try {
         if (supabase) {
-          await supabase
-            .from('territorial_battle_sessions')
-            .update({
-              defender_commander_id: defenderCommanderId,
-              mode: 'pvp_realtime',
-              status: 'in_combat',
-            })
-            .eq('id', activeSession.id);
+          const { data, error: rpcError } = await supabase.rpc('claim_territorial_handshake', {
+            p_session_id: activeSession.id,
+            p_defender_commander_id: defenderCommanderId,
+          });
+          if (rpcError) throw rpcError;
+          if (data) {
+            setActiveSession(mapDbSessionToDomain(data as Record<string, any>));
+          }
         }
       } catch (err: any) {
         console.warn('[SiegeRealtime] Error al persistir claim:', err.message);
@@ -242,14 +244,21 @@ export function useSiegeRealtime(
 
       if (supabase) {
         Promise.resolve(
-          supabase
-            .from('territorial_battle_sessions')
-            .update({
-              mode: 'pve_garrison',
-              status: 'in_combat',
-            })
-            .eq('id', activeSession.id)
-        ).catch((err: unknown) => console.warn('[SiegeRealtime] Fallback timeout local:', err));
+          supabase.rpc('resolve_territorial_handshake_timeout', {
+            p_session_id: activeSession.id,
+            p_bunker_level: bunkerLevel,
+          })
+        )
+          .then(({ data, error: rpcError }) => {
+            if (rpcError) {
+              console.warn('[SiegeRealtime] Fallback timeout local:', rpcError.message);
+              return;
+            }
+            if (data) {
+              setActiveSession(mapDbSessionToDomain(data as Record<string, any>));
+            }
+          })
+          .catch((err: unknown) => console.warn('[SiegeRealtime] Fallback timeout local:', err));
       }
     },
     [activeSession]
@@ -283,6 +292,22 @@ export function useSiegeRealtime(
 
       setSovereignty(updatedSov);
       setActiveSession(prev => (prev ? { ...prev, status: 'concluded', concludedAt: new Date().toISOString() } : null));
+
+      if (supabase) {
+        Promise.resolve(
+          supabase.rpc('resolve_territorial_battle', {
+            p_session_id: activeSession.id,
+            p_winner: winner,
+            p_is_capital: isCapital,
+          })
+        )
+          .then(({ error: rpcError }) => {
+            if (rpcError) {
+              console.warn('[SiegeRealtime] Fallback resolución batalla local:', rpcError.message);
+            }
+          })
+          .catch((err: unknown) => console.warn('[SiegeRealtime] Fallback resolución batalla local:', err));
+      }
 
       return result;
     },

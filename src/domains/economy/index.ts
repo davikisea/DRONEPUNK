@@ -111,6 +111,7 @@ export {
 export {
   fetchCorpBuildings,
   fetchWorldMapBuildings,
+  fetchBuildingsInViewport,
   constructBuildingDb,
   claimOrCaptureBuildingDb,
   remodelBuildingDb,
@@ -120,9 +121,11 @@ export {
   HISTORICAL_CITY_BASES_SEED,
   type DbBuildingRecord,
   type BuildingPendingYield,
+  type ViewportBBox,
 } from './services/buildingDbService';
 export {
   fetchOperationalUnits,
+  fetchUnitsInViewport,
   deployOperationalUnitDb,
   recallOperationalUnitDb,
   type DbOperationalUnitRecord,
@@ -137,6 +140,7 @@ export {
   triggerVulnerabilityHandshake,
   damageInfrastructure,
   fetchInfraEdges,
+  fetchInfraEdgesInViewport,
   fetchVulnerabilityWindows,
   simulateDualLogisticsTick,
   simulateInfrastructureDamageAndRepair,

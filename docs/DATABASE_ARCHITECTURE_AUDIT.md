@@ -2,7 +2,7 @@
 **Proyecto:** DRONEPUNK  
 **Versión Canónica:** `0.0.1`  
 **Teatro Operacional Inicial:** Zulia / Cabimas (`REG_VE_02`, Coordenadas WGS84: `[-71.455, 10.395]`)  
-**Fecha de Auditoría:** 2026-11-07 (Actualización Post-Migraciones `20261024` a `20261110` — 32 Migraciones SQL y Modularización en 4 Dominios)  
+**Fecha de Auditoría:** 2026-11-18 (Actualización 10,000+ CCU — Migraciones `20261118000005` a `20261118000014`, Broadcast v3, Sharding y Culling Espacial)  
 **Documento Relacionado:** `docs/04_MASTER_DATABASE_AND_SECURITY_SPEC.md`
 
 ---
@@ -107,3 +107,22 @@ ALTER TABLE public.region_operational_state REPLICA IDENTITY FULL;
    - La restricción de unicidad `UNIQUE (region_id, cell_key)` en `public.tactical_spatial_deployments` y `public.tactical_fief_constructions` previene colisiones de despliegue simultáneo (dos comandantes intentando ocupar la misma celda de 20 m en el mismo milisegundo). El primer `INSERT` persiste; el segundo recibe rechazo determinista (`23505 unique_violation`).
 3. **Resiliencia Offline-First y Fallback Local:**
    - Si `isSupabaseConfigured()` es `false` (entorno de pruebas CI/CD o desconexión temporal), `stateSovereigntyService.ts`, `spatialDeploymentService.ts`, `catalogRegistryService.ts`, `playerDatabaseService.ts` y `matchDatabaseService.ts` operan sin interrupción sobre sus cachés en memoria y `localStorage`, garantizando 0 crashes en tiempo de ejecución.
+
+---
+
+## 6. ACTUALIZACIÓN ARQUITECTURA 10,000+ CCU (MIGRACIONES `20261118000005`..`20261118000014`)
+
+Para sostener más de 10,000 usuarios concurrentes (CCU) sin contención de locks, *WAL bloat* ni *fan-out* global de CDC, el esquema PostgreSQL/Supabase se consolidó bajo el **Contrato SQL/RPC v3**:
+
+| Migración | Módulo / Capacidad | Cambios Estructurales Clave |
+| :--- | :--- | :--- |
+| **`20261118000005`** | **RLS & Auth Hardening** | Cierra políticas `PERMISSIVE` huérfanas, estandariza `(SELECT auth.uid())` en RLS y revoca writes directos de cliente (`INSERT`/`UPDATE`/`DELETE`) en `p2p_market_orders`, `territorial_battle_sessions`, `state_sovereignty`, `tactical_spatial_deployments`, `tactical_fief_constructions` y `region_operational_state`, canalizando mutaciones únicamente vía RPCs autoritativas. |
+| **`20261118000006`** | **Orden Canónico Global de Locks** | Unifica el orden determinista de bloqueo (`corporations -> buildings -> infra_edges -> operational_units -> user_unit_hangar -> profiles -> user_industrial_inventory -> p2p_market_orders -> territorial_battle_sessions`) en RPCs económicas y de despliegue para eliminar deadlocks bajo alta concurrencia. |
+| **`20261118000007`** | **Sharding de Tesorería Corporativa** | Introduce `public.corporation_treasury_shards` (16 shards por corporación, `shard_id` 0..15) y contadores desacoplados de miembros, eliminando el cuello de botella de fila única en `corporations` durante donaciones, cosechas y pagos masivos. |
+| **`20261118000008`** | **Culling Espacial por Viewport** | Añade `h3_res9_to_lat_lng(BIGINT)`, columnas geodésicas `lat`/`lng` sincronizadas por trigger e índices B-tree compuestos. Expone `get_buildings_in_viewport`, `get_infra_edges_in_viewport` y `get_units_in_viewport` ($O(\log N)$). |
+| **`20261118000009`** | **WAL & Broadcast v3** | Revierte tablas de alto churn de `REPLICA IDENTITY FULL` a `DEFAULT`, las remueve de `supabase_realtime` (`postgres_changes` global) y emite deltas compactos **Broadcast v3** mediante `realtime.send` (con fallback `pg_notify`) hacia canales segmentados (`world:region:{regionId}`, `market:orders`, `siege:region:{regionId}`, `match:{matchId}`). |
+| **`20261118000010`** | **Scheduler Batch Worker & `pg_cron`** | Refactoriza `process_due_unit_schedules(p_batch_limit INT DEFAULT 25)` con `FOR UPDATE SKIP LOCKED`, backoff exponencial (`retry_count`, `last_error_at`), emisión agrupada por región y registro idempotente en `pg_cron` (protegido con `IF EXISTS`). |
+| **`20261118000011`** | **TTL, Retención y Purga** | Añade `expires_at` e índices B-tree en `economy_rpc_idempotency` (TTL 24h), `unit_action_logs` y `auth_audit_logs`, junto a `purge_expired_idempotency_and_logs` ejecutada periódicamente por `pg_cron`. |
+| **`20261118000012`** | **Grafo Logístico Materializado** | Índices compuestos en `infra_edges` y alcance BFS acotado con recomputación *dirty-graph* en `sync_pipeline_logistics` y `execute_collector_haul`. |
+| **`20261118000013`** | **Mercado P2P Paginado & Escrow** | Índices parciales `WHERE status = 'active'`, paginación *keyset* $O(\log N)$ (`get_p2p_market_orders_page`) y escrow atómico (`publish_p2p_market_order`, `cancel_p2p_market_order`, `execute_p2p_market_transaction`). |
+| **`20261118000014`** | **Autoridad de Combate y Asedio** | `match_action_deltas` con idempotencia y RLS de solo lectura para participantes; 5 RPCs autoritativas (`start_territorial_siege`, `claim_territorial_handshake`, `resolve_territorial_handshake_timeout`, `resolve_territorial_battle`, `submit_match_action`) con Broadcast v3. |
