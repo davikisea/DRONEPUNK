@@ -44,6 +44,142 @@ export interface TacticalGridCoords {
   pixel: [number, number];
 }
 
+export interface GlobalTacticalCell {
+  /** Coordenada global entera en [0, 2^zoom * gridSize - 1] (ej. 0..655,359 a z=15, gridSize=20) */
+  globalX: number;
+  globalY: number;
+  sectorX: number;
+  sectorY: number;
+  localX: number;
+  localY: number;
+}
+
+/**
+ * Proyección entera exacta O(1) WGS84 -> Celda Táctica Global sin deriva IEEE-754
+ * en fronteras múltiplos de 1/gridSize (0.05).
+ */
+export function lngLatToGlobalTacticalCell(
+  lngLat: LngLat,
+  gridSize: number = 20,
+  zoom: number = ZOOM_TACTICO
+): GlobalTacticalCell {
+  const [lng, lat] = lngLat;
+  const clampedLat = Math.max(-85.05112878, Math.min(85.05112878, lat));
+  const totalCells = Math.pow(2, zoom) * gridSize;
+
+  const xFloat = ((lng + 180) / 360) * totalCells;
+  const latRad = (clampedLat * Math.PI) / 180;
+  const yFloat =
+    ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * totalCells;
+
+  const globalX = Math.max(0, Math.min(totalCells - 1, Math.floor(xFloat)));
+  const globalY = Math.max(0, Math.min(totalCells - 1, Math.floor(yFloat)));
+  const sectorX = Math.floor(globalX / gridSize);
+  const sectorY = Math.floor(globalY / gridSize);
+  const localX = globalX - sectorX * gridSize;
+  const localY = globalY - sectorY * gridSize;
+
+  return { globalX, globalY, sectorX, sectorY, localX, localY };
+}
+
+/**
+ * Convierte una celda global táctica (globalX, globalY) a su centroide geográfico WGS84.
+ */
+export function globalTacticalCellToLngLat(
+  globalX: number,
+  globalY: number,
+  gridSize: number = 20,
+  zoom: number = ZOOM_TACTICO
+): LngLat {
+  const tileXFloat = (globalX + 0.5) / gridSize;
+  const tileYFloat = (globalY + 0.5) / gridSize;
+  return tileFractionToLngLat(tileXFloat, tileYFloat, zoom);
+}
+
+/**
+ * Rasterizador 4-conectado estricto (Amanatides & Woo DDA) entre dos coordenadas WGS84.
+ * Garantiza |dx| + |dy| === 1 en cada paso (0 saltos diagonales) para autotiling GBA perfecto.
+ */
+export function traceWgs84SegmentTo4ConnectedCells(
+  fromLngLat: LngLat,
+  toLngLat: LngLat,
+  gridSize: number = 20,
+  zoom: number = ZOOM_TACTICO
+): Array<[number, number]> {
+  const totalCells = Math.pow(2, zoom) * gridSize;
+
+  const projectFloat = (pt: LngLat): [number, number] => {
+    const clampedLat = Math.max(-85.05112878, Math.min(85.05112878, pt[1]));
+    const xf = ((pt[0] + 180) / 360) * totalCells;
+    const latRad = (clampedLat * Math.PI) / 180;
+    const yf =
+      ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * totalCells;
+    return [
+      Math.max(0, Math.min(totalCells - 1e-6, xf)),
+      Math.max(0, Math.min(totalCells - 1e-6, yf)),
+    ];
+  };
+
+  const [x0f, y0f] = projectFloat(fromLngLat);
+  const [x1f, y1f] = projectFloat(toLngLat);
+
+  let x = Math.floor(x0f);
+  let y = Math.floor(y0f);
+  const xEnd = Math.floor(x1f);
+  const yEnd = Math.floor(y1f);
+
+  const cells: Array<[number, number]> = [[x, y]];
+  if (x === xEnd && y === yEnd) return cells;
+
+  const dx = x1f - x0f;
+  const dy = y1f - y0f;
+  const stepX = dx > 0 ? 1 : dx < 0 ? -1 : 0;
+  const stepY = dy > 0 ? 1 : dy < 0 ? -1 : 0;
+
+  const tDeltaX = stepX !== 0 ? Math.abs(1 / dx) : Number.POSITIVE_INFINITY;
+  const tDeltaY = stepY !== 0 ? Math.abs(1 / dy) : Number.POSITIVE_INFINITY;
+
+  let tMaxX =
+    stepX > 0
+      ? (Math.floor(x0f) + 1 - x0f) * tDeltaX
+      : stepX < 0
+      ? (x0f - Math.floor(x0f)) * tDeltaX
+      : Number.POSITIVE_INFINITY;
+  let tMaxY =
+    stepY > 0
+      ? (Math.floor(y0f) + 1 - y0f) * tDeltaY
+      : stepY < 0
+      ? (y0f - Math.floor(y0f)) * tDeltaY
+      : Number.POSITIVE_INFINITY;
+
+  const maxSteps = Math.abs(xEnd - x) + Math.abs(yEnd - y) + 4;
+  let steps = 0;
+
+  while ((x !== xEnd || y !== yEnd) && steps < maxSteps) {
+    steps++;
+    if (tMaxX <= tMaxY) {
+      if (x !== xEnd) {
+        x += stepX;
+        tMaxX += tDeltaX;
+      } else if (y !== yEnd) {
+        y += stepY;
+        tMaxY += tDeltaY;
+      }
+    } else {
+      if (y !== yEnd) {
+        y += stepY;
+        tMaxY += tDeltaY;
+      } else if (x !== xEnd) {
+        x += stepX;
+        tMaxX += tDeltaX;
+      }
+    }
+    cells.push([x, y]);
+  }
+
+  return cells;
+}
+
 /**
  * Picking analítico O(1): Convierte cualquier coordenada geográfica (Lng, Lat)
  * al Sector Tile (Web Mercator a nivel de zoom dado) y su celda táctica interna.

@@ -875,6 +875,31 @@ export interface SectorTerrainDelta {
   source?: 'map_builder' | 'pilot_seed' | 'supabase';
 }
 
+export type PropertyOwnershipOrigin =
+  | 'neutral_procedural'
+  | 'pilot_seed'
+  | 'map_builder'
+  | 'conquest_rpc'
+  | 'supabase_realtime';
+
+export interface SectorPropertyOwnershipRecord {
+  sectorKey: string;
+  cellKey: string;
+  terrainType: TerrainType;
+  ownerId: GbaFactionOwner;
+  ownerClanId: string | null;
+  buildingId: string | null;
+  captureProgress: number;
+  origin: PropertyOwnershipOrigin;
+  updatedAt: string;
+}
+
+export type PropertyOwnershipResolver = (
+  sector: [number, number],
+  cell: [number, number],
+  terrainType: TerrainType
+) => GbaFactionOwner;
+
 export const SECTOR_TERRAIN_DEFENSE_STARS: Record<TerrainType, number> = {
   plains: 1,
   forest: 2,

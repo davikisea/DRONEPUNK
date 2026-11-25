@@ -43,7 +43,7 @@ import {
   evaluateSignalCaptureTick,
   type SignalCaptureTickResult,
 } from '../core/territorialExpansionEngine';
-import { generateGbaSectorBlueprint } from '../core/gbaMapPipeline';
+import { clearGbaPipelineCache, generateGbaSectorBlueprint } from '../core/gbaMapPipeline';
 
 export type MicroTerrainType =
   | 'urban_asphalt'
@@ -901,6 +901,45 @@ class SpatialDeploymentService {
     return this.terrainRevision;
   }
 
+  /**
+   * Incrementa atómicamente terrainRevision tras hidratación cartográfica asíncrona
+   * (polígonos, ciudades, carreteras) para purgar sectorLruCache, cityBlueprintCache,
+   * sectorGeoJsonCache y sectorTextureCache (WebGL GPU).
+   */
+  public bumpTerrainRevision(options?: {
+    clearProceduralCaches?: boolean;
+    notify?: boolean;
+  }): number {
+    this.ensureTerrainInitialized();
+    if (options?.clearProceduralCaches !== false) {
+      clearGbaPipelineCache();
+    }
+    this.terrainRevision += 1;
+    if (options?.notify !== false) {
+      this.notifyListeners();
+    }
+    return this.terrainRevision;
+  }
+
+  /**
+   * Hook desacoplado para la futura Fase de Conquista (Supabase RPC claim_or_capture_building):
+   * actualiza el ownerId de una propiedad neutral gris -> facción conquistadora e invalida GPU.
+   */
+  public applyPropertyCaptureOverride(
+    sector: [number, number],
+    cell: [number, number],
+    ownerId: 'p1' | 'p2' | 'p3' | 'p4' | 'p5' | null,
+    source: 'map_builder' | 'supabase' = 'supabase'
+  ): void {
+    const current = this.resolveSectorCellTerrain(sector, cell, 20);
+    this.applySectorTerrainDelta({
+      sector,
+      gridSize: 20,
+      source,
+      changes: [{ x: cell[0], y: cell[1], type: current.type, ownerId }],
+    });
+  }
+
   public getOverriddenSectorsCount(): number {
     this.ensureTerrainInitialized();
     return this.sectorTerrainOverrides.size;
@@ -1068,14 +1107,14 @@ class SpatialDeploymentService {
   }
 
   private seedPilotCabimasTerrainOverrides(): void {
-    // Overrides dispersos mínimos compatibles con el Motor Paramétrico GBA de 7 Etapas:
-    // Preservan anclas estratégicas del Teatro Cabimas sin sobreescribir carreteras ni costas reales.
+    // Overrides dispersos mínimos compatibles con el Motor Paramétrico GBA:
+    // INVARIANTE DE NEUTRALIDAD GRIS: toda propiedad sembrada inicialmente nace con ownerId: null (gris neutral).
 
     // 1. Sector [9878, 15432]: Costa Occidental Real de Cabimas / Punta Icotea
     this.applySectorTerrainDeltaRaw(
       [9878, 15432],
       [
-        { x: 16, y: 10, type: 'port', ownerId: 'p2' },
+        { x: 16, y: 10, type: 'port', ownerId: null },
       ],
       'pilot_seed'
     );
@@ -1084,8 +1123,8 @@ class SpatialDeploymentService {
     this.applySectorTerrainDeltaRaw(
       [9879, 15432],
       [
-        { x: 13, y: 11, type: 'city', ownerId: 'p2' },
-        { x: 16, y: 8, type: 'commtower', ownerId: 'p2' },
+        { x: 13, y: 11, type: 'city', ownerId: null },
+        { x: 16, y: 8, type: 'commtower', ownerId: null },
       ],
       'pilot_seed'
     );
@@ -1095,19 +1134,19 @@ class SpatialDeploymentService {
       [9880, 15432],
       [
         { x: 0, y: 11, type: 'forest' }, // Garantiza cobertura 20% en centro ancla Test 1.2
-        { x: 1, y: 4, type: 'port', ownerId: 'p2' }, // Puerto táctico Test 6.1
-        { x: 18, y: 2, type: 'hq', ownerId: 'p2' }, // HQ Blue Moon (Clan Ferro)
+        { x: 1, y: 4, type: 'port', ownerId: null }, // Puerto táctico neutral gris Test 6.1
+        { x: 18, y: 2, type: 'hq', ownerId: null }, // HQ neutral gris esperando conquista
       ],
       'pilot_seed'
     );
 
-    // 4. Sector [9881, 15432]: Flanco Oriental — Puesto Avanzado Orinoco (Orange Star)
+    // 4. Sector [9881, 15432]: Flanco Oriental — Puesto Avanzado Orinoco (Neutral Gris)
     this.applySectorTerrainDeltaRaw(
       [9881, 15432],
       [
-        { x: 15, y: 8, type: 'hq', ownerId: 'p1' }, // HQ Orange Star (Clan Orinoco) Test 6.1
-        { x: 13, y: 8, type: 'factory', ownerId: 'p1' },
-        { x: 15, y: 4, type: 'airport', ownerId: 'p1' },
+        { x: 15, y: 8, type: 'hq', ownerId: null }, // HQ neutral gris (4★) Test 6.1
+        { x: 13, y: 8, type: 'factory', ownerId: null },
+        { x: 15, y: 4, type: 'airport', ownerId: null },
       ],
       'pilot_seed'
     );
@@ -1123,6 +1162,7 @@ class SpatialDeploymentService {
     for (const c of changes) {
       cells[`${c.x}_${c.y}`] = {
         ...c,
+        ownerId: c.ownerId ?? null,
         defenseStars: c.defenseStars ?? getTerrainDefenseStars(c.type),
       };
     }

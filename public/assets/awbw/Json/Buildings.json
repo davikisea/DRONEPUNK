@@ -1,0 +1,3766 @@
+{
+    "Neutral City": {
+        "AWBWID": 34,
+        "BaseDefence": 3,
+        "Colour": "#f0f0f0",
+        "Name": "Neutral City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "BuildingType": "City",
+        "Textures": {
+            "Clear": "Neutral/City",
+            "Rain": "Neutral/City_Rain",
+            "Snow": "Neutral/City_Snow"
+        }
+    },
+    "Neutral Base": {
+        "AWBWID": 35,
+        "BaseDefence": 3,
+        "Colour": "#f0f0f0",
+        "Name": "Neutral Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "BuildingType": "Base",
+        "Textures": {
+            "Clear": "Neutral/Base",
+            "Rain": "Neutral/Base_Rain",
+            "Snow": "Neutral/Base_Snow"
+        }
+    },
+    "Neutral Airport": {
+        "AWBWID": 36,
+        "BaseDefence": 3,
+        "Colour": "#f0f0f0",
+        "Name": "Neutral Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "BuildingType": "Airport",
+        "Textures": {
+            "Clear": "Neutral/Airport",
+            "Rain": "Neutral/Airport_Rain",
+            "Snow": "Neutral/Airport_Snow"
+        }
+    },
+    "Neutral Port": {
+        "AWBWID": 37,
+        "BaseDefence": 3,
+        "Colour": "#f0f0f0",
+        "Name": "Neutral Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "BuildingType": "Port",
+        "Textures": {
+            "Clear": "Neutral/Port",
+            "Rain": "Neutral/Port_Rain",
+            "Snow": "Neutral/Port_Snow"
+        }
+    },
+    "Neutral Com Tower": {
+        "AWBWID": 133,
+        "BaseDefence": 3,
+        "Colour": "#f0f0f0",
+        "Name": "Neutral Com Tower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "BuildingType": "ComTower",
+        "GivesMoneyWhenCaptured": false,
+        "Textures": {
+            "Clear": "Neutral/ComTower",
+            "Rain": "Neutral/ComTower_Rain",
+            "Snow": "Neutral/ComTower_Snow"
+        }
+    },
+    "Neutral Lab": {
+        "AWBWID": 145,
+        "BaseDefence": 3,
+        "Colour": "#f0f0f0",
+        "Name": "Neutral Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "BuildingType": "Lab",
+        "GivesMoneyWhenCaptured": false,
+        "Textures": {
+            "Clear": "Neutral/Lab",
+            "Rain": "Neutral/Lab_Rain",
+            "Snow": "Neutral/Lab_Snow"
+        }
+    },
+    "Missile Silo": {
+        "AWBWID": 111,
+        "BaseDefence": 3,
+        "Colour": "#ffffff",
+        "Name": "Missile Silo",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "BuildingType": "Missile",
+        "Textures": {
+            "Clear": "Neutral/Silo",
+            "Rain": "Neutral/Silo_Rain",
+            "Snow": "Neutral/Silo_Snow"
+        }
+    },
+    "Horizontal Pipe Seam": {
+        "AWBWID": 113,
+        "BaseDefence": 0,
+        "Colour": "#a88080",
+        "Name": "Pipe Seam",
+        "MovementCostsPerType": {
+            "Pipe": 1
+        },
+        "BuildingType": "PipeSeam",
+        "Textures": {
+            "Clear": "Neutral/HSeam",
+            "Rain": "Neutral/HSeam_Rain",
+            "Snow": "Neutral/HSeam_Snow"
+        },
+        "SymmetryMirror": [113, 114, 113, 114]
+    },
+    "Vertical Pipe Seam": {
+        "AWBWID": 114,
+        "BaseDefence": 0,
+        "Colour": "#a88080",
+        "Name": "Pipe Seam",
+        "MovementCostsPerType": {
+            "Pipe": 1
+        },
+        "BuildingType": "PipeSeam",
+        "Textures": {
+            "Clear": "Neutral/VSeam",
+            "Rain": "Neutral/VSeam_Rain",
+            "Snow": "Neutral/VSeam_Snow"
+        },
+        "SymmetryMirror": [114, 113, 114, 113]
+    },
+    /*
+    Orange Star
+    */
+    "Orange Star Airport": {
+        "AWBWID": 40,
+        "BaseDefence": 3,
+        "CountryID": 1, //os
+        "Name": "Orange Star Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            300,
+            1200,
+            100
+        ],
+        "Textures": {
+            "Clear": "OrangeStar/Airport",
+            "Rain": "OrangeStar/Airport_Rain",
+            "Snow": "OrangeStar/Airport_Snow"
+        }
+    },
+    "Orange Star Base": {
+        "AWBWID": 39,
+        "BaseDefence": 3,
+        "CountryID": 1, //os
+        "Name": "Orange Star Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            300,
+            100,
+            400,
+            400,
+            300,
+            100
+        ],
+        "Textures": {
+            "Clear": "OrangeStar/Base",
+            "Rain": "OrangeStar/Base_Rain",
+            "Snow": "OrangeStar/Base_Snow"
+        }
+    },
+    "Orange Star City": {
+        "AWBWID": 38,
+        "BaseDefence": 3,
+        "CountryID": 1, //os
+        "Name": "Orange Star City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            300,
+            1200,
+            100
+        ],
+        "Textures": {
+            "Clear": "OrangeStar/City",
+            "Rain": "OrangeStar/City_Rain",
+            "Snow": "OrangeStar/City_Snow"
+        }
+    },
+    "Orange Star HQ": {
+        "AWBWID": 42,
+        "BaseDefence": 4,
+        "CountryID": 1, //os
+        "Name": "Orange Star HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            300,
+            1200,
+            100
+        ],
+        "Textures": {
+            "Clear": "OrangeStar/HQ",
+            "Rain": "OrangeStar/HQ_Rain",
+            "Snow": "OrangeStar/HQ_Snow"
+        }
+    },
+    "Orange Star Port": {
+        "AWBWID": 41,
+        "BaseDefence": 3,
+        "CountryID": 1, //os
+        "Name": "Orange Star Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            300,
+            1200,
+            100
+        ],
+        "Textures": {
+            "Clear": "OrangeStar/Port",
+            "Rain": "OrangeStar/Port_Rain",
+            "Snow": "OrangeStar/Port_Snow"
+        }
+    },
+    "Orange Star Com Tower": {
+        "AWBWID": 134,
+        "BaseDefence": 3,
+        "CountryID": 1, //os
+        "Name": "Orange Star Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            300,
+            1200,
+            100
+        ],
+        "Textures": {
+            "Clear": "OrangeStar/ComTower",
+            "Rain": "OrangeStar/ComTower_Rain",
+            "Snow": "OrangeStar/ComTower_Snow"
+        }
+    },
+    "Orange Star Lab": {
+        "AWBWID": 146,
+        "BaseDefence": 3,
+        "CountryID": 1, //os
+        "Name": "Orange Star Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            300,
+            1200,
+            100
+        ],
+        "Textures": {
+            "Clear": "OrangeStar/Lab",
+            "Rain": "OrangeStar/Lab_Rain",
+            "Snow": "OrangeStar/Lab_Snow"
+        }
+    },
+    /*
+    Blue Moon
+    */
+    "Blue Moon Airport": {
+        "AWBWID": 45,
+        "BaseDefence": 3,
+        "CountryID": 2, //bm
+        "Name": "Blue Moon Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            200,
+            1200,
+            200
+        ],
+        "Textures": {
+            "Clear": "BlueMoon/Airport",
+            "Rain": "BlueMoon/Airport_Rain",
+            "Snow": "BlueMoon/Airport_Snow"
+        }
+    },
+    "Blue Moon Base": {
+        "AWBWID": 44,
+        "BaseDefence": 3,
+        "CountryID": 2, //bm
+        "Name": "Blue Moon Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            200,
+            200,
+            400,
+            400,
+            200,
+            200
+        ],
+        "Textures": {
+            "Clear": "BlueMoon/Base",
+            "Rain": "BlueMoon/Base_Rain",
+            "Snow": "BlueMoon/Base_Snow"
+        }
+    },
+    "Blue Moon City": {
+        "AWBWID": 43,
+        "BaseDefence": 3,
+        "CountryID": 2, //bm
+        "Name": "Blue Moon City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            200,
+            1200,
+            200
+        ],
+        "Textures": {
+            "Clear": "BlueMoon/City",
+            "Rain": "BlueMoon/City_Rain",
+            "Snow": "BlueMoon/City_Snow"
+        }
+    },
+    "Blue Moon HQ": {
+        "AWBWID": 47,
+        "BaseDefence": 4,
+        "CountryID": 2, //bm
+        "Name": "Blue Moon HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            200,
+            1200,
+            200
+        ],
+        "Textures": {
+            "Clear": "BlueMoon/HQ",
+            "Rain": "BlueMoon/HQ_Rain",
+            "Snow": "BlueMoon/HQ_Snow"
+        }
+    },
+    "Blue Moon Port": {
+        "AWBWID": 46,
+        "BaseDefence": 3,
+        "CountryID": 2, //bm
+        "Name": "Blue Moon Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            200,
+            1200,
+            200
+        ],
+        "Textures": {
+            "Clear": "BlueMoon/Port",
+            "Rain": "BlueMoon/Port_Rain",
+            "Snow": "BlueMoon/Port_Snow"
+        }
+    },
+    "Blue Moon Com Tower": {
+        "AWBWID": 129,
+        "BaseDefence": 3,
+        "CountryID": 2, //bm
+        "Name": "Blue Moon Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            200,
+            1200,
+            200
+        ],
+        "Textures": {
+            "Clear": "BlueMoon/ComTower",
+            "Rain": "BlueMoon/ComTower_Rain",
+            "Snow": "BlueMoon/ComTower_Snow"
+        }
+    },
+    "Blue Moon Lab": {
+        "AWBWID": 140,
+        "BaseDefence": 3,
+        "CountryID": 2, //bm
+        "Name": "Blue Moon Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            200,
+            1200,
+            200
+        ],
+        "Textures": {
+            "Clear": "BlueMoon/Lab",
+            "Rain": "BlueMoon/Lab_Rain",
+            "Snow": "BlueMoon/Lab_Snow"
+        }
+    },
+    /*
+    Green Earth
+    */
+    "Green Earth Airport": {
+        "AWBWID": 50,
+        "BaseDefence": 3,
+        "CountryID": 3, //ge
+        "Name": "Green Earth Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            100,
+            1200,
+            300
+        ],
+        "Textures": {
+            "Clear": "GreenEarth/Airport",
+            "Rain": "GreenEarth/Airport_Rain",
+            "Snow": "GreenEarth/Airport_Snow"
+        }
+    },
+    "Green Earth Base": {
+        "AWBWID": 49,
+        "BaseDefence": 3,
+        "CountryID": 3, //ge
+        "Name": "Green Earth Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            100,
+            300,
+            400,
+            400,
+            100,
+            300
+        ],
+        "Textures": {
+            "Clear": "GreenEarth/Base",
+            "Rain": "GreenEarth/Base_Rain",
+            "Snow": "GreenEarth/Base_Snow"
+        }
+    },
+    "Green Earth City": {
+        "AWBWID": 48,
+        "BaseDefence": 3,
+        "CountryID": 3, //ge
+        "Name": "Green Earth City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            100,
+            1200,
+            300
+        ],
+        "Textures": {
+            "Clear": "GreenEarth/City",
+            "Rain": "GreenEarth/City_Rain",
+            "Snow": "GreenEarth/City_Snow"
+        }
+    },
+    "Green Earth HQ": {
+        "AWBWID": 52,
+        "BaseDefence": 4,
+        "CountryID": 3, //ge
+        "Name": "Green Earth HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            100,
+            1200,
+            300
+        ],
+        "Textures": {
+            "Clear": "GreenEarth/HQ",
+            "Rain": "GreenEarth/HQ_Rain",
+            "Snow": "GreenEarth/HQ_Snow"
+        }
+    },
+    "Green Earth Port": {
+        "AWBWID": 51,
+        "BaseDefence": 3,
+        "CountryID": 3, //ge
+        "Name": "Green Earth Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            100,
+            1200,
+            300
+        ],
+        "Textures": {
+            "Clear": "GreenEarth/Port",
+            "Rain": "GreenEarth/Port_Rain",
+            "Snow": "GreenEarth/Port_Snow"
+        }
+    },
+    "Green Earth Com Tower": {
+        "AWBWID": 131,
+        "BaseDefence": 3,
+        "CountryID": 3, //ge
+        "Name": "Green Earth Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            100,
+            1200,
+            300
+        ],
+        "Textures": {
+            "Clear": "GreenEarth/ComTower",
+            "Rain": "GreenEarth/ComTower_Rain",
+            "Snow": "GreenEarth/ComTower_Snow"
+        }
+    },
+    "Green Earth Lab": {
+        "AWBWID": 142,
+        "BaseDefence": 3,
+        "CountryID": 3, //ge
+        "Name": "Green Earth Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            100,
+            1200,
+            300
+        ],
+        "Textures": {
+            "Clear": "GreenEarth/Lab",
+            "Rain": "GreenEarth/Lab_Rain",
+            "Snow": "GreenEarth/Lab_Snow"
+        }
+    },
+    /*
+    Yellow Comet
+    */
+    "Yellow Comet Airport": {
+        "AWBWID": 55,
+        "BaseDefence": 3,
+        "CountryID": 4, //yc
+        "Name": "Yellow Comet Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            1200,
+            400
+        ],
+        "Textures": {
+            "Clear": "YellowComet/Airport",
+            "Rain": "YellowComet/Airport_Rain",
+            "Snow": "YellowComet/Airport_Snow"
+        }
+    },
+    "Yellow Comet Base": {
+        "AWBWID": 54,
+        "BaseDefence": 3,
+        "CountryID": 4, //yc
+        "Name": "Yellow Comet Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            400,
+            400,
+            400,
+            400
+        ],
+        "Textures": {
+            "Clear": "YellowComet/Base",
+            "Rain": "YellowComet/Base_Rain",
+            "Snow": "YellowComet/Base_Snow"
+        }
+    },
+    "Yellow Comet City": {
+        "AWBWID": 53,
+        "BaseDefence": 3,
+        "CountryID": 4, //yc
+        "Name": "Yellow Comet City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            1200,
+            400
+        ],
+        "Textures": {
+            "Clear": "YellowComet/City",
+            "Rain": "YellowComet/City_Rain",
+            "Snow": "YellowComet/City_Snow"
+        }
+    },
+    "Yellow Comet HQ": {
+        "AWBWID": 57,
+        "BaseDefence": 4,
+        "CountryID": 4, //yc
+        "Name": "Yellow Comet HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            1200,
+            400
+        ],
+        "Textures": {
+            "Clear": "YellowComet/HQ",
+            "Rain": "YellowComet/HQ_Rain",
+            "Snow": "YellowComet/HQ_Snow"
+        }
+    },
+    "Yellow Comet Port": {
+        "AWBWID": 56,
+        "BaseDefence": 3,
+        "CountryID": 4, //yc
+        "Name": "Yellow Comet Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            1200,
+            400
+        ],
+        "Textures": {
+            "Clear": "YellowComet/Port",
+            "Rain": "YellowComet/Port_Rain",
+            "Snow": "YellowComet/Port_Snow"
+        }
+    },
+    "Yellow Comet Com Tower": {
+        "AWBWID": 136,
+        "BaseDefence": 3,
+        "CountryID": 4, //yc
+        "Name": "Yellow Comet Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            1200,
+            400
+        ],
+        "Textures": {
+            "Clear": "YellowComet/ComTower",
+            "Rain": "YellowComet/ComTower_Rain",
+            "Snow": "YellowComet/ComTower_Snow"
+        }
+    },
+    "Yellow Comet Lab": {
+        "AWBWID": 148,
+        "BaseDefence": 3,
+        "CountryID": 4, //yc
+        "Name": "Yellow Comet Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            1200,
+            400
+        ],
+        "Textures": {
+            "Clear": "YellowComet/Lab",
+            "Rain": "YellowComet/Lab_Rain",
+            "Snow": "YellowComet/Lab_Snow"
+        }
+    },
+    /*
+    Red Fire
+    */
+    "Red Fire Airport": {
+        "AWBWID": 83,
+        "BaseDefence": 3,
+        "CountryID": 6, //rf
+        "Name": "Red Fire Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            1000,
+            400,
+            200
+        ],
+        "Textures": {
+            "Clear": "RedFire/Airport",
+            "Rain": "RedFire/Airport_Rain",
+            "Snow": "RedFire/Airport_Snow"
+        }
+    },
+    "Red Fire Base": {
+        "AWBWID": 82,
+        "BaseDefence": 3,
+        "CountryID": 6, //rf
+        "Name": "Red Fire Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            400,
+            400,
+            200,
+            200,
+            200,
+            200
+        ],
+        "Textures": {
+            "Clear": "RedFire/Base",
+            "Rain": "RedFire/Base_Rain",
+            "Snow": "RedFire/Base_Snow"
+        }
+    },
+    "Red Fire City": {
+        "AWBWID": 81,
+        "BaseDefence": 3,
+        "CountryID": 6, //rf
+        "Name": "Red Fire City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            1000,
+            400,
+            200
+        ],
+        "Textures": {
+            "Clear": "RedFire/City",
+            "Rain": "RedFire/City_Rain",
+            "Snow": "RedFire/City_Snow"
+        }
+    },
+    "Red Fire HQ": {
+        "AWBWID": 85,
+        "BaseDefence": 4,
+        "CountryID": 6, //rf
+        "Name": "Red Fire HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            600,
+            400,
+            200,
+            200,
+            400,
+            600,
+            200,
+            400,
+            600,
+            600,
+            400,
+            200
+        ],
+        "Textures": {
+            "Clear": "RedFire/HQ",
+            "Rain": "RedFire/HQ_Rain",
+            "Snow": "RedFire/HQ_Snow"
+        }
+    },
+    "Red Fire Port": {
+        "AWBWID": 84,
+        "BaseDefence": 3,
+        "CountryID": 6, //rf
+        "Name": "Red Fire Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            1000,
+            400,
+            200
+        ],
+        "Textures": {
+            "Clear": "RedFire/Port",
+            "Rain": "RedFire/Port_Rain",
+            "Snow": "RedFire/Port_Snow"
+        }
+    },
+    "Red Fire Com Tower": {
+        "AWBWID": 135,
+        "BaseDefence": 3,
+        "CountryID": 6, //rf
+        "Name": "Red Fire Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            1000,
+            400,
+            200
+        ],
+        "Textures": {
+            "Clear": "RedFire/ComTower",
+            "Rain": "RedFire/ComTower_Rain",
+            "Snow": "RedFire/ComTower_Snow"
+        }
+    },
+    "Red Fire Lab": {
+        "AWBWID": 147,
+        "BaseDefence": 3,
+        "CountryID": 6, //rf
+        "Name": "Red Fire Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            1000,
+            400,
+            200
+        ],
+        "Textures": {
+            "Clear": "RedFire/Lab",
+            "Rain": "RedFire/Lab_Rain",
+            "Snow": "RedFire/Lab_Snow"
+        }
+    },
+    /*
+    Grey Sky
+    */
+    "Grey Sky Airport": {
+        "AWBWID": 88,
+        "BaseDefence": 3,
+        "CountryID": 7, //gs
+        "Name": "Grey Sky Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            900,
+            400,
+            300
+        ],
+        "Textures": {
+            "Clear": "GreySky/Airport",
+            "Rain": "GreySky/Airport_Rain",
+            "Snow": "GreySky/Airport_Snow"
+        }
+    },
+    "Grey Sky Base": {
+        "AWBWID": 87,
+        "BaseDefence": 3,
+        "CountryID": 7, //gs
+        "Name": "Grey Sky Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            400,
+            400,
+            100,
+            300,
+            100,
+            300
+        ],
+        "Textures": {
+            "Clear": "GreySky/Base",
+            "Rain": "GreySky/Base_Rain",
+            "Snow": "GreySky/Base_Snow"
+        }
+    },
+    "Grey Sky City": {
+        "AWBWID": 86,
+        "BaseDefence": 3,
+        "CountryID": 7, //gs
+        "Name": "Grey Sky City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            900,
+            400,
+            300
+        ],
+        "Textures": {
+            "Clear": "GreySky/City",
+            "Rain": "GreySky/City_Rain",
+            "Snow": "GreySky/City_Snow"
+        }
+    },
+    "Grey Sky HQ": {
+        "AWBWID": 90,
+        "BaseDefence": 4,
+        "CountryID": 7, //gs
+        "Name": "Grey Sky HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            900,
+            400,
+            300
+        ],
+        "Textures": {
+            "Clear": "GreySky/HQ",
+            "Rain": "GreySky/HQ_Rain",
+            "Snow": "GreySky/HQ_Snow"
+        }
+    },
+    "Grey Sky Port": {
+        "AWBWID": 89,
+        "BaseDefence": 3,
+        "CountryID": 7, //gs
+        "Name": "Grey Sky Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            900,
+            400,
+            300
+        ],
+        "Textures": {
+            "Clear": "GreySky/Port",
+            "Rain": "GreySky/Port_Rain",
+            "Snow": "GreySky/Port_Snow"
+        }
+    },
+    "Grey Sky Com Tower": {
+        "AWBWID": 137,
+        "BaseDefence": 3,
+        "CountryID": 7, //gs
+        "Name": "Grey Sky Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            900,
+            400,
+            300
+        ],
+        "Textures": {
+            "Clear": "GreySky/ComTower",
+            "Rain": "GreySky/ComTower_Rain",
+            "Snow": "GreySky/ComTower_Snow"
+        }
+    },
+    "Grey Sky Lab": {
+        "AWBWID": 143,
+        "BaseDefence": 3,
+        "CountryID": 7, //gs
+        "Name": "Grey Sky Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            900,
+            400,
+            300
+        ],
+        "Textures": {
+            "Clear": "GreySky/Lab",
+            "Rain": "GreySky/Lab_Rain",
+            "Snow": "GreySky/Lab_Snow"
+        }
+    },
+    /*
+    Black Hole
+    */
+    "Black Hole Airport": {
+        "AWBWID": 93,
+        "BaseDefence": 3,
+        "CountryID": 5, //bh
+        "Name": "Black Hole Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            1100,
+            400,
+            100
+        ],
+        "Textures": {
+            "Clear": "BlackHole/Airport",
+            "Rain": "BlackHole/Airport_Rain",
+            "Snow": "BlackHole/Airport_Snow"
+        }
+    },
+    "Black Hole Base": {
+        "AWBWID": 92,
+        "BaseDefence": 3,
+        "CountryID": 5, //bh
+        "Name": "Black Hole Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            400,
+            400,
+            300,
+            100,
+            300,
+            100
+        ],
+        "Textures": {
+            "Clear": "BlackHole/Base",
+            "Rain": "BlackHole/Base_Rain",
+            "Snow": "BlackHole/Base_Snow"
+        }
+    },
+    "Black Hole City": {
+        "AWBWID": 91,
+        "BaseDefence": 3,
+        "CountryID": 5, //bh
+        "Name": "Black Hole City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            1100,
+            400,
+            100
+        ],
+        "Textures": {
+            "Clear": "BlackHole/City",
+            "Rain": "BlackHole/City_Rain",
+            "Snow": "BlackHole/City_Snow"
+        }
+    },
+    "Black Hole HQ": {
+        "AWBWID": 95,
+        "BaseDefence": 4,
+        "CountryID": 5, //bh
+        "Name": "Black Hole HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            1100,
+            400,
+            100
+        ],
+        "Textures": {
+            "Clear": "BlackHole/HQ",
+            "Rain": "BlackHole/HQ_Rain",
+            "Snow": "BlackHole/HQ_Snow"
+        }
+    },
+    "Black Hole Port": {
+        "AWBWID": 94,
+        "BaseDefence": 3,
+        "CountryID": 5, //bh
+        "Name": "Black Hole Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            1100,
+            400,
+            100
+        ],
+        "Textures": {
+            "Clear": "BlackHole/Port",
+            "Rain": "BlackHole/Port_Rain",
+            "Snow": "BlackHole/Port_Snow"
+        }
+    },
+    "Black Hole Com Tower": {
+        "AWBWID": 128,
+        "BaseDefence": 3,
+        "CountryID": 5, //bh
+        "Name": "Black Hole Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            1100,
+            400,
+            100
+        ],
+        "Textures": {
+            "Clear": "BlackHole/ComTower",
+            "Rain": "BlackHole/ComTower_Rain",
+            "Snow": "BlackHole/ComTower_Snow"
+        }
+    },
+    "Black Hole Lab": {
+        "AWBWID": 139,
+        "BaseDefence": 3,
+        "CountryID": 5, //bh
+        "Name": "Black Hole Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            1100,
+            400,
+            100
+        ],
+        "Textures": {
+            "Clear": "BlackHole/Lab",
+            "Rain": "BlackHole/Lab_Rain",
+            "Snow": "BlackHole/Lab_Snow"
+        }
+    },
+    /*
+    Brown Desert
+    */
+    "Brown Desert Airport": {
+        "AWBWID": 98,
+        "BaseDefence": 3,
+        "CountryID": 8, //bd
+        "Name": "Brown Desert Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            800,
+            400,
+            400
+        ],
+        "Textures": {
+            "Clear": "BrownDesert/Airport",
+            "Rain": "BrownDesert/Airport_Rain",
+            "Snow": "BrownDesert/Airport_Snow"
+        }
+    },
+    "Brown Desert Base": {
+        "AWBWID": 97,
+        "BaseDefence": 3,
+        "CountryID": 8, //bd
+        "Name": "Brown Desert Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            400,
+            400,
+            400,
+            400
+        ],
+        "Textures": {
+            "Clear": "BrownDesert/Base",
+            "Rain": "BrownDesert/Base_Rain",
+            "Snow": "BrownDesert/Base_Snow"
+        }
+    },
+    "Brown Desert City": {
+        "AWBWID": 96,
+        "BaseDefence": 3,
+        "CountryID": 8, //bd
+        "Name": "Brown Desert City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            800,
+            400,
+            400
+        ],
+        "Textures": {
+            "Clear": "BrownDesert/City",
+            "Rain": "BrownDesert/City_Rain",
+            "Snow": "BrownDesert/City_Snow"
+        }
+    },
+    "Brown Desert HQ": {
+        "AWBWID": 100,
+        "BaseDefence": 4,
+        "CountryID": 8, //bd
+        "Name": "Brown Desert HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            800,
+            400,
+            400
+        ],
+        "Textures": {
+            "Clear": "BrownDesert/HQ",
+            "Rain": "BrownDesert/HQ_Rain",
+            "Snow": "BrownDesert/HQ_Snow"
+        }
+    },
+    "Brown Desert Port": {
+        "AWBWID": 99,
+        "BaseDefence": 3,
+        "CountryID": 8, //bd
+        "Name": "Brown Desert Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            800,
+            400,
+            400
+        ],
+        "Textures": {
+            "Clear": "BrownDesert/Port",
+            "Rain": "BrownDesert/Port_Rain",
+            "Snow": "BrownDesert/Port_Snow"
+        }
+    },
+    "Brown Desert Com Tower": {
+        "AWBWID": 130,
+        "BaseDefence": 3,
+        "CountryID": 8, //bd
+        "Name": "Brown Desert Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            800,
+            400,
+            400
+        ],
+        "Textures": {
+            "Clear": "BrownDesert/ComTower",
+            "Rain": "BrownDesert/ComTower_Rain",
+            "Snow": "BrownDesert/ComTower_Snow"
+        }
+    },
+    "Brown Desert Lab": {
+        "AWBWID": 141,
+        "BaseDefence": 3,
+        "CountryID": 8, //bd
+        "Name": "Brown Desert Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            800,
+            400,
+            400
+        ],
+        "Textures": {
+            "Clear": "BrownDesert/Lab",
+            "Rain": "BrownDesert/Lab_Rain",
+            "Snow": "BrownDesert/Lab_Snow"
+        }
+    },
+    /*
+    Amber Blossom
+    */
+    "Amber Blossom Airport": {
+        "AWBWID": 117,
+        "BaseDefence": 3,
+        "CountryID": 9, //ab
+        "Name": "Amber Blossom Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            700,
+            400,
+            500
+        ],
+        "Textures": {
+            "Clear": "AmberBlossom/Airport",
+            "Rain": "AmberBlossom/Airport_Rain",
+            "Snow": "AmberBlossom/Airport_Snow"
+        }
+    },
+    "Amber Blossom Base": {
+        "AWBWID": 118,
+        "BaseDefence": 3,
+        "CountryID": 9, //ab
+        "Name": "Amber Blossom Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            400,
+            300,
+            100,
+            300,
+            100,
+            400
+        ],
+        "Textures": {
+            "Clear": "AmberBlossom/Base",
+            "Rain": "AmberBlossom/Base_Rain",
+            "Snow": "AmberBlossom/Base_Snow"
+        }
+    },
+    "Amber Blossom City": {
+        "AWBWID": 119,
+        "BaseDefence": 3,
+        "CountryID": 9, //ab
+        "Name": "Amber Blossom City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            700,
+            400,
+            500
+        ],
+        "Textures": {
+            "Clear": "AmberBlossom/City",
+            "Rain": "AmberBlossom/City_Rain",
+            "Snow": "AmberBlossom/City_Snow"
+        }
+    },
+    "Amber Blossom HQ": {
+        "AWBWID": 120,
+        "BaseDefence": 4,
+        "CountryID": 9, //ab
+        "Name": "Amber Blossom HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            700,
+            400,
+            500
+        ],
+        "Textures": {
+            "Clear": "AmberBlossom/HQ",
+            "Rain": "AmberBlossom/HQ_Rain",
+            "Snow": "AmberBlossom/HQ_Snow"
+        }
+    },
+    "Amber Blossom Port": {
+        "AWBWID": 121,
+        "BaseDefence": 3,
+        "CountryID": 9, //ab
+        "Name": "Amber Blossom Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            700,
+            400,
+            500
+        ],
+        "Textures": {
+            "Clear": "AmberBlossom/Port",
+            "Rain": "AmberBlossom/Port_Rain",
+            "Snow": "AmberBlossom/Port_Snow"
+        }
+    },
+    "Amber Blossom Com Tower": {
+        "AWBWID": 127,
+        "BaseDefence": 3,
+        "CountryID": 9, //ab
+        "Name": "Amber Blossom Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            700,
+            400,
+            500
+        ],
+        "Textures": {
+            "Clear": "AmberBlossom/ComTower",
+            "Rain": "AmberBlossom/ComTower_Rain",
+            "Snow": "AmberBlossom/ComTower_Snow"
+        }
+    },
+    "Amber Blossom Lab": {
+        "AWBWID": 138,
+        "BaseDefence": 3,
+        "CountryID": 9, //ab
+        "Name": "Amber Blossom Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            700,
+            400,
+            500
+        ],
+        "Textures": {
+            "Clear": "AmberBlossom/Lab",
+            "Rain": "AmberBlossom/Lab_Rain",
+            "Snow": "AmberBlossom/Lab_Snow"
+        }
+    },
+    /*
+    Jade Sun
+    */
+    "Jade Sun Airport": {
+        "AWBWID": 122,
+        "BaseDefence": 3,
+        "CountryID": 10, //js
+        "Name": "Jade Sun Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            600,
+            400,
+            600
+        ],
+        "Textures": {
+            "Clear": "JadeSun/Airport",
+            "Rain": "JadeSun/Airport_Rain",
+            "Snow": "JadeSun/Airport_Snow"
+        }
+    },
+    "Jade Sun Base": {
+        "AWBWID": 123,
+        "BaseDefence": 3,
+        "CountryID": 10, //js
+        "Name": "Jade Sun Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            400,
+            200,
+            200,
+            200,
+            200,
+            400
+        ],
+        "Textures": {
+            "Clear": "JadeSun/Base",
+            "Rain": "JadeSun/Base_Rain",
+            "Snow": "JadeSun/Base_Snow"
+        }
+    },
+    "Jade Sun City": {
+        "AWBWID": 124,
+        "BaseDefence": 3,
+        "CountryID": 10, //js
+        "Name": "Jade Sun City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            600,
+            400,
+            600
+        ],
+        "Textures": {
+            "Clear": "JadeSun/City",
+            "Rain": "JadeSun/City_Rain",
+            "Snow": "JadeSun/City_Snow"
+        }
+    },
+    "Jade Sun HQ": {
+        "AWBWID": 125,
+        "BaseDefence": 4,
+        "CountryID": 10, //js
+        "Name": "Jade Sun HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            600,
+            400,
+            600
+        ],
+        "Textures": {
+            "Clear": "JadeSun/HQ",
+            "Rain": "JadeSun/HQ_Rain",
+            "Snow": "JadeSun/HQ_Snow"
+        }
+    },
+    "Jade Sun Port": {
+        "AWBWID": 126,
+        "BaseDefence": 3,
+        "CountryID": 10, //js
+        "Name": "Jade Sun Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            600,
+            400,
+            600
+        ],
+        "Textures": {
+            "Clear": "JadeSun/Port",
+            "Rain": "JadeSun/Port_Rain",
+            "Snow": "JadeSun/Port_Snow"
+        }
+    },
+    "Jade Sun Com Tower": {
+        "AWBWID": 132,
+        "BaseDefence": 3,
+        "CountryID": 10, //js
+        "Name": "Jade Sun Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            600,
+            400,
+            600
+        ],
+        "Textures": {
+            "Clear": "JadeSun/ComTower",
+            "Rain": "JadeSun/ComTower_Rain",
+            "Snow": "JadeSun/ComTower_Snow"
+        }
+    },
+    "Jade Sun Lab": {
+        "AWBWID": 144,
+        "BaseDefence": 3,
+        "CountryID": 10, //js
+        "Name": "Jade Sun Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            600,
+            400,
+            600
+        ],
+        "Textures": {
+            "Clear": "JadeSun/Lab",
+            "Rain": "JadeSun/Lab_Rain",
+            "Snow": "JadeSun/Lab_Snow"
+        }
+    },
+    /*
+    Cobalt Ice
+    */
+    "Cobalt Ice Airport": {
+        "AWBWID": 149,
+        "BaseDefence": 3,
+        "CountryID": 16, //ci
+        "Name": "Cobalt Ice Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            500,
+            400,
+            700
+        ],
+        "Textures": {
+            "Clear": "CobaltIce/Airport",
+            "Rain": "CobaltIce/Airport_Rain",
+            "Snow": "CobaltIce/Airport_Snow"
+        }
+    },
+    "Cobalt Ice Base": {
+        "AWBWID": 150,
+        "BaseDefence": 3,
+        "CountryID": 16, //ci
+        "Name": "Cobalt Ice Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            400,
+            100,
+            300,
+            100,
+            300,
+            400
+        ],
+        "Textures": {
+            "Clear": "CobaltIce/Base",
+            "Rain": "CobaltIce/Base_Rain",
+            "Snow": "CobaltIce/Base_Snow"
+        }
+    },
+    "Cobalt Ice City": {
+        "AWBWID": 151,
+        "BaseDefence": 3,
+        "CountryID": 16, //ci
+        "Name": "Cobalt Ice City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            500,
+            400,
+            700
+        ],
+        "Textures": {
+            "Clear": "CobaltIce/City",
+            "Rain": "CobaltIce/City_Rain",
+            "Snow": "CobaltIce/City_Snow"
+        }
+    },
+    "Cobalt Ice HQ": {
+        "AWBWID": 153,
+        "BaseDefence": 4,
+        "CountryID": 16, //ci
+        "Name": "Cobalt Ice HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            500,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            700
+        ],
+        "Textures": {
+            "Clear": "CobaltIce/HQ",
+            "Rain": "CobaltIce/HQ_Rain",
+            "Snow": "CobaltIce/HQ_Snow"
+        }
+    },
+    "Cobalt Ice Port": {
+        "AWBWID": 155,
+        "BaseDefence": 3,
+        "CountryID": 16, //ci
+        "Name": "Cobalt Ice Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            500,
+            400,
+            700
+        ],
+        "Textures": {
+            "Clear": "CobaltIce/Port",
+            "Rain": "CobaltIce/Port_Rain",
+            "Snow": "CobaltIce/Port_Snow"
+        }
+    },
+    "Cobalt Ice Com Tower": {
+        "AWBWID": 152,
+        "BaseDefence": 3,
+        "CountryID": 16, //ci
+        "Name": "Cobalt Ice Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            500,
+            400,
+            700
+        ],
+        "Textures": {
+            "Clear": "CobaltIce/ComTower",
+            "Rain": "CobaltIce/ComTower_Rain",
+            "Snow": "CobaltIce/ComTower_Snow"
+        }
+    },
+    "Cobalt Ice Lab": {
+        "AWBWID": 154,
+        "BaseDefence": 3,
+        "CountryID": 16, //ci
+        "Name": "Cobalt Ice Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            500,
+            400,
+            700
+        ],
+        "Textures": {
+            "Clear": "CobaltIce/Lab",
+            "Rain": "CobaltIce/Lab_Rain",
+            "Snow": "CobaltIce/Lab_Snow"
+        }
+    },
+    /*
+    Pink Cosmos
+    */
+    "Pink Cosmos Airport": {
+        "AWBWID": 156,
+        "BaseDefence": 3,
+        "CountryID": 17, //pc
+        "Name": "Pink Cosmos Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            400,
+            400,
+            800
+        ],
+        "Textures": {
+            "Clear": "PinkCosmos/Airport",
+            "Rain": "PinkCosmos/Airport_Rain",
+            "Snow": "PinkCosmos/Airport_Snow"
+        }
+    },
+    "Pink Cosmos Base": {
+        "AWBWID": 157,
+        "BaseDefence": 3,
+        "CountryID": 17, //pc
+        "Name": "Pink Cosmos Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            400,
+            400,
+            400,
+            400
+        ],
+        "Textures": {
+            "Clear": "PinkCosmos/Base",
+            "Rain": "PinkCosmos/Base_Rain",
+            "Snow": "PinkCosmos/Base_Snow"
+        }
+    },
+    "Pink Cosmos City": {
+        "AWBWID": 158,
+        "BaseDefence": 3,
+        "CountryID": 17, //pc
+        "Name": "Pink Cosmos City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            400,
+            400,
+            800
+        ],
+        "Textures": {
+            "Clear": "PinkCosmos/City",
+            "Rain": "PinkCosmos/City_Rain",
+            "Snow": "PinkCosmos/City_Snow"
+        }
+    },
+    "Pink Cosmos HQ": {
+        "AWBWID": 160,
+        "BaseDefence": 4,
+        "CountryID": 17, //pc
+        "Name": "Pink Cosmos HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            400,
+            400,
+            800
+        ],
+        "Textures": {
+            "Clear": "PinkCosmos/HQ",
+            "Rain": "PinkCosmos/HQ_Rain",
+            "Snow": "PinkCosmos/HQ_Snow"
+        }
+    },
+    "Pink Cosmos Port": {
+        "AWBWID": 162,
+        "BaseDefence": 3,
+        "CountryID": 17, //pc
+        "Name": "Pink Cosmos Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            400,
+            400,
+            800
+        ],
+        "Textures": {
+            "Clear": "PinkCosmos/Port",
+            "Rain": "PinkCosmos/Port_Rain",
+            "Snow": "PinkCosmos/Port_Snow"
+        }
+    },
+    "Pink Cosmos Com Tower": {
+        "AWBWID": 159,
+        "BaseDefence": 3,
+        "CountryID": 17, //pc
+        "Name": "Pink Cosmos Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            400,
+            400,
+            800
+        ],
+        "Textures": {
+            "Clear": "PinkCosmos/ComTower",
+            "Rain": "PinkCosmos/ComTower_Rain",
+            "Snow": "PinkCosmos/ComTower_Snow"
+        }
+    },
+    "Pink Cosmos Lab": {
+        "AWBWID": 161,
+        "BaseDefence": 3,
+        "CountryID": 17, //pc
+        "Name": "Pink Cosmos Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            400,
+            400,
+            800
+        ],
+        "Textures": {
+            "Clear": "PinkCosmos/Lab",
+            "Rain": "PinkCosmos/Lab_Rain",
+            "Snow": "PinkCosmos/Lab_Snow"
+        }
+    },
+    /*
+    Teal Galaxy
+    */
+    "Teal Galaxy Airport": {
+        "AWBWID": 163,
+        "BaseDefence": 3,
+        "CountryID": 19, //tg
+        "Name": "Teal Galaxy Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            300,
+            400,
+            900
+        ],
+        "Textures": {
+            "Clear": "TealGalaxy/Airport",
+            "Rain": "TealGalaxy/Airport_Rain",
+            "Snow": "TealGalaxy/Airport_Snow"
+        }
+    },
+    "Teal Galaxy Base": {
+        "AWBWID": 164,
+        "BaseDefence": 3,
+        "CountryID": 19, //tg
+        "Name": "Teal Galaxy Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            300,
+            100,
+            300,
+            100,
+            400,
+            400
+        ],
+        "Textures": {
+            "Clear": "TealGalaxy/Base",
+            "Rain": "TealGalaxy/Base_Rain",
+            "Snow": "TealGalaxy/Base_Snow"
+        }
+    },
+    "Teal Galaxy City": {
+        "AWBWID": 165,
+        "BaseDefence": 3,
+        "CountryID": 19, //tg
+        "Name": "Teal Galaxy City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            300,
+            400,
+            900
+        ],
+        "Textures": {
+            "Clear": "TealGalaxy/City",
+            "Rain": "TealGalaxy/City_Rain",
+            "Snow": "TealGalaxy/City_Snow"
+        }
+    },
+    "Teal Galaxy HQ": {
+        "AWBWID": 167,
+        "BaseDefence": 4,
+        "CountryID": 19, //tg
+        "Name": "Teal Galaxy HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            300,
+            400,
+            900
+        ],
+        "Textures": {
+            "Clear": "TealGalaxy/HQ",
+            "Rain": "TealGalaxy/HQ_Rain",
+            "Snow": "TealGalaxy/HQ_Snow"
+        }
+    },
+    "Teal Galaxy Port": {
+        "AWBWID": 169,
+        "BaseDefence": 3,
+        "CountryID": 19, //tg
+        "Name": "Teal Galaxy Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            300,
+            400,
+            900
+        ],
+        "Textures": {
+            "Clear": "TealGalaxy/Port",
+            "Rain": "TealGalaxy/Port_Rain",
+            "Snow": "TealGalaxy/Port_Snow"
+        }
+    },
+    "Teal Galaxy Com Tower": {
+        "AWBWID": 166,
+        "BaseDefence": 3,
+        "CountryID": 19, //tg
+        "Name": "Teal Galaxy Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            300,
+            400,
+            900
+        ],
+        "Textures": {
+            "Clear": "TealGalaxy/ComTower",
+            "Rain": "TealGalaxy/ComTower_Rain",
+            "Snow": "TealGalaxy/ComTower_Snow"
+        }
+    },
+    "Teal Galaxy Lab": {
+        "AWBWID": 168,
+        "BaseDefence": 3,
+        "CountryID": 19, //tg
+        "Name": "Teal Galaxy Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            300,
+            400,
+            900
+        ],
+        "Textures": {
+            "Clear": "TealGalaxy/Lab",
+            "Rain": "TealGalaxy/Lab_Rain",
+            "Snow": "TealGalaxy/Lab_Snow"
+        }
+    },
+    /*
+    Purple Lightning
+    */
+    "Purple Lightning Airport": {
+        "AWBWID": 170,
+        "BaseDefence": 3,
+        "CountryID": 20, //pl
+        "Name": "Purple Lightning Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            200,
+            400,
+            1000
+        ],
+        "Textures": {
+            "Clear": "PurpleLightning/Airport",
+            "Rain": "PurpleLightning/Airport_Rain",
+            "Snow": "PurpleLightning/Airport_Snow"
+        }
+    },
+    "Purple Lightning Base": {
+        "AWBWID": 171,
+        "BaseDefence": 3,
+        "CountryID": 20, //pl
+        "Name": "Purple Lightning Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            200,
+            200,
+            200,
+            200,
+            400,
+            400
+        ],
+        "Textures": {
+            "Clear": "PurpleLightning/Base",
+            "Rain": "PurpleLightning/Base_Rain",
+            "Snow": "PurpleLightning/Base_Snow"
+        }
+    },
+    "Purple Lightning City": {
+        "AWBWID": 172,
+        "BaseDefence": 3,
+        "CountryID": 20, //pl
+        "Name": "Purple Lightning City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            200,
+            400,
+            1000
+        ],
+        "Textures": {
+            "Clear": "PurpleLightning/City",
+            "Rain": "PurpleLightning/City_Rain",
+            "Snow": "PurpleLightning/City_Snow"
+        }
+    },
+    "Purple Lightning HQ": {
+        "AWBWID": 174,
+        "BaseDefence": 4,
+        "CountryID": 20, //pl
+        "Name": "Purple Lightning HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            200,
+            400,
+            1000
+        ],
+        "Textures": {
+            "Clear": "PurpleLightning/HQ",
+            "Rain": "PurpleLightning/HQ_Rain",
+            "Snow": "PurpleLightning/HQ_Snow"
+        }
+    },
+    "Purple Lightning Port": {
+        "AWBWID": 176,
+        "BaseDefence": 3,
+        "CountryID": 20, //pl
+        "Name": "Purple Lightning Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            200,
+            400,
+            1000
+        ],
+        "Textures": {
+            "Clear": "PurpleLightning/Port",
+            "Rain": "PurpleLightning/Port_Rain",
+            "Snow": "PurpleLightning/Port_Snow"
+        }
+    },
+    "Purple Lightning Com Tower": {
+        "AWBWID": 173,
+        "BaseDefence": 3,
+        "CountryID": 20, //pl
+        "Name": "Purple Lightning Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            200,
+            400,
+            1000
+        ],
+        "Textures": {
+            "Clear": "PurpleLightning/ComTower",
+            "Rain": "PurpleLightning/ComTower_Rain",
+            "Snow": "PurpleLightning/ComTower_Snow"
+        }
+    },
+    "Purple Lightning Lab": {
+        "AWBWID": 175,
+        "BaseDefence": 3,
+        "CountryID": 20, //pl
+        "Name": "Purple Lightning Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            200,
+            400,
+            1000
+        ],
+        "Textures": {
+            "Clear": "PurpleLightning/Lab",
+            "Rain": "PurpleLightning/Lab_Rain",
+            "Snow": "PurpleLightning/Lab_Snow"
+        }
+    },
+    /*
+    Acid Rain
+    */
+    "Acid Rain Airport": {
+        "AWBWID": 181,
+        "BaseDefence": 3,
+        "CountryID": 21, //ar
+        "Name": "Acid Rain Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            100,
+            400,
+            1100
+        ],
+        "Textures": {
+            "Clear": "AcidRain/Airport",
+            "Rain": "AcidRain/Airport_Rain",
+            "Snow": "AcidRain/Airport_Snow"
+        }
+    },
+    "Acid Rain Base": {
+        "AWBWID": 182,
+        "BaseDefence": 3,
+        "CountryID": 21, //ar
+        "Name": "Acid Rain Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            100,
+            300,
+            100,
+            300,
+            400,
+            400
+        ],
+        "Textures": {
+            "Clear": "AcidRain/Base",
+            "Rain": "AcidRain/Base_Rain",
+            "Snow": "AcidRain/Base_Snow"
+        }
+    },
+    "Acid Rain City": {
+        "AWBWID": 183,
+        "BaseDefence": 3,
+        "CountryID": 21, //ar
+        "Name": "Acid Rain City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            100,
+            400,
+            1100
+        ],
+        "Textures": {
+            "Clear": "AcidRain/City",
+            "Rain": "AcidRain/City_Rain",
+            "Snow": "AcidRain/City_Snow"
+        }
+    },
+    "Acid Rain HQ": {
+        "AWBWID": 185,
+        "BaseDefence": 4,
+        "CountryID": 21, //ar
+        "Name": "Acid Rain HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            100,
+            400,
+            1100
+        ],
+        "Textures": {
+            "Clear": "AcidRain/HQ",
+            "Rain": "AcidRain/HQ_Rain",
+            "Snow": "AcidRain/HQ_Snow"
+        }
+    },
+    "Acid Rain Port": {
+        "AWBWID": 187,
+        "BaseDefence": 3,
+        "CountryID": 21, //ar
+        "Name": "Acid Rain Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            100,
+            400,
+            1100
+        ],
+        "Textures": {
+            "Clear": "AcidRain/Port",
+            "Rain": "AcidRain/Port_Rain",
+            "Snow": "AcidRain/Port_Snow"
+        }
+    },
+    "Acid Rain Com Tower": {
+        "AWBWID": 184,
+        "BaseDefence": 3,
+        "CountryID": 21, //ar
+        "Name": "Acid Rain Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            100,
+            400,
+            1100
+        ],
+        "Textures": {
+            "Clear": "AcidRain/ComTower",
+            "Rain": "AcidRain/ComTower_Rain",
+            "Snow": "AcidRain/ComTower_Snow"
+        }
+    },
+    "Acid Rain Lab": {
+        "AWBWID": 186,
+        "BaseDefence": 3,
+        "CountryID": 21, //ar
+        "Name": "Acid Rain Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            100,
+            400,
+            1100
+        ],
+        "Textures": {
+            "Clear": "AcidRain/Lab",
+            "Rain": "AcidRain/Lab_Rain",
+            "Snow": "AcidRain/Lab_Snow"
+        }
+    },
+    /*
+    White Nova
+    */
+    "White Nova Airport": {
+        "AWBWID": 188,
+        "BaseDefence": 3,
+        "CountryID": 22, //wn
+        "Name": "White Nova Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            400,
+            1200
+        ],
+        "Textures": {
+            "Clear": "WhiteNova/Airport",
+            "Rain": "WhiteNova/Airport_Rain",
+            "Snow": "WhiteNova/Airport_Snow"
+        }
+    },
+    "White Nova Base": {
+        "AWBWID": 189,
+        "BaseDefence": 3,
+        "CountryID": 22, //wn
+        "Name": "White Nova Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            400,
+            400,
+            400,
+            400
+        ],
+        "Textures": {
+            "Clear": "WhiteNova/Base",
+            "Rain": "WhiteNova/Base_Rain",
+            "Snow": "WhiteNova/Base_Snow"
+        }
+    },
+    "White Nova City": {
+        "AWBWID": 190,
+        "BaseDefence": 3,
+        "CountryID": 22, //wn
+        "Name": "White Nova City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            400,
+            1200
+        ],
+        "Textures": {
+            "Clear": "WhiteNova/City",
+            "Rain": "WhiteNova/City_Rain",
+            "Snow": "WhiteNova/City_Snow"
+        }
+    },
+    "White Nova HQ": {
+        "AWBWID": 192,
+        "BaseDefence": 4,
+        "CountryID": 22, //wn
+        "Name": "White Nova HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            400,
+            1200
+        ],
+        "Textures": {
+            "Clear": "WhiteNova/HQ",
+            "Rain": "WhiteNova/HQ_Rain",
+            "Snow": "WhiteNova/HQ_Snow"
+        }
+    },
+    "White Nova Port": {
+        "AWBWID": 194,
+        "BaseDefence": 3,
+        "CountryID": 22, //wn
+        "Name": "White Nova Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            400,
+            1200
+        ],
+        "Textures": {
+            "Clear": "WhiteNova/Port",
+            "Rain": "WhiteNova/Port_Rain",
+            "Snow": "WhiteNova/Port_Snow"
+        }
+    },
+    "White Nova Com Tower": {
+        "AWBWID": 191,
+        "BaseDefence": 3,
+        "CountryID": 22, //wn
+        "Name": "White Nova Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            400,
+            1200
+        ],
+        "Textures": {
+            "Clear": "WhiteNova/ComTower",
+            "Rain": "WhiteNova/ComTower_Rain",
+            "Snow": "WhiteNova/ComTower_Snow"
+        }
+    },
+    "White Nova Lab": {
+        "AWBWID": 193,
+        "BaseDefence": 3,
+        "CountryID": 22, //wn
+        "Name": "White Nova Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            400,
+            1200
+        ],
+        "Textures": {
+            "Clear": "WhiteNova/Lab",
+            "Rain": "WhiteNova/Lab_Rain",
+            "Snow": "WhiteNova/Lab_Snow"
+        }
+    },
+    /*
+    Azure Asteroid
+    */
+    "Azure Asteroid Airport": {
+        "AWBWID": 196,
+        "BaseDefence": 3,
+        "CountryID": 23, //aa
+        "Name": "Azure Asteroid Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            300,
+            1200,
+            100
+        ],
+        "Textures": {
+            "Clear": "AzureAsteroid/Airport",
+            "Rain": "AzureAsteroid/Airport_Rain",
+            "Snow": "AzureAsteroid/Airport_Snow"
+        }
+    },
+    "Azure Asteroid Base": {
+        "AWBWID": 197,
+        "BaseDefence": 3,
+        "CountryID": 23, //wn
+        "Name": "Azure Asteroid Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            300,
+            100,
+            400,
+            400,
+            300,
+            100
+        ],
+        "Textures": {
+            "Clear": "AzureAsteroid/Base",
+            "Rain": "AzureAsteroid/Base_Rain",
+            "Snow": "AzureAsteroid/Base_Snow"
+        }
+    },
+    "Azure Asteroid City": {
+        "AWBWID": 198,
+        "BaseDefence": 3,
+        "CountryID": 23, //aa
+        "Name": "Azure Asteroid City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            300,
+            1200,
+            100
+        ],
+        "Textures": {
+            "Clear": "AzureAsteroid/City",
+            "Rain": "AzureAsteroid/City_Rain",
+            "Snow": "AzureAsteroid/City_Snow"
+        }
+    },
+    "Azure Asteroid HQ": {
+        "AWBWID": 200,
+        "BaseDefence": 4,
+        "CountryID": 23, //aa
+        "Name": "Azure Asteroid HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            300,
+            1200,
+            100
+        ],
+        "Textures": {
+            "Clear": "AzureAsteroid/HQ",
+            "Rain": "AzureAsteroid/HQ_Rain",
+            "Snow": "AzureAsteroid/HQ_Snow"
+        }
+    },
+    "Azure Asteroid Port": {
+        "AWBWID": 202,
+        "BaseDefence": 3,
+        "CountryID": 23, //aa
+        "Name": "Azure Asteroid Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            300,
+            1200,
+            100
+        ],
+        "Textures": {
+            "Clear": "AzureAsteroid/Port",
+            "Rain": "AzureAsteroid/Port_Rain",
+            "Snow": "AzureAsteroid/Port_Snow"
+        }
+    },
+    "Azure Asteroid Com Tower": {
+        "AWBWID": 199,
+        "BaseDefence": 3,
+        "CountryID": 23, //aa
+        "Name": "Azure Asteroid Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            300,
+            1200,
+            100
+        ],
+        "Textures": {
+            "Clear": "AzureAsteroid/ComTower",
+            "Rain": "AzureAsteroid/ComTower_Rain",
+            "Snow": "AzureAsteroid/ComTower_Snow"
+        }
+    },
+    "Azure Asteroid Lab": {
+        "AWBWID": 201,
+        "BaseDefence": 3,
+        "CountryID": 23, //aa
+        "Name": "Azure Asteroid Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            300,
+            1200,
+            100
+        ],
+        "Textures": {
+            "Clear": "AzureAsteroid/Lab",
+            "Rain": "AzureAsteroid/Lab_Rain",
+            "Snow": "AzureAsteroid/Lab_Snow"
+        }
+    },
+    /*
+    Noir Eclipse
+    */
+    "Noir Eclipse Airport": {
+        "AWBWID": 203,
+        "BaseDefence": 3,
+        "CountryID": 24, //ne
+        "Name": "Noir Eclipse Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            300,
+            1200,
+            100
+        ],
+        "Textures": {
+            "Clear": "NoirEclipse/Airport",
+            "Rain": "NoirEclipse/Airport_Rain",
+            "Snow": "NoirEclipse/Airport_Snow"
+        }
+    },
+    "Noir Eclipse Base": {
+        "AWBWID": 204,
+        "BaseDefence": 3,
+        "CountryID": 24, //ne
+        "Name": "Noir Eclipse Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            300,
+            100,
+            400,
+            400,
+            300,
+            100
+        ],
+        "Textures": {
+            "Clear": "NoirEclipse/Base",
+            "Rain": "NoirEclipse/Base_Rain",
+            "Snow": "NoirEclipse/Base_Snow"
+        }
+    },
+    "Noir Eclipse City": {
+        "AWBWID": 205,
+        "BaseDefence": 3,
+        "CountryID": 24, //ne
+        "Name": "Noir Eclipse City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            300,
+            1200,
+            100
+        ],
+        "Textures": {
+            "Clear": "NoirEclipse/City",
+            "Rain": "NoirEclipse/City_Rain",
+            "Snow": "NoirEclipse/City_Snow"
+        }
+    },
+    "Noir Eclipse HQ": {
+        "AWBWID": 207,
+        "BaseDefence": 4,
+        "CountryID": 24, //ne
+        "Name": "Noir Eclipse HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            300,
+            1200,
+            100
+        ],
+        "Textures": {
+            "Clear": "NoirEclipse/HQ",
+            "Rain": "NoirEclipse/HQ_Rain",
+            "Snow": "NoirEclipse/HQ_Snow"
+        }
+    },
+    "Noir Eclipse Port": {
+        "AWBWID": 209,
+        "BaseDefence": 3,
+        "CountryID": 24, //ne
+        "Name": "Noir Eclipse Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            300,
+            1200,
+            100
+        ],
+        "Textures": {
+            "Clear": "NoirEclipse/Port",
+            "Rain": "NoirEclipse/Port_Rain",
+            "Snow": "NoirEclipse/Port_Snow"
+        }
+    },
+    "Noir Eclipse Com Tower": {
+        "AWBWID": 206,
+        "BaseDefence": 3,
+        "CountryID": 24, //ne
+        "Name": "Noir Eclipse Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            300,
+            1200,
+            100
+        ],
+        "Textures": {
+            "Clear": "NoirEclipse/ComTower",
+            "Rain": "NoirEclipse/ComTower_Rain",
+            "Snow": "NoirEclipse/ComTower_Snow"
+        }
+    },
+    "Noir Eclipse Lab": {
+        "AWBWID": 208,
+        "BaseDefence": 3,
+        "CountryID": 24, //ne
+        "Name": "Noir Eclipse Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            200,
+            1200,
+            200
+        ],
+        "Textures": {
+            "Clear": "NoirEclipse/Lab",
+            "Rain": "NoirEclipse/Lab_Rain",
+            "Snow": "NoirEclipse/Lab_Snow"
+        }
+    },
+    /*
+    Silver Claw
+    */
+    "Silver Claw Airport": {
+        "AWBWID": 210,
+        "BaseDefence": 3,
+        "CountryID": 25, //sc
+        "Name": "Silver Claw Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            1000,
+            400,
+            200
+        ],
+        "Textures": {
+            "Clear": "SilverClaw/Airport",
+            "Rain": "SilverClaw/Airport_Rain",
+            "Snow": "SilverClaw/Airport_Snow"
+        }
+    },
+    "Silver Claw Base": {
+        "AWBWID": 211,
+        "BaseDefence": 3,
+        "CountryID": 25, //sc
+        "Name": "Silver Claw Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            400,
+            400,
+            200,
+            200,
+            200,
+            200
+        ],
+        "Textures": {
+            "Clear": "SilverClaw/Base",
+            "Rain": "SilverClaw/Base_Rain",
+            "Snow": "SilverClaw/Base_Snow"
+        }
+    },
+    "Silver Claw City": {
+        "AWBWID": 212,
+        "BaseDefence": 3,
+        "CountryID": 25, //sc
+        "Name": "Silver Claw City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            1000,
+            400,
+            200
+        ],
+        "Textures": {
+            "Clear": "SilverClaw/City",
+            "Rain": "SilverClaw/City_Rain",
+            "Snow": "SilverClaw/City_Snow"
+        }
+    },
+    "Silver Claw HQ": {
+        "AWBWID": 214,
+        "BaseDefence": 4,
+        "CountryID": 25, //sc
+        "Name": "Silver Claw HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            400,
+            200,
+            600,
+            200,
+            200
+        ],
+        "Textures": {
+            "Clear": "SilverClaw/HQ",
+            "Rain": "SilverClaw/HQ_Rain",
+            "Snow": "SilverClaw/HQ_Snow"
+        }
+    },
+    "Silver Claw Port": {
+        "AWBWID": 216,
+        "BaseDefence": 3,
+        "CountryID": 25, //sc
+        "Name": "Silver Claw Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            1000,
+            400,
+            200
+        ],
+        "Textures": {
+            "Clear": "SilverClaw/Port",
+            "Rain": "SilverClaw/Port_Rain",
+            "Snow": "SilverClaw/Port_Snow"
+        }
+    },
+    "Silver Claw Com Tower": {
+        "AWBWID": 213,
+        "BaseDefence": 3,
+        "CountryID": 25, //sc
+        "Name": "Silver Claw Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            1000,
+            400,
+            200
+        ],
+        "Textures": {
+            "Clear": "SilverClaw/ComTower",
+            "Rain": "SilverClaw/ComTower_Rain",
+            "Snow": "SilverClaw/ComTower_Snow"
+        }
+    },
+    "Silver Claw Lab": {
+        "AWBWID": 215,
+        "BaseDefence": 3,
+        "CountryID": 25, //sc
+        "Name": "Silver Claw Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            1000,
+            400,
+            200
+        ],
+        "Textures": {
+            "Clear": "SilverClaw/Lab",
+            "Rain": "SilverClaw/Lab_Rain",
+            "Snow": "SilverClaw/Lab_Snow"
+        }
+    },
+    /*
+    Umber Wilds
+    */
+    "Umber Wilds Airport": {
+        "AWBWID": 217,
+        "BaseDefence": 3,
+        "CountryID": 26, //uw
+        "Name": "Umber Wilds Airport",
+        "BuildingType": "Airport",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            200,
+            1200,
+            200
+        ],
+        "Textures": {
+            "Clear": "UmberWilds/Airport",
+            "Rain": "UmberWilds/Airport_Rain",
+            "Snow": "UmberWilds/Airport_Snow"
+        }
+    },
+    "Umber Wilds Base": {
+        "AWBWID": 218,
+        "BaseDefence": 3,
+        "CountryID": 26, //uw
+        "Name": "Umber Wilds Base",
+        "BuildingType": "Base",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Pipe": 1
+        },
+        "frames": [
+            200,
+            100,
+            400,
+            400,
+            300,
+            200
+        ],
+        "Textures": {
+            "Clear": "UmberWilds/Base",
+            "Rain": "UmberWilds/Base_Rain",
+            "Snow": "UmberWilds/Base_Snow"
+        }
+    },
+    "Umber Wilds City": {
+        "AWBWID": 219,
+        "BaseDefence": 3,
+        "CountryID": 26, //uw
+        "Name": "Umber Wilds City",
+        "BuildingType": "City",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            200,
+            1200,
+            200
+        ],
+        "Textures": {
+            "Clear": "UmberWilds/City",
+            "Rain": "UmberWilds/City_Rain",
+            "Snow": "UmberWilds/City_Snow"
+        }
+    },
+    "Umber Wilds HQ": {
+        "AWBWID": 221,
+        "BaseDefence": 4,
+        "CountryID": 26, //uw
+        "Name": "Umber Wilds HQ",
+        "BuildingType": "HQ",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "frames": [
+            200,
+            300,
+            300,
+            300,
+            200,
+            100,
+            200
+        ],
+        "Textures": {
+            "Clear": "UmberWilds/HQ",
+            "Rain": "UmberWilds/HQ_Rain",
+            "Snow": "UmberWilds/HQ_Snow"
+        }
+    },
+    "Umber Wilds Port": {
+        "AWBWID": 223,
+        "BaseDefence": 3,
+        "CountryID": 26, //uw
+        "Name": "Umber Wilds Port",
+        "BuildingType": "Port",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1,
+            "Sea": 1,
+            "Lander": 1
+        },
+        "frames": [
+            200,
+            1200,
+            200
+        ],
+        "Textures": {
+            "Clear": "UmberWilds/Port",
+            "Rain": "UmberWilds/Port_Rain",
+            "Snow": "UmberWilds/Port_Snow"
+        }
+    },
+    "Umber Wilds Com Tower": {
+        "AWBWID": 220,
+        "BaseDefence": 3,
+        "CountryID": 26, //uw
+        "Name": "Umber Wilds Com Tower",
+        "BuildingType": "ComTower",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            200,
+            1200,
+            200
+        ],
+        "Textures": {
+            "Clear": "UmberWilds/ComTower",
+            "Rain": "UmberWilds/ComTower_Rain",
+            "Snow": "UmberWilds/ComTower_Snow"
+        }
+    },
+    "Umber Wilds Lab": {
+        "AWBWID": 222,
+        "BaseDefence": 3,
+        "CountryID": 26, //uw
+        "Name": "Umber Wilds Lab",
+        "BuildingType": "Lab",
+        "MovementCostsPerType": {
+            "LightInf": 1,
+            "HeavyInf": 1,
+            "Tread": 1,
+            "Tire": 1,
+            "Air": 1
+        },
+        "GivesMoneyWhenCaptured": false,
+        "frames": [
+            200,
+            1200,
+            200
+        ],
+        "Textures": {
+            "Clear": "UmberWilds/Lab",
+            "Rain": "UmberWilds/Lab_Rain",
+            "Snow": "UmberWilds/Lab_Snow"
+        }
+    }
+}

@@ -12,7 +12,24 @@ import {
   type TacticalLineStringGeometry,
   type TacticalPolygonGeometry,
 } from './tacticalMapStyle';
-import { GBA_BUILDING_FRAME_MAP, TERRAIN_FILL_COLORS } from './tacticalTerrainSprites';
+import {
+  AWBW_SEA_OUTCOMES,
+  GBA_BUILDING_FRAME_MAP,
+  TERRAIN_FILL_COLORS,
+  type AwbwDir8,
+} from './tacticalTerrainSprites';
+import { getYellowTrunkBridgeAxisAtGlobalCell } from '../../core/yellowTrunkBackboneIndex';
+
+const TERRAIN_LAND = 1;
+const TERRAIN_CUSTOM_SHOAL = 2;
+const TERRAIN_SEA = 4;
+
+export interface SectorCornerNeighbors {
+  nw?: any[][] | null;
+  ne?: any[][] | null;
+  se?: any[][] | null;
+  sw?: any[][] | null;
+}
 
 function resolveConnectedKey(
   prefix: 'road' | 'river',
@@ -46,31 +63,42 @@ export function resolveFastTileSpriteKey(
   north: any[][] | null,
   east: any[][] | null,
   south: any[][] | null,
-  west: any[][] | null
+  west: any[][] | null,
+  corners?: SectorCornerNeighbors
 ): string {
+  const D = TACTICAL_GRID_DIMENSION;
   const tile = center[y][x];
   const type: string = tile.type;
   const getN = (nx: number, ny: number): string => {
     if (ny < 0) {
-      if (nx < 0 || nx >= TACTICAL_GRID_DIMENSION) return type;
-      return north ? north[TACTICAL_GRID_DIMENSION - 1][nx].type : 'plains';
+      if (nx < 0) return corners?.nw ? corners.nw[D - 1][D - 1].type : type;
+      if (nx >= D) return corners?.ne ? corners.ne[D - 1][0].type : type;
+      return north ? north[D - 1][nx].type : 'plains';
     }
-    if (ny >= TACTICAL_GRID_DIMENSION) {
-      if (nx < 0 || nx >= TACTICAL_GRID_DIMENSION) return type;
+    if (ny >= D) {
+      if (nx < 0) return corners?.sw ? corners.sw[0][D - 1].type : type;
+      if (nx >= D) return corners?.se ? corners.se[0][0].type : type;
       return south ? south[0][nx].type : 'plains';
     }
-    if (nx < 0) return west ? west[ny][TACTICAL_GRID_DIMENSION - 1].type : 'plains';
-    if (nx >= TACTICAL_GRID_DIMENSION) return east ? east[ny][0].type : 'plains';
+    if (nx < 0) return west ? west[ny][D - 1].type : 'plains';
+    if (nx >= D) return east ? east[ny][0].type : 'plains';
     return center[ny][nx].type;
+  };
+
+  const resolveBridgeAxis = (bx: number, by: number): 1 | 2 => {
+    const cachedAxis = getYellowTrunkBridgeAxisAtGlobalCell(sx * D + bx, sy * D + by);
+    if (cachedAxis === 1 || cachedAxis === 2) return cachedAxis;
+    const isAxisConn = (t: string) => t === 'road' || t === 'bridge' || t in GBA_BUILDING_FRAME_MAP;
+    const hScore = (isAxisConn(getN(bx - 1, by)) ? 1 : 0) + (isAxisConn(getN(bx + 1, by)) ? 1 : 0);
+    const vScore = (isAxisConn(getN(bx, by - 1)) ? 1 : 0) + (isAxisConn(getN(bx, by + 1)) ? 1 : 0);
+    return hScore >= vScore ? 1 : 2;
   };
 
   if (type === 'road') {
     const isRoadConn = (t: string) => t === 'road' || t === 'bridge';
-    const isBuilding = (t: string) => t in GBA_BUILDING_FRAME_MAP;
-    const n = getN(x, y - 1);
     return resolveConnectedKey(
       'road',
-      isRoadConn(n) || isBuilding(n),
+      isRoadConn(getN(x, y - 1)),
       isRoadConn(getN(x + 1, y)),
       isRoadConn(getN(x, y + 1)),
       isRoadConn(getN(x - 1, y))
@@ -87,9 +115,7 @@ export function resolveFastTileSpriteKey(
     );
   }
   if (type === 'bridge') {
-    const l = getN(x - 1, y);
-    const r = getN(x + 1, y);
-    return l === 'road' || r === 'road' || l === 'city' || r === 'city' ? 'tile_bridge_h' : 'tile_bridge_v';
+    return resolveBridgeAxis(x, y) === 1 ? 'tile_bridge_h' : 'tile_bridge_v';
   }
   if (type === 'pipe') {
     const isPipeConn = (t: string) => t === 'pipe' || t === 'pipeSeam';
@@ -126,40 +152,76 @@ export function resolveFastTileSpriteKey(
     const factionKey =
       ownerId === 'p1' || ownerId === 'p2' || ownerId === 'p3' || ownerId === 'p4' || ownerId === 'p5'
         ? ownerId
-        : type === 'hq'
-        ? 'p2'
         : 'neutral';
+    // Variedad dual-skin gris neutral (AW2 + AW1) para manzanas city en metrópolis
+    if (factionKey === 'neutral' && type === 'city' && ((sx * 7 + x * 13 + y * 5) & 1) === 1) {
+      return 'tile_neutral_city_aw1';
+    }
     return `tile_${factionKey}_${type}`;
   }
   if (type === 'forest') return ((sx * 31 + x * 17 + y * 13) & 3) === 0 ? 'tile_wood' : 'tile_forest';
   if (type === 'mountain') return 'tile_mountain';
-  if (type === 'sea') {
-    const isLandBorder = (t: string) =>
-      t !== 'sea' && t !== 'reef' && t !== 'shoal' && t !== 'river' && t !== 'bridge';
-    let mask = 0;
-    const hasN = isLandBorder(getN(x, y - 1));
-    const hasE = isLandBorder(getN(x + 1, y));
-    const hasS = isLandBorder(getN(x, y + 1));
-    const hasW = isLandBorder(getN(x - 1, y));
-    if (hasN) mask |= 1;
-    if (hasE) mask |= 2;
-    if (hasS) mask |= 4;
-    if (hasW) mask |= 8;
-    if (!hasN && !hasE && isLandBorder(getN(x + 1, y - 1))) mask |= 16;
-    if (!hasS && !hasE && isLandBorder(getN(x + 1, y + 1))) mask |= 32;
-    if (!hasS && !hasW && isLandBorder(getN(x - 1, y + 1))) mask |= 64;
-    if (!hasN && !hasW && isLandBorder(getN(x - 1, y - 1))) mask |= 128;
-    return mask > 0 ? `tile_sea_edge_${mask}` : 'tile_sea';
-  }
-  if (type === 'shoal') {
-    const isLandBorder = (t: string) =>
-      t !== 'sea' && t !== 'reef' && t !== 'shoal' && t !== 'river' && t !== 'bridge';
-    let mask = 0;
-    if (isLandBorder(getN(x, y - 1))) mask |= 1;
-    if (isLandBorder(getN(x + 1, y))) mask |= 2;
-    if (isLandBorder(getN(x, y + 1))) mask |= 4;
-    if (isLandBorder(getN(x - 1, y))) mask |= 8;
-    return mask > 0 ? `tile_shoal_edge_${mask}` : 'tile_shoal';
+  if (type === 'sea' || type === 'shoal') {
+    const classifyNeighbor = (nx: number, ny: number, relDir: AwbwDir8): number => {
+      const nt = getN(nx, ny);
+      if (nt === 'bridge') {
+        const br = resolveBridgeAxis(nx, ny);
+        if (
+          br === 1 &&
+          (relDir === 'NW' || relDir === 'N' || relDir === 'NE' || relDir === 'SW' || relDir === 'S' || relDir === 'SE')
+        ) {
+          return TERRAIN_CUSTOM_SHOAL;
+        }
+        if (
+          br === 2 &&
+          (relDir === 'NE' || relDir === 'E' || relDir === 'SE' || relDir === 'NW' || relDir === 'W' || relDir === 'SW')
+        ) {
+          return TERRAIN_CUSTOM_SHOAL;
+        }
+        return TERRAIN_LAND;
+      }
+      if (nt in GBA_BUILDING_FRAME_MAP || nt === 'silo' || nt === 'usedSilo') {
+        return TERRAIN_LAND;
+      }
+      if (nt === 'river' || nt === 'shoal') return TERRAIN_CUSTOM_SHOAL;
+      if (nt === 'sea' || nt === 'reef') return TERRAIN_SEA;
+      return TERRAIN_LAND;
+    };
+
+    const nearby: Record<AwbwDir8, number> = {
+      NW: classifyNeighbor(x - 1, y - 1, 'NW'),
+      N: classifyNeighbor(x, y - 1, 'N'),
+      NE: classifyNeighbor(x + 1, y - 1, 'NE'),
+      W: classifyNeighbor(x - 1, y, 'W'),
+      E: classifyNeighbor(x + 1, y, 'E'),
+      SW: classifyNeighbor(x - 1, y + 1, 'SW'),
+      S: classifyNeighbor(x, y + 1, 'S'),
+      SE: classifyNeighbor(x + 1, y + 1, 'SE'),
+    };
+
+    if (type === 'sea') {
+      for (let i = 0; i < AWBW_SEA_OUTCOMES.length; i++) {
+        const [reqDirs, stem] = AWBW_SEA_OUTCOMES[i];
+        let matched = true;
+        for (let j = 0; j < reqDirs.length; j++) {
+          if (nearby[reqDirs[j]] !== TERRAIN_LAND) {
+            matched = false;
+            break;
+          }
+        }
+        if (matched) return `tile_sea_${stem}`;
+      }
+      return 'tile_sea_Sea';
+    }
+
+    // Shoal: 81 stems oficiales AWBW
+    const parts: string[] = [];
+    for (const d of ['N', 'E', 'S', 'W'] as const) {
+      const cls = nearby[d];
+      if (cls === TERRAIN_LAND) parts.push(d);
+      else if (cls !== TERRAIN_CUSTOM_SHOAL) parts.push(`A${d}`);
+    }
+    return `tile_shoal_${parts.length > 0 ? parts.join('-') : 'C'}`;
   }
   if (type === 'reef') return 'tile_reef';
   if (type === 'silo') return 'tile_silo';

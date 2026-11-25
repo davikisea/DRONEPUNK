@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Factory, Anchor, Plane, Users, Coins, AlertTriangle, ShieldCheck } from 'lucide-react';
-import { UNIT_GREEN_SPRITE_PATHS } from '@shared';
+import { UNIT_GREEN_SPRITE_PATHS, resolveUnitSpriteKey } from '@shared';
 import { recruitAndDeployUnit } from '@domains/economy';
 import { audioManager } from '@domains/game-feel';
 
@@ -148,7 +148,7 @@ export const BaseProductionModal: React.FC<BaseProductionModalProps> = ({
 
           <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
             {units.map((u) => {
-              const sprite = (UNIT_GREEN_SPRITE_PATHS as Record<string, string>)[u.code];
+              const sprite = UNIT_GREEN_SPRITE_PATHS[resolveUnitSpriteKey(u.code)];
               const canAfford = corpEc >= u.ec && corpCitizens >= u.citizens;
               const disabled = !hasPerms || isRuined || !canAfford || submittingCode !== null;
               return (

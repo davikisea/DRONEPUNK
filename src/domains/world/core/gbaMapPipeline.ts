@@ -28,6 +28,13 @@ import {
   type WeatherCondition,
 } from '@shared';
 import { gridCoordsToLngLat, ZOOM_TACTICO } from './coordinates';
+import {
+  registerMunicipalityContainmentPolygons,
+} from './urbanContainmentMasks';
+import { getSectorYellowTrunkMask } from './yellowTrunkBackboneIndex';
+import { getUrbanSectorOverlaySlice, resetUrbanBlueprintCache } from './urbanSectorBridge';
+import { isGlobalRiverAtCell } from './globalHydrologyPredicate';
+import { count2x2Blobs, peel2x2 } from './urbanMorphologyPrimitives';
 
 const MAX_LRU_SECTORS = 64;
 
@@ -77,12 +84,24 @@ interface CachedSectorEntry {
   blueprint: SectorGenerationBlueprint;
 }
 
+export type LandPolygonSourceId = 'zulia_hd' | 'theatre_regions' | 'world_land';
+
+export interface LandHydrationSnapshot {
+  readonly loadedSources: readonly LandPolygonSourceId[];
+  readonly totalIndexedPolygons: number;
+  readonly hasZuliaMunicipalHd: boolean;
+  readonly hasTheatreRegions: boolean;
+  readonly hasWorldLand: boolean;
+}
+
 interface IndexedPolygon {
   minX: number;
   maxX: number;
   minY: number;
   maxY: number;
   rings: number[][][]; // [outerRing, ...holeRings]
+  sourceId: LandPolygonSourceId;
+  featureId: string;
 }
 
 const sectorLruCache = new Map<string, CachedSectorEntry>();
@@ -107,7 +126,11 @@ const CABIMAS_SEED_RING: number[][] = [
   [-71.43582, 10.43512], [-71.44764, 10.43844], [-71.45402, 10.44852],
 ];
 
-function buildIndexedPolygon(rings: number[][][]): IndexedPolygon | null {
+function buildIndexedPolygon(
+  rings: number[][][],
+  sourceId: LandPolygonSourceId = 'world_land',
+  featureId: string = ''
+): IndexedPolygon | null {
   const outer = rings[0];
   if (!outer || outer.length < 3) return null;
   let minX = Infinity;
@@ -120,7 +143,7 @@ function buildIndexedPolygon(rings: number[][][]): IndexedPolygon | null {
     if (pt[1] < minY) minY = pt[1];
     if (pt[1] > maxY) maxY = pt[1];
   }
-  return { minX, maxX, minY, maxY, rings };
+  return { minX, maxX, minY, maxY, rings, sourceId, featureId };
 }
 
 function pointInRing(lng: number, lat: number, ring: number[][]): boolean {
@@ -149,11 +172,54 @@ function pointInIndexedPolygon(lng: number, lat: number, poly: IndexedPolygon): 
   return true;
 }
 
-const seedPoly = buildIndexedPolygon([CABIMAS_SEED_RING]);
+const seedPoly = buildIndexedPolygon([CABIMAS_SEED_RING], 'zulia_hd', 'MUN_ZULIA_CABIMAS');
+const polygonsBySource = new Map<LandPolygonSourceId, IndexedPolygon[]>();
 let registeredPolygons: IndexedPolygon[] = seedPoly ? [seedPoly] : [];
 let polygonSpatialGrid = new Map<string, IndexedPolygon[]>();
 let hasFullGeoJsonPolygons = false;
 let nodePolygonsAttempted = false;
+
+/**
+ * Reconstruye el conjunto efectivo P_eff con precedencia exacta por entidad (CERO rectángulo AABB):
+ * P_eff = P_mun (si zulia_hd) U P_reg\Zulia (si zulia_hd, sino P_reg) U P_world\VEN (si theatre_regions, sino P_world)
+ */
+function rebuildEffectivePolygonsAndGrid(): void {
+  const zuliaPolys = polygonsBySource.get('zulia_hd');
+  const regPolys = polygonsBySource.get('theatre_regions');
+  const worldPolys = polygonsBySource.get('world_land');
+
+  const hasZulia = Boolean(zuliaPolys && zuliaPolys.length > 0);
+  const hasReg = Boolean(regPolys && regPolys.length > 0);
+  const hasWorld = Boolean(worldPolys && worldPolys.length > 0);
+
+  if (!hasZulia && !hasReg && !hasWorld) {
+    registeredPolygons = seedPoly ? [seedPoly] : [];
+    hasFullGeoJsonPolygons = false;
+  } else {
+    const eff: IndexedPolygon[] = [];
+    if (hasZulia && zuliaPolys) {
+      eff.push(...zuliaPolys);
+    }
+    if (hasReg && regPolys) {
+      for (let i = 0; i < regPolys.length; i++) {
+        const p = regPolys[i];
+        if (hasZulia && p.featureId === 'REG_VE_02') continue;
+        eff.push(p);
+      }
+    }
+    if (hasWorld && worldPolys) {
+      for (let i = 0; i < worldPolys.length; i++) {
+        const p = worldPolys[i];
+        if ((hasReg || hasZulia) && p.featureId === 'VEN') continue;
+        eff.push(p);
+      }
+    }
+    registeredPolygons = eff;
+    hasFullGeoJsonPolygons = true;
+  }
+
+  rebuildPolygonSpatialGrid();
+}
 
 function rebuildPolygonSpatialGrid(): void {
   const grid = new Map<string, IndexedPolygon[]>();
@@ -178,7 +244,21 @@ function rebuildPolygonSpatialGrid(): void {
 }
 rebuildPolygonSpatialGrid();
 
-function extractPolygonsFromGeoJson(input: unknown): IndexedPolygon[] {
+function inferLandSourceId(features: unknown[], explicit?: LandPolygonSourceId): LandPolygonSourceId {
+  if (explicit) return explicit;
+  for (let i = 0; i < Math.min(features.length, 10); i++) {
+    const feat = features[i] as { properties?: Record<string, unknown> } | null;
+    const id = typeof feat?.properties?.id === 'string' ? feat.properties.id : '';
+    if (id.startsWith('MUN_ZULIA_')) return 'zulia_hd';
+    if (id.startsWith('REG_VE_') || id.startsWith('BUF_')) return 'theatre_regions';
+  }
+  return 'world_land';
+}
+
+function extractPolygonsFromGeoJson(
+  input: unknown,
+  explicitSourceId?: LandPolygonSourceId
+): { sourceId: LandPolygonSourceId; polygons: IndexedPolygon[] } {
   const out: IndexedPolygon[] = [];
   const features = Array.isArray(input)
     ? input
@@ -186,38 +266,70 @@ function extractPolygonsFromGeoJson(input: unknown): IndexedPolygon[] {
     ? (input as { features: unknown[] }).features
     : [];
 
+  const sourceId = inferLandSourceId(features, explicitSourceId);
+
   for (const feat of features) {
     if (!feat || typeof feat !== 'object') continue;
+    const props = (feat as { properties?: Record<string, unknown> }).properties;
+    const featureId =
+      typeof props?.id === 'string'
+        ? props.id
+        : typeof props?.adm0_a3 === 'string'
+        ? props.adm0_a3
+        : typeof props?.ISO_A3 === 'string'
+        ? props.ISO_A3
+        : '';
     const geom = (feat as { geometry?: { type?: string; coordinates?: unknown } }).geometry;
     if (!geom) continue;
     if (geom.type === 'Polygon' && Array.isArray(geom.coordinates)) {
-      const p = buildIndexedPolygon(geom.coordinates as number[][][]);
+      const p = buildIndexedPolygon(geom.coordinates as number[][][], sourceId, featureId);
       if (p) out.push(p);
     } else if (geom.type === 'MultiPolygon' && Array.isArray(geom.coordinates)) {
       for (const polyCoords of geom.coordinates as number[][][][]) {
-        const p = buildIndexedPolygon(polyCoords);
+        const p = buildIndexedPolygon(polyCoords, sourceId, featureId);
         if (p) out.push(p);
       }
     }
   }
-  return out;
+  return { sourceId, polygons: out };
 }
 
 /**
- * Registra polígonos reales de tierra (zulia_municipalities.json / world_land.json)
- * para evaluación point-in-polygon O(1) con BBox e invalida la caché LRU.
+ * Limpia explícitamente las cachés procedurales en CPU (sectorLruCache <= 64 y cityBlueprintCache).
  */
-export function registerLandPolygons(input: unknown): number {
-  const extracted = extractPolygonsFromGeoJson(input);
-  if (extracted.length === 0) return registeredPolygons.length;
-  if (!hasFullGeoJsonPolygons) {
-    registeredPolygons = [...extracted];
-    hasFullGeoJsonPolygons = true;
-  } else {
-    registeredPolygons.push(...extracted);
-  }
-  rebuildPolygonSpatialGrid();
+export function clearGbaPipelineCache(): void {
   sectorLruCache.clear();
+  resetUrbanBlueprintCache();
+}
+
+export function getLandHydrationSnapshot(): LandHydrationSnapshot {
+  const loadedSources = Array.from(polygonsBySource.keys());
+  return {
+    loadedSources,
+    totalIndexedPolygons: registeredPolygons.length,
+    hasZuliaMunicipalHd: polygonsBySource.has('zulia_hd'),
+    hasTheatreRegions: polygonsBySource.has('theatre_regions'),
+    hasWorldLand: polygonsBySource.has('world_land'),
+  };
+}
+
+/**
+ * Registra (de forma idempotente por sourceId) polígonos reales de tierra
+ * (zulia_municipalities.json / theatre_regions.json / world_land.json)
+ * reconstruyendo P_eff con precedencia por entidad e invalidando cachés CPU.
+ */
+export function registerLandPolygons(
+  input: unknown,
+  explicitSourceId?: LandPolygonSourceId
+): number {
+  const { sourceId, polygons } = extractPolygonsFromGeoJson(input, explicitSourceId);
+  if (polygons.length === 0) return registeredPolygons.length;
+  if (sourceId === 'zulia_hd') {
+    registerMunicipalityContainmentPolygons(input);
+  }
+  polygonsBySource.set(sourceId, polygons);
+  rebuildEffectivePolygonsAndGrid();
+  clearGbaPipelineCache();
   return registeredPolygons.length;
 }
 
@@ -228,25 +340,32 @@ function ensureNodePolygonsLoaded(): void {
     if (typeof window !== 'undefined' || typeof process === 'undefined' || !process.versions?.node) {
       return;
     }
-    const dynamicRequire = Function('m', 'return require(m)') as (m: string) => Record<string, unknown>;
-    const fsMod = dynamicRequire('fs') as { existsSync: (p: string) => boolean; readFileSync: (p: string, enc: string) => string };
-    const pathMod = dynamicRequire('path') as { resolve: (...p: string[]) => string };
+    const getBuiltin = (process as unknown as { getBuiltinModule?: (m: string) => Record<string, unknown> }).getBuiltinModule;
+    const loadMod = (m: string) =>
+      getBuiltin ? getBuiltin(m) : (Function('mod', 'return require(mod)') as (mod: string) => Record<string, unknown>)(m);
+    const fsMod = loadMod('fs') as { existsSync: (p: string) => boolean; readFileSync: (p: string, enc: string) => string };
+    const pathMod = loadMod('path') as { resolve: (...p: string[]) => string };
 
-    const candidates = [
-      pathMod.resolve(process.cwd(), 'public', 'map', 'zulia_municipalities.json'),
-      pathMod.resolve(process.cwd(), 'public', 'map', 'world_land.json'),
+    // Paridad 100% Node === Chromium: exactamente la misma terna ordenada
+    const candidates: ReadonlyArray<readonly [LandPolygonSourceId, string]> = [
+      ['zulia_hd', pathMod.resolve(process.cwd(), 'public', 'map', 'zulia_municipalities.json')],
+      ['theatre_regions', pathMod.resolve(process.cwd(), 'public', 'map', 'theatre_regions.json')],
+      ['world_land', pathMod.resolve(process.cwd(), 'public', 'map', 'world_land.json')],
     ];
-    const collected: IndexedPolygon[] = [];
-    for (const filePath of candidates) {
+    let loadedAny = false;
+    for (const [sourceId, filePath] of candidates) {
       if (fsMod.existsSync(filePath)) {
         const parsed = JSON.parse(fsMod.readFileSync(filePath, 'utf-8'));
-        collected.push(...extractPolygonsFromGeoJson(parsed));
+        const { polygons } = extractPolygonsFromGeoJson(parsed, sourceId);
+        if (polygons.length > 0) {
+          if (sourceId === 'zulia_hd') registerMunicipalityContainmentPolygons(parsed);
+          polygonsBySource.set(sourceId, polygons);
+          loadedAny = true;
+        }
       }
     }
-    if (collected.length > 0) {
-      registeredPolygons = collected;
-      hasFullGeoJsonPolygons = true;
-      rebuildPolygonSpatialGrid();
+    if (loadedAny) {
+      rebuildEffectivePolygonsAndGrid();
     }
   } catch {
     // Fallback silencioso al anillo semilla de Cabimas en entornos restringidos
@@ -254,13 +373,15 @@ function ensureNodePolygonsLoaded(): void {
 }
 
 /**
- * Etapa 1: Evaluación cartográfica estricta tierra vs agua (point-in-polygon O(1) con índice 0.5°×0.5°).
+ * Etapa 1: Evaluación cartográfica estricta tierra vs agua L(lng, lat) en O(1) con índice 0.5°×0.5°.
+ * Usa exclusivamente P_eff (precedencia por entidad, 0 filtros AABB destructivos).
  */
 export function isLandAtCabimasPolygon(lng: number, lat: number): boolean {
   ensureNodePolygonsLoaded();
 
   const bucketKey = `${Math.floor(lng * 2)}_${Math.floor(lat * 2)}`;
   const candidates = polygonSpatialGrid.get(bucketKey);
+
   if (candidates) {
     for (let i = 0; i < candidates.length; i++) {
       if (pointInIndexedPolygon(lng, lat, candidates[i])) {
@@ -269,13 +390,12 @@ export function isLandAtCabimasPolygon(lng: number, lat: number): boolean {
     }
   }
 
-  // Si ya tenemos el catálogo completo cargado, cualquier punto fuera de los polígonos reales es agua/mar/lago
+  // Si ya tenemos el catálogo completo cargado, cualquier punto fuera de P_eff es agua/mar/lago
   if (hasFullGeoJsonPolygons) {
     return false;
   }
 
-  // Si aún solo está cargado el anillo semilla de Cabimas (browser pre-fetch):
-  // dentro de la ventana de Cabimas/Lago Oriental, fuera del polígono de Cabimas es agua
+  // Si aún solo está cargado el anillo semilla de Cabimas (browser pre-fetch 0ms):
   if (lng >= -71.55 && lng <= -71.38 && lat >= 10.31 && lat <= 10.46) {
     return false;
   }
@@ -335,141 +455,6 @@ function isPropertyType(t: TerrainType): boolean {
     t === 'silo' ||
     t === 'usedSilo'
   );
-}
-
-/**
- * Enrutamiento A* suavizado para red vial GBA:
- * - Penaliza giros (roadCurvePenalty) para obtener rectas + curvas redondeadas limpias
- * - Penaliza paralelismo cercano (< roadParallelMinGap) para impedir bloques 2x2 de carreteras
- * - Cruza ríos convirtiéndolos en puentes (bridge)
- */
-function routeGbaRoadAStar(
-  matrix: TerrainTile[][],
-  landMask: boolean[][],
-  start: [number, number],
-  goal: [number, number],
-  profile: GbaCalibrationProfile,
-  protectedCells: Set<string>
-): void {
-  const h = matrix.length;
-  const w = matrix[0]?.length ?? 0;
-  const [sx, sy] = start;
-  const [gx, gy] = goal;
-  if (sx < 0 || sx >= w || sy < 0 || sy >= h || gx < 0 || gx >= w || gy < 0 || gy >= h) return;
-
-  type Node = { x: number; y: number; dir: number; g: number; f: number };
-  const dirs: Array<[number, number]> = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-  const open: Node[] = [{ x: sx, y: sy, dir: -1, g: 0, f: Math.abs(gx - sx) + Math.abs(gy - sy) }];
-  const bestG = new Map<string, number>();
-  const parent = new Map<string, string>();
-  const keyOf = (x: number, y: number) => `${x}_${y}`;
-  bestG.set(keyOf(sx, sy), 0);
-
-  let foundGoal = false;
-  let guard = 0;
-
-  while (open.length > 0 && guard++ < 1200) {
-    open.sort((a, b) => a.f - b.f);
-    const curr = open.shift()!;
-    if (curr.x === gx && curr.y === gy) {
-      foundGoal = true;
-      break;
-    }
-
-    for (let d = 0; d < 4; d++) {
-      const nx = curr.x + dirs[d][0];
-      const ny = curr.y + dirs[d][1];
-      if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
-      const cellKey = keyOf(nx, ny);
-      if (protectedCells.has(cellKey)) continue;
-
-      const t = matrix[ny][nx].type;
-      if (!landMask[ny][nx] || t === 'sea' || t === 'reef' || t === 'pipe' || t === 'pipeSeam') continue;
-      if (isPropertyType(t) && (nx !== gx || ny !== gy)) continue;
-
-      // Prohibir viaductos: un puente nunca puede ser adyacente a otro puente o caminar a lo largo del río
-      if (t === 'river') {
-        const currT = matrix[curr.y][curr.x].type;
-        if (currT === 'river' || currT === 'bridge') continue;
-        const aheadX = nx + dirs[d][0];
-        const aheadY = ny + dirs[d][1];
-        const aheadT = matrix[aheadY]?.[aheadX]?.type;
-        if (!aheadT || aheadT === 'river' || aheadT === 'bridge' || aheadT === 'sea' || aheadT === 'reef') {
-          continue;
-        }
-        // Verificar que no haya otro puente adyacente en las 4 direcciones
-        const adjBridge = dirs.some(([bx, by]) => matrix[ny + by]?.[nx + bx]?.type === 'bridge');
-        if (adjBridge) continue;
-      }
-
-      let stepCost = 1.0;
-      if (t === 'road' || t === 'bridge') {
-        stepCost = 0.25; // Reutilizar vías existentes para formar red orgánica
-      } else if (t === 'river') {
-        stepCost = 4.2; // Cruce perpendicular único permitido
-      } else if (t === 'mountain') {
-        stepCost = 4.5;
-      }
-
-      if (curr.dir !== -1 && curr.dir !== d) {
-        stepCost += profile.roadCurvePenalty;
-      }
-
-      // Penalizar estrictamente crear tramos paralelos pegados (evita carreteras dobles sin sentido)
-      if (t !== 'road' && t !== 'bridge') {
-        const distToGoal = Math.abs(gx - nx) + Math.abs(gy - ny);
-        let parallelAdj = 0;
-        let sameAxisParallel = false;
-        for (let py = Math.max(0, ny - 1); py <= Math.min(h - 1, ny + 1); py++) {
-          for (let px = Math.max(0, nx - 1); px <= Math.min(w - 1, nx + 1); px++) {
-            if (px === curr.x && py === curr.y) continue;
-            if (px === nx && py === ny) continue;
-            const nt = matrix[py][px].type;
-            if (nt === 'road' || nt === 'bridge') {
-              parallelAdj++;
-              // Si hay carretera a 1 celda lateral en el eje perpendicular al movimiento actual
-              if ((dirs[d][0] !== 0 && px === nx) || (dirs[d][1] !== 0 && py === ny)) {
-                sameAxisParallel = true;
-              }
-            }
-          }
-        }
-        if (distToGoal > 1 && (sameAxisParallel || parallelAdj >= 1)) {
-          stepCost += sameAxisParallel ? 65 : 22 * parallelAdj;
-        }
-      }
-
-      const nextG = curr.g + stepCost;
-      const prevBest = bestG.get(cellKey);
-      if (prevBest === undefined || nextG < prevBest) {
-        bestG.set(cellKey, nextG);
-        parent.set(cellKey, keyOf(curr.x, curr.y));
-        const hDist = Math.abs(gx - nx) + Math.abs(gy - ny);
-        open.push({ x: nx, y: ny, dir: d, g: nextG, f: nextG + hDist });
-      }
-    }
-  }
-
-  if (!foundGoal) return;
-
-  let traceKey: string | undefined = keyOf(gx, gy);
-  let steps = 0;
-  while (traceKey && steps++ < 100) {
-    const parts: string[] = traceKey.split('_');
-    const tx = Number(parts[0]);
-    const ty = Number(parts[1]);
-    const currTile = matrix[ty]?.[tx];
-    if (currTile && !isPropertyType(currTile.type) && !protectedCells.has(traceKey)) {
-      if (currTile.type === 'river') {
-        const adjBridge = dirs.some(([bx, by]) => matrix[ty + by]?.[tx + bx]?.type === 'bridge');
-        matrix[ty][tx] = makeTile(tx, ty, adjBridge ? 'road' : 'bridge');
-      } else if (currTile.type !== 'road' && currTile.type !== 'bridge') {
-        matrix[ty][tx] = makeTile(tx, ty, 'road');
-      }
-    }
-    if (tx === sx && ty === sy) break;
-    traceKey = parent.get(traceKey);
-  }
 }
 
 /**
@@ -743,61 +728,25 @@ export function generateGbaSectorBlueprint(
     }
   }
 
-  // ETAPA 2: Hidrología Meandrante 4-Conectada (0 saltos diagonales) + Lagunas 2x2
+  // Pre-resolver slice urbano para suprimir lagunas 2x2 aleatorias en sectores con casco urbano
+  const urbanSlice = getUrbanSectorOverlaySlice(sx, sy, isLandAtCabimasPolygon);
+
+  // ETAPA 2: Hidrología Meandrante 4-Conectada (fuente única globalHydrologyPredicate) + Lagunas 2x2 solo rurales
   if (landCells >= 40) {
-    const anchorWX = 9880 * gridSize + 13;
-    const anchorWY = 15432 * gridSize + 15;
-    const placeRiverCell = (rx: number, ry: number) => {
-      if (rx < 0 || rx >= gridSize || ry < 0 || ry >= gridSize) return;
-      if (!landMask[ry]?.[rx] || protectedCells.has(`${rx}_${ry}`)) return;
-      if (matrix[ry][rx].type === 'plains') {
-        matrix[ry][rx] = makeTile(rx, ry, 'river');
-      }
-    };
-
-    // Canal N-S estrictamente 4-conectado con codos ortogonales
-    let prevRiverX: number | null = null;
     for (let y = 0; y < gridSize; y++) {
-      const wy = sy * gridSize + y;
-      const targetWX = Math.round(anchorWX + Math.sin(wy * profile.riverMeanderFreq) * profile.riverMeanderAmplitude);
-      const localX = targetWX - sx * gridSize;
-      if (localX >= -1 && localX <= gridSize) {
-        if (prevRiverX !== null && prevRiverX !== localX) {
-          const step = localX > prevRiverX ? 1 : -1;
-          for (let cx: number = prevRiverX; cx !== localX; cx += step) {
-            placeRiverCell(cx, y);
-          }
+      for (let x = 0; x < gridSize; x++) {
+        if (!landMask[y][x] || protectedCells.has(`${x}_${y}`)) continue;
+        if (matrix[y][x].type !== 'plains') continue;
+        const wx = sx * gridSize + x;
+        const wy = sy * gridSize + y;
+        if (isGlobalRiverAtCell(wx, wy, profile)) {
+          matrix[y][x] = makeTile(x, y, 'river');
         }
-        placeRiverCell(localX, y);
-        prevRiverX = localX;
-      } else {
-        prevRiverX = null;
       }
     }
 
-    // Tributario E-O estrictamente 4-conectado con codos ortogonales
-    let prevRiverY: number | null = null;
-    for (let x = 0; x < gridSize; x++) {
-      const wx = sx * gridSize + x;
-      if (wx > anchorWX + 26) break;
-      const targetWY = Math.round(anchorWY + Math.sin(wx * (profile.riverMeanderFreq * 0.85)) * (profile.riverMeanderAmplitude * 0.9));
-      const localY = targetWY - sy * gridSize;
-      if (localY >= -1 && localY <= gridSize) {
-        if (prevRiverY !== null && prevRiverY !== localY) {
-          const step = localY > prevRiverY ? 1 : -1;
-          for (let cy: number = prevRiverY; cy !== localY; cy += step) {
-            placeRiverCell(x, cy);
-          }
-        }
-        placeRiverCell(x, localY);
-        prevRiverY = localY;
-      } else {
-        prevRiverY = null;
-      }
-    }
-
-    // Laguna 2x2 ocasional en sectores interiores amplios
-    if (landCells > 260 && hash2D(sx, sy, 509) < profile.lake2x2Probability) {
+    // Laguna 2x2 ocasional estrictamente en sectores rurales (0 lagunas atrapadas dentro de ciudades)
+    if (!urbanSlice && landCells > 260 && hash2D(sx, sy, 509) < profile.lake2x2Probability) {
       const lx = 5 + (sectorSeed % 8);
       const ly = 5 + ((sectorSeed >> 3) % 8);
       if (
@@ -814,194 +763,131 @@ export function generateGbaSectorBlueprint(
     }
   }
 
-  // ETAPA 3: Zonificación por Distritos y Clústeres Estratégicos GBA
-  const isCoastalSector = waterCells > 0 && landCells + shoalCells > 0;
-  const archetypes: GbaDistrictArchetype[] = [
-    'urban_core',
-    'industrial_hub',
-    'forest_frontier',
-    'mountain_pass',
-  ];
-  const districtArchetype: GbaDistrictArchetype = isCoastalSector
-    ? 'coastal_port'
-    : archetypes[sectorSeed % archetypes.length];
-
-  const propAnchors: Array<[number, number]> = [];
-  const tryPlaceProp = (px: number, py: number, type: TerrainType, owner: GbaFactionOwner = null): boolean => {
-    if (px < 1 || px >= gridSize - 1 || py < 1 || py >= gridSize - 1) return false;
-    if (!landMask[py][px] || protectedCells.has(`${px}_${py}`)) return false;
-    if (matrix[py][px].type === 'river' || isPropertyType(matrix[py][px].type)) return false;
-    matrix[py][px] = makeTile(px, py, type, owner);
-    propAnchors.push([px, py]);
-    return true;
-  };
-
-  if (landCells >= 40) {
-    if (districtArchetype === 'coastal_port') {
-      // Puerto en celda costera con agua abierta y sin ríos adyacentes
-      outerPort: for (let y = 2; y < gridSize - 2; y++) {
-        for (let x = 1; x < gridSize - 2; x++) {
-          if (!landMask[y][x] || protectedCells.has(`${x}_${y}`)) continue;
-          const touchesSea = !landMask[y][x - 1] || !landMask[y + 1][x];
-          const hasOpenWater = !landMask[y][x - 2] || !landMask[y + 2]?.[x];
-          const nearRiver =
-            matrix[y - 1]?.[x]?.type === 'river' ||
-            matrix[y + 1]?.[x]?.type === 'river' ||
-            matrix[y]?.[x - 1]?.type === 'river' ||
-            matrix[y]?.[x + 1]?.type === 'river';
-          if (touchesSea && hasOpenWater && !nearRiver && landMask[y][x + 1]) {
-            tryPlaceProp(x, y, 'port', sx === 9880 ? 'p1' : null);
-            break outerPort;
-          }
-        }
-      }
-      // Buscar zona firme interior para ciudades y fábrica
-      for (let y = 4; y < gridSize - 4; y += 5) {
-        for (let x = 6; x < gridSize - 4; x += 6) {
-          if (landMask[y][x] && matrix[y][x].type === 'plains') {
-            tryPlaceProp(x, y, 'city', null);
-            tryPlaceProp(x + 2, y, 'city', null);
-            if (propAnchors.length >= profile.minStrategicPropsPerLandSector) break;
-          }
-        }
-      }
-    } else if (districtArchetype === 'industrial_hub') {
-      const hx = 6 + (sectorSeed % 6);
-      const hy = 6 + ((sectorSeed >> 4) % 5);
-      const owner: GbaFactionOwner = sx === 9881 ? 'p1' : null;
-      tryPlaceProp(hx, hy, 'hq', owner);
-      tryPlaceProp(hx - 2, hy, 'factory', owner);
-      tryPlaceProp(hx + 2, hy, 'factory', owner);
-      tryPlaceProp(hx, hy + 4, 'city', null);
-      tryPlaceProp(Math.max(2, hx - 3), Math.min(gridSize - 3, hy + 4), 'silo', null);
-
-      // Oleoducto táctico anclado desde la fábrica oriental (hx + 2, hy) hasta el borde del sector
-      const pipeY = hy;
-      const pipeCells: Array<[number, number]> = [];
-      for (let px = hx + 3; px < gridSize; px++) {
-        if (
-          landMask[pipeY]?.[px] &&
-          !protectedCells.has(`${px}_${pipeY}`) &&
-          matrix[pipeY][px].type === 'plains'
-        ) {
-          pipeCells.push([px, pipeY]);
+  // ETAPA 2.5: Proyección Inmutable Priority-0 de la Línea Amarilla Base (theatre_roads.json)
+  // Cero carreteras aleatorias y cero puertas sintéticas [0,10]/[19,10]/[9,0]/[9,19]
+  const trunkMask = getSectorYellowTrunkMask(sx, sy, isLandAtCabimasPolygon);
+  const protectedRoadCells = new Set<string>(protectedCells);
+  if (trunkMask) {
+    for (let y = 0; y < gridSize; y++) {
+      const rowBits = trunkMask.rowRoadBitmask[y];
+      if (rowBits === 0) continue;
+      for (let x = 0; x < gridSize; x++) {
+        if ((rowBits & (1 << x)) === 0) continue;
+        if (protectedCells.has(`${x}_${y}`)) continue;
+        const currType = matrix[y][x].type;
+        const isWaterOrRiver =
+          !landMask[y][x] || currType === 'sea' || currType === 'reef' || currType === 'river';
+        const axis = trunkMask.bridgeAxis[y * gridSize + x];
+        if (isWaterOrRiver || axis !== 0) {
+          matrix[y][x] = makeTile(x, y, 'bridge', null);
         } else {
-          break;
+          matrix[y][x] = makeTile(x, y, 'road', null);
         }
-      }
-      if (pipeCells.length >= 4 && pipeCells[pipeCells.length - 1][0] === gridSize - 1) {
-        const seamIdx = Math.floor(pipeCells.length / 2);
-        pipeCells.forEach(([px, py], idx) => {
-          matrix[py][px] = makeTile(px, py, idx === seamIdx ? 'pipeSeam' : 'pipe', null);
-        });
-      }
-    } else if (districtArchetype === 'urban_core') {
-      const cx = 6 + (sectorSeed % 5);
-      const cy = 5 + ((sectorSeed >> 3) % 5);
-      tryPlaceProp(cx, cy, 'city', null);
-      tryPlaceProp(cx + 3, cy, 'city', null);
-      tryPlaceProp(cx, cy + 4, 'city', null);
-      tryPlaceProp(cx + 4, cy + 4, 'airport', null);
-      tryPlaceProp(cx - 2, cy + 2, 'factory', null);
-      tryPlaceProp(cx + 3, cy + 2, sectorSeed % 2 === 0 ? 'commtower' : 'lab', null);
-      tryPlaceProp(cx - 2, cy, (sectorSeed >> 2) % 3 === 0 ? 'usedSilo' : 'silo', null);
-    } else {
-      const cx = 5 + (sectorSeed % 6);
-      const cy = 6 + ((sectorSeed >> 5) % 6);
-      tryPlaceProp(cx, cy, 'city', null);
-      tryPlaceProp(cx + 5, cy + 2, 'factory', null);
-      tryPlaceProp(cx + 2, cy - 3, 'silo', null);
-      tryPlaceProp(
-        cx + 2,
-        cy + 3,
-        districtArchetype === 'forest_frontier' ? 'commtower' : 'lab',
-        null
-      );
-      if ((sectorSeed >> 4) % 2 === 0) {
-        tryPlaceProp(cx - 2, cy + 2, 'usedSilo', null);
+        protectedRoadCells.add(`${x}_${y}`);
       }
     }
   }
 
-  // ETAPA 4: Red Vial A* Orgánica (puertas de sector + frente sur de propiedades)
-  if (landCells >= 40) {
-    const roadNodes: Array<[number, number]> = [];
-    // Puertas de borde en tierra para continuidad entre sectores vecinos
-    if (landMask[10][0] && !protectedCells.has('0_10')) roadNodes.push([0, 10]);
-    if (landMask[10][gridSize - 1]) roadNodes.push([gridSize - 1, 10]);
-    if (landMask[0][9]) roadNodes.push([9, 0]);
-    if (landMask[gridSize - 1][9]) roadNodes.push([9, gridSize - 1]);
+  // ETAPA 3 & 4: Motor Urbano Polimórfico Escalado por Población (SPRITE-FORGE-STUDIO -> TS)
+  // En sectores rurales fuera de theatre_cities.json: 0 edificios aleatorios y 0 tuberías.
+  // En sectores urbanos: 100% de edificios iniciales nacen GRISES NEUTRALES (ownerId: null).
+  const isCoastalSector = waterCells > 0 && landCells + shoalCells > 0;
+  const districtArchetype: GbaDistrictArchetype = urbanSlice
+    ? isCoastalSector
+      ? 'coastal_port'
+      : 'urban_core'
+    : isCoastalSector
+    ? 'coastal_port'
+    : 'forest_frontier';
 
-    // Conectar acceso frontal (y + 1) de cada propiedad estratégica
-    for (const [px, py] of propAnchors) {
-      if (py + 1 < gridSize && landMask[py + 1][px]) {
-        roadNodes.push([px, py + 1]);
-      } else if (px + 1 < gridSize && landMask[py][px + 1]) {
-        roadNodes.push([px + 1, py]);
+  const treeCrownSet = new Set<number>();
+  const clearedUrbanPlainSet = new Set<number>();
+  if (urbanSlice) {
+    for (let i = 0; i < urbanSlice.cells.length; i++) {
+      const cell = urbanSlice.cells[i];
+      if (cell.localX < 0 || cell.localX >= gridSize || cell.localY < 0 || cell.localY >= gridSize) {
+        continue;
       }
-    }
-
-    // Conectar nodos por vecino más cercano (MST/chain) para evitar lazos dobles cruzados
-    if (roadNodes.length > 1) {
-      const remaining = roadNodes.slice(1);
-      let currNode = roadNodes[0];
-      while (remaining.length > 0) {
-        let bestIdx = 0;
-        let bestDist = Infinity;
-        for (let idx = 0; idx < remaining.length; idx++) {
-          const d = Math.abs(remaining[idx][0] - currNode[0]) + Math.abs(remaining[idx][1] - currNode[1]);
-          if (d < bestDist) {
-            bestDist = d;
-            bestIdx = idx;
-          }
+      if (protectedCells.has(`${cell.localX}_${cell.localY}`)) continue;
+      // Prioridad inmutable: la línea amarilla ya estampada jamás es sobrescrita por edificios/parques
+      const isExistingYellowTrunk =
+        trunkMask !== null && (trunkMask.rowRoadBitmask[cell.localY] & (1 << cell.localX)) !== 0;
+      if (isExistingYellowTrunk && cell.type !== 'road' && cell.type !== 'bridge') {
+        continue;
+      }
+      const existingType = matrix[cell.localY][cell.localX].type;
+      if (existingType === 'river') {
+        // Jamás cortar un río con edificios o llanuras: solo cruzar con puente limpio
+        if (cell.type === 'road' || cell.type === 'bridge') {
+          matrix[cell.localY][cell.localX] = makeTile(cell.localX, cell.localY, 'bridge', null);
+          protectedRoadCells.add(`${cell.localX}_${cell.localY}`);
         }
-        const nextNode = remaining.splice(bestIdx, 1)[0];
-        routeGbaRoadAStar(matrix, landMask, currNode, nextNode, profile, protectedCells);
-        currNode = nextNode;
+        continue;
+      }
+      matrix[cell.localY][cell.localX] = makeTile(cell.localX, cell.localY, cell.type, null);
+      if (cell.type === 'road' || cell.type === 'bridge') {
+        protectedRoadCells.add(`${cell.localX}_${cell.localY}`);
       }
     }
+    for (let i = 0; i < urbanSlice.treeCrownLocalIndices.length; i++) {
+      treeCrownSet.add(urbanSlice.treeCrownLocalIndices[i]);
+    }
+    if (urbanSlice.clearedPlainLocalIndices) {
+      for (let i = 0; i < urbanSlice.clearedPlainLocalIndices.length; i++) {
+        clearedUrbanPlainSet.add(urbanSlice.clearedPlainLocalIndices[i]);
+      }
+    }
+  }
 
-    // Poda iterativa de ramales muertos (caminos ciegos sin propiedad ni salida de borde)
-    // Eliminar bloques 2x2 de carreteras/puentes (rotondas ciegas) antes de podar ramales muertos
-    for (let y = 0; y < gridSize - 1; y++) {
-      for (let x = 0; x < gridSize - 1; x++) {
-        const quad: Array<[number, number]> = [[x, y], [x + 1, y], [x, y + 1], [x + 1, y + 1]];
-        const isRoadOrBridge = (t: TerrainType) => t === 'road' || t === 'bridge';
-        if (quad.every(([qx, qy]) => isRoadOrBridge(matrix[qy][qx].type))) {
-          let removed = false;
-          for (const [qx, qy] of quad) {
-            if (matrix[qy][qx].type !== 'road' || protectedCells.has(`${qx}_${qy}`)) continue;
-            const touchesProp = [[0, -1], [1, 0], [0, 1], [-1, 0]].some(([dx, dy]) => {
-              const nt = matrix[qy + dy]?.[qx + dx]?.type;
-              return nt !== undefined && isPropertyType(nt);
-            });
-            if (!touchesProp) {
-              matrix[qy][qx] = makeTile(qx, qy, 'plains');
-              removed = true;
-              break;
-            }
-          }
-          if (!removed) {
-            for (const [qx, qy] of quad) {
-              if (matrix[qy][qx].type === 'road' && !protectedCells.has(`${qx}_${qy}`)) {
-                matrix[qy][qx] = makeTile(qx, qy, 'plains');
-                break;
+  // Garantizar 0 bloques 2x2 de carreteras tras fusionar trunkMask + urbanSlice (protegiendo línea amarilla y puentes)
+  {
+    const rm = new Uint8Array(gridSize * gridSize);
+    const prot = new Uint8Array(gridSize * gridSize);
+    for (let y = 0; y < gridSize; y++) {
+      for (let x = 0; x < gridSize; x++) {
+        const t = matrix[y][x].type;
+        const idx = y * gridSize + x;
+        if (t === 'road' || t === 'bridge') rm[idx] = 1;
+        const isYTrunk = trunkMask !== null && (trunkMask.rowRoadBitmask[y] & (1 << x)) !== 0;
+        if (isYTrunk || t === 'bridge' || protectedCells.has(`${x}_${y}`)) prot[idx] = 1;
+      }
+    }
+    if (count2x2Blobs(rm, gridSize, gridSize) > 0) {
+      const peeled = peel2x2(rm, gridSize, gridSize, prot);
+      for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+          const idx = y * gridSize + x;
+          if (rm[idx] && !peeled[idx] && matrix[y][x].type === 'road') {
+            matrix[y][x] = makeTile(x, y, 'plains');
+            // Permitir que pruneDeadEndRoads limpie cualquier punta de 1 tile dejada por el peel2x2
+            for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+              const nx = x + dx;
+              const ny = y + dy;
+              if (nx > 0 && nx < gridSize - 1 && ny > 0 && ny < gridSize - 1) {
+                const nIsTrunk = trunkMask !== null && (trunkMask.rowRoadBitmask[ny] & (1 << nx)) !== 0;
+                if (!nIsTrunk && !protectedCells.has(`${nx}_${ny}`)) {
+                  protectedRoadCells.delete(`${nx}_${ny}`);
+                }
               }
             }
           }
         }
       }
     }
-    pruneDeadEndRoads(matrix, gridSize, protectedCells);
   }
 
+  // Poda determinista de ramales muertos interiores (deg <= 1, sin edificio adyacente y lejos de bordes 0/19)
+  pruneDeadEndRoads(matrix, gridSize, protectedCells);
+
   // ETAPA 5: Orografía (Cordilleras con pasos) + Bosques en >= 2 pasadas celulares
+  // Respetando 100% clearedUrbanPlainSet (0 montañas/bosques en ciudades, pistas, SATs y zonas verdes de expansión)
   const rawForest: boolean[][] = Array.from({ length: gridSize }, () => Array(gridSize).fill(false));
   const rawMountain: boolean[][] = Array.from({ length: gridSize }, () => Array(gridSize).fill(false));
 
   for (let y = 0; y < gridSize; y++) {
     for (let x = 0; x < gridSize; x++) {
       if (matrix[y][x].type !== 'plains') continue;
+      if (clearedUrbanPlainSet.has(y * gridSize + x)) continue;
       const wx = sx * gridSize + x;
       const wy = sy * gridSize + y;
       const elev = fbmNoise2D(wx, wy, 101);
@@ -1018,7 +904,7 @@ export function generateGbaSectorBlueprint(
     const nextForest = forestGrid.map((r) => [...r]);
     for (let y = 0; y < gridSize; y++) {
       for (let x = 0; x < gridSize; x++) {
-        if (matrix[y][x].type !== 'plains') {
+        if (matrix[y][x].type !== 'plains' || clearedUrbanPlainSet.has(y * gridSize + x)) {
           nextForest[y][x] = false;
           continue;
         }
@@ -1038,6 +924,14 @@ export function generateGbaSectorBlueprint(
   for (let y = 0; y < gridSize; y++) {
     for (let x = 0; x < gridSize; x++) {
       if (matrix[y][x].type !== 'plains') continue;
+      const localIdx = y * gridSize + x;
+      if (clearedUrbanPlainSet.has(localIdx)) {
+        // Solo permitir corona de árboles explícita fuera de zonas de expansión/pistas
+        if (treeCrownSet.has(localIdx)) {
+          matrix[y][x] = makeTile(x, y, 'forest');
+        }
+        continue;
+      }
       let mN = 0;
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
@@ -1046,8 +940,14 @@ export function generateGbaSectorBlueprint(
         }
       }
       if (rawMountain[y][x] || mN >= 5) {
-        matrix[y][x] = makeTile(x, y, 'mountain');
-      } else if (forestGrid[y][x]) {
+        // Prohibir montaña inmediatamente al norte de un edificio alto (North Setback)
+        const southType = matrix[y + 1]?.[x]?.type;
+        if (southType && isPropertyType(southType)) {
+          matrix[y][x] = makeTile(x, y, 'forest');
+        } else {
+          matrix[y][x] = makeTile(x, y, 'mountain');
+        }
+      } else if (forestGrid[y][x] || treeCrownSet.has(localIdx)) {
         matrix[y][x] = makeTile(x, y, 'forest');
       }
     }
@@ -1088,6 +988,20 @@ export function generateGbaSectorBlueprint(
     matrix: matrix.map((row) => row.map((t) => ({ ...t }))),
     blueprint,
   };
+}
+
+export function getGbaSectorMatrixReadonly(
+  sector: [number, number],
+  gridSize: number = 20,
+  profileOrId?: GbaCalibrationProfile | string
+): readonly (readonly TerrainTile[])[] {
+  const profile = resolveCalibrationProfile(profileOrId);
+  const [sx, sy] = sector;
+  const cacheKey = `${sx}_${sy}_${gridSize}_${profile.profileId}`;
+  const hit = sectorLruCache.get(cacheKey);
+  if (hit) return hit.matrix;
+  generateGbaSectorBlueprint(sector, gridSize, false, profile);
+  return sectorLruCache.get(cacheKey)?.matrix ?? [];
 }
 
 export function getGbaPipelineCacheSize(): number {

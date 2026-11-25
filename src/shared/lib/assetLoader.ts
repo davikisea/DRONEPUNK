@@ -122,8 +122,31 @@ class TacticalAssetLoader {
     return TacticalAssetLoader.instance;
   }
 
+  private async loadImageToCanvas(url: string): Promise<HTMLCanvasElement | null> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || img.width || 16;
+        canvas.height = img.naturalHeight || img.height || 16;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas);
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  }
+
   /**
-   * Carga y procesa un atlas spritesheet TexturePacker (JSON + PNG)
+   * Carga los sprites oficiales AWBW desde /assets/awbw/ (migrados de SPRITE-FORGE-STUDIO)
+   * poblando el mapa realSprites con las claves canónicas de terreno, edificios neutrales/facción y unidades.
    */
   public async loadSheet(sheetName: string): Promise<boolean> {
     if (this.sheetsLoaded.has(sheetName)) return true;
@@ -135,56 +158,196 @@ class TacticalAssetLoader {
       if (typeof window === 'undefined' || typeof Image === 'undefined') return false;
 
       try {
-        const jsonUrl = `/assets/spritesheets/${sheetName}.json`;
-        const imgUrl = `/assets/spritesheets/${sheetName}.png`;
+        const entries: Array<[string, string]> = [];
 
-        const res = await fetch(jsonUrl);
-        if (!res.ok) {
-          console.warn(`[TacticalAssetLoader] No se pudo obtener ${jsonUrl} (${res.status})`);
-          return false;
-        }
-        const data = await res.json();
+        if (sheetName === 'neutral') {
+          entries.push(
+            ['plain-normal.png', '/assets/awbw/Map/Classic/Plain.png'],
+            ['plain.png', '/assets/awbw/Map/Classic/Plain.png'],
+            ['plain-rain.png', '/assets/awbw/Map/Classic/Plain_Rain.png'],
+            ['plain-snow.png', '/assets/awbw/Map/Classic/Plain_Snow.png'],
+            ['sea.png', '/assets/awbw/Map/Classic/Sea/Sea.png'],
+            ['shoal.png', '/assets/awbw/Map/Classic/Shoal/C.png'],
+            ['reef.png', '/assets/awbw/Map/Classic/Reef.png'],
+            ['wood.png', '/assets/awbw/Map/Classic/Wood.png'],
+            ['forest.png', '/assets/awbw/Map/Classic/Wood.png'],
+            ['forest-snow.png', '/assets/awbw/Map/Classic/Wood_Snow.png'],
+            ['mountain.png', '/assets/awbw/Map/Classic/Mountain.png'],
+            ['mountain-rain.png', '/assets/awbw/Map/Classic/Mountain_Rain.png'],
+            ['mountain-snow.png', '/assets/awbw/Map/Classic/Mountain_Snow.png'],
+            ['unusedSilo.png', '/assets/awbw/Map/AW2/Neutral/Silo-0.png'],
+            ['usedSilo.png', '/assets/awbw/Map/Classic/Neutral/SiloEmpty-0.png'],
+            ['bridge-right-left.png', '/assets/awbw/Map/Classic/Road/HBridge.png'],
+            ['bridge-top-bottom.png', '/assets/awbw/Map/Classic/Road/VBridge.png'],
+            // 11 variantes oficiales AWBW de carretera (Road/*)
+            ['road-right-left.png', '/assets/awbw/Map/Classic/Road/H.png'],
+            ['road-top-bottom.png', '/assets/awbw/Map/Classic/Road/V.png'],
+            ['road-top-right.png', '/assets/awbw/Map/Classic/Road/NE.png'],
+            ['road-top-left.png', '/assets/awbw/Map/Classic/Road/WN.png'],
+            ['road-right-bottom.png', '/assets/awbw/Map/Classic/Road/ES.png'],
+            ['road-bottom-left.png', '/assets/awbw/Map/Classic/Road/SW.png'],
+            ['road-top-right-bottom.png', '/assets/awbw/Map/Classic/Road/NES.png'],
+            ['road-top-bottom-left.png', '/assets/awbw/Map/Classic/Road/SWN.png'],
+            ['road-top-right-left.png', '/assets/awbw/Map/Classic/Road/WNE.png'],
+            ['road-right-bottom-left.png', '/assets/awbw/Map/Classic/Road/ESW.png'],
+            ['road-top-right-bottom-left.png', '/assets/awbw/Map/Classic/Road/C.png'],
+            // 11 variantes oficiales AWBW de río (River/*)
+            ['river-right-left.png', '/assets/awbw/Map/Classic/River/H.png'],
+            ['river-top-bottom.png', '/assets/awbw/Map/Classic/River/V.png'],
+            ['river-top-right.png', '/assets/awbw/Map/Classic/River/NE.png'],
+            ['river-top-left.png', '/assets/awbw/Map/Classic/River/WN.png'],
+            ['river-right-bottom.png', '/assets/awbw/Map/Classic/River/ES.png'],
+            ['river-bottom-left.png', '/assets/awbw/Map/Classic/River/SW.png'],
+            ['river-top-right-bottom.png', '/assets/awbw/Map/Classic/River/NES.png'],
+            ['river-top-bottom-left.png', '/assets/awbw/Map/Classic/River/SWN.png'],
+            ['river-top-right-left.png', '/assets/awbw/Map/Classic/River/WNE.png'],
+            ['river-right-bottom-left.png', '/assets/awbw/Map/Classic/River/ESW.png'],
+            ['river-top-right-bottom-left.png', '/assets/awbw/Map/Classic/River/C.png'],
+            // Tuberías y escombros
+            ['pipe-right-left.png', '/assets/awbw/Map/Classic/Pipe/H.png'],
+            ['pipe-top-bottom.png', '/assets/awbw/Map/Classic/Pipe/V.png'],
+            ['pipe-top-right.png', '/assets/awbw/Map/Classic/Pipe/NE.png'],
+            ['pipe-top-left.png', '/assets/awbw/Map/Classic/Pipe/WN.png'],
+            ['pipe-right-bottom.png', '/assets/awbw/Map/Classic/Pipe/ES.png'],
+            ['pipe-bottom-left.png', '/assets/awbw/Map/Classic/Pipe/SW.png'],
+            ['pipe-top.png', '/assets/awbw/Map/Classic/Pipe/NEnd.png'],
+            ['pipe-right.png', '/assets/awbw/Map/Classic/Pipe/EEnd.png'],
+            ['pipe-bottom.png', '/assets/awbw/Map/Classic/Pipe/SEnd.png'],
+            ['pipe-left.png', '/assets/awbw/Map/Classic/Pipe/WEnd.png'],
+            ['pipeseam-right-left.png', '/assets/awbw/Map/AW2/Neutral/HSeam-0.png'],
+            ['pipeseam-top-bottom.png', '/assets/awbw/Map/AW2/Neutral/VSeam-0.png'],
+            ['hrubble-0.png', '/assets/awbw/Map/Classic/Neutral/HRubble-0.png'],
+            ['vrubble-0.png', '/assets/awbw/Map/Classic/Neutral/VRubble-0.png'],
+            // Edificios 100% GRISES NEUTRALES (creación inicial de ciudades)
+            ['city-0.png', '/assets/awbw/Map/AW2/Neutral/City-0.png'],
+            ['city-aw1-0.png', '/assets/awbw/Map/AW1/Neutral/City-0.png'],
+            ['base-0.png', '/assets/awbw/Map/AW2/Neutral/Base-0.png'],
+            ['airport-0.png', '/assets/awbw/Map/AW2/Neutral/Airport-0.png'],
+            ['port-0.png', '/assets/awbw/Map/AW2/Neutral/Port-0.png'],
+            ['hq-0.png', '/assets/awbw/Map/AW2/Neutral/HQ-0.png'],
+            ['commtower-0.png', '/assets/awbw/Map/AW2/Neutral/ComTower-0.png'],
+            ['lab-0.png', '/assets/awbw/Map/AW2/Neutral/Lab-0.png']
+          );
 
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve();
-          img.onerror = () => reject(new Error(`Fallo al cargar imagen de atlas: ${imgUrl}`));
-          img.src = imgUrl;
-        });
-
-        // Extraer y des-rotar cada fotograma del atlas
-        const frames = data.frames || {};
-        for (const [frameName, frameInfo] of Object.entries<any>(frames)) {
-          const { x, y, w, h } = frameInfo.frame;
-          const rotated = !!frameInfo.rotated;
-
-          const canvas = document.createElement('canvas');
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) continue;
-
-          ctx.imageSmoothingEnabled = false;
-
-          if (rotated) {
-            // TexturePacker rota 90° horario en el atlas; para restaurar rotamos 90° antihorario (-PI/2)
-            ctx.save();
-            ctx.translate(0, h);
-            ctx.rotate(-Math.PI / 2);
-            ctx.drawImage(img, x, y, h, w, 0, 0, h, w);
-            ctx.restore();
-          } else {
-            ctx.drawImage(img, x, y, w, h, 0, 0, w, h);
+          // 47 sprites oficiales AWBW Sea/* (reemplazan bordes sintéticos fillRect)
+          const seaStems = [
+            'Sea',
+            'N-E-S-W', 'E-S-W', 'N-S-W', 'N-E-W', 'N-E-S', 'N-S', 'E-W',
+            'N-E-SW', 'N-E', 'E-S-NW', 'E-S', 'S-W-NE', 'S-W', 'N-W-SE', 'N-W',
+            'N-SE-SW', 'N-SE', 'N-SW', 'N',
+            'E-NW-SW', 'E-NW', 'E-SW', 'E',
+            'S-NW-NE', 'S-NW', 'S-NE', 'S',
+            'W-NE-SE', 'W-NE', 'W-SE', 'W',
+            'NW-NE-SE-SW', 'NE-SE-SW', 'NW-SE-SW', 'NW-NE-SW', 'NW-NE-SE',
+            'SE-SW', 'NW-SW', 'NW-NE', 'NE-SE', 'NW-SE', 'NE-SW',
+            'NW', 'NE', 'SE', 'SW',
+          ];
+          for (const stem of seaStems) {
+            entries.push([`sea-${stem}.png`, `/assets/awbw/Map/Classic/Sea/${stem}.png`]);
           }
 
-          this.realSprites.set(`${sheetName}/${frameName}`, canvas);
+          // 81 sprites oficiales AWBW Shoal/* (3^4 sobre N, E, S, W)
+          const shoalOpts = [
+            ['', 'N', 'AN'],
+            ['', 'E', 'AE'],
+            ['', 'S', 'AS'],
+            ['', 'W', 'AW'],
+          ];
+          for (const n of shoalOpts[0]) {
+            for (const e of shoalOpts[1]) {
+              for (const s of shoalOpts[2]) {
+                for (const w of shoalOpts[3]) {
+                  const parts = [n, e, s, w].filter(Boolean);
+                  const stem = parts.length > 0 ? parts.join('-') : 'C';
+                  entries.push([`shoal-${stem}.png`, `/assets/awbw/Map/Classic/Shoal/${stem}.png`]);
+                }
+              }
+            }
+          }
+        } else {
+          const factionMap: Record<string, string> = {
+            'orange-star': 'OrangeStar',
+            'blue-moon': 'BlueMoon',
+            'green-earth': 'GreenEarth',
+            'yellow-comet': 'YellowComet',
+            'black-hole': 'BlackHole',
+          };
+          const facFolder = factionMap[sheetName];
+          if (!facFolder) {
+            this.sheetsLoaded.add(sheetName);
+            return true;
+          }
+
+          // Edificios de facción (solo tras captura posterior)
+          entries.push(
+            ['city-0.png', `/assets/awbw/Map/AW2/${facFolder}/City-0.png`],
+            ['city-1.png', `/assets/awbw/Map/AW2/${facFolder}/City-1.png`],
+            ['city-2.png', `/assets/awbw/Map/AW2/${facFolder}/City-0.png`],
+            ['base-0.png', `/assets/awbw/Map/AW2/${facFolder}/Base-0.png`],
+            ['base-1.png', `/assets/awbw/Map/AW2/${facFolder}/Base-1.png`],
+            ['base-2.png', `/assets/awbw/Map/AW2/${facFolder}/Base-2.png`],
+            ['base-3.png', `/assets/awbw/Map/AW2/${facFolder}/Base-3.png`],
+            ['base-4.png', `/assets/awbw/Map/AW2/${facFolder}/Base-0.png`],
+            ['base-5.png', `/assets/awbw/Map/AW2/${facFolder}/Base-1.png`],
+            ['airport-0.png', `/assets/awbw/Map/AW2/${facFolder}/Airport-0.png`],
+            ['airport-1.png', `/assets/awbw/Map/AW2/${facFolder}/Airport-1.png`],
+            ['airport-2.png', `/assets/awbw/Map/AW2/${facFolder}/Airport-0.png`],
+            ['port-0.png', `/assets/awbw/Map/AW2/${facFolder}/Port-0.png`],
+            ['port-1.png', `/assets/awbw/Map/AW2/${facFolder}/Port-1.png`],
+            ['port-2.png', `/assets/awbw/Map/AW2/${facFolder}/Port-0.png`],
+            ['hq-0.png', `/assets/awbw/Map/AW2/${facFolder}/HQ-0.png`],
+            ['hq-1.png', `/assets/awbw/Map/AW2/${facFolder}/HQ-1.png`],
+            ['hq-2.png', `/assets/awbw/Map/AW2/${facFolder}/HQ-0.png`],
+            ['commtower-0.png', `/assets/awbw/Map/AW2/${facFolder}/ComTower-0.png`],
+            ['commtower-1.png', `/assets/awbw/Map/AW2/${facFolder}/ComTower-1.png`],
+            ['commtower-2.png', `/assets/awbw/Map/AW2/${facFolder}/ComTower-0.png`],
+            ['lab-0.png', `/assets/awbw/Map/AW2/${facFolder}/Lab-0.png`],
+            ['lab-1.png', `/assets/awbw/Map/AW2/${facFolder}/Lab-1.png`],
+            ['lab-2.png', `/assets/awbw/Map/AW2/${facFolder}/Lab-0.png`]
+          );
+
+          // Unidades de facción (16 chasis canónicos + alias)
+          const unitStems: Array<[string, string]> = [
+            ['infantry', 'Infantry'],
+            ['mech', 'Mech'],
+            ['recon', 'Recon'],
+            ['apc', 'APC'],
+            ['tank', 'Tank'],
+            ['md-tank', 'MdTank'],
+            ['neotank', 'NeoTank'],
+            ['megatank', 'MegaTank'],
+            ['anti-air', 'Anti-Air'],
+            ['artillery', 'Artillery'],
+            ['rocket', 'Rocket'],
+            ['missile', 'Missile'],
+            ['b-copter', 'B-Copter'],
+            ['t-copter', 'T-Copter'],
+            ['fighter', 'Fighter'],
+            ['bomber', 'Bomber'],
+            ['battleship', 'Battleship'],
+          ];
+          for (const [legacyKey, awbwStem] of unitStems) {
+            entries.push(
+              [`${legacyKey}-idle-0.png`, `/assets/awbw/Units/${facFolder}/${awbwStem}-0.png`],
+              [`${legacyKey}-idle-1.png`, `/assets/awbw/Units/${facFolder}/${awbwStem}-1.png`],
+              [`${legacyKey}-idle-2.png`, `/assets/awbw/Units/${facFolder}/${awbwStem}-0.png`]
+            );
+          }
         }
+
+        await Promise.all(
+          entries.map(async ([frameName, url]) => {
+            const canvas = await this.loadImageToCanvas(url);
+            if (canvas) {
+              this.realSprites.set(`${sheetName}/${frameName}`, canvas);
+            }
+          })
+        );
 
         this.sheetsLoaded.add(sheetName);
         return true;
       } catch (err) {
-        console.warn(`[TacticalAssetLoader] Error procesando spritesheet ${sheetName}:`, err);
+        console.warn(`[TacticalAssetLoader] Error cargando sprites AWBW para ${sheetName}:`, err);
         return false;
       }
     })();
@@ -225,7 +388,7 @@ class TacticalAssetLoader {
       return;
     }
 
-    const primarySheets = ['neutral', 'orange-star', 'blue-moon', 'icons', 'arrow'];
+    const primarySheets = ['neutral', 'orange-star', 'blue-moon'];
     const secondarySheets = ['green-earth', 'yellow-comet', 'black-hole'];
     const totalSteps = primarySheets.length + this.criticalUnits.length;
     let step = 0;
@@ -483,7 +646,7 @@ class TacticalAssetLoader {
         : this.realSprites.get(`${faction}/port-${anim3}.png`);
     } else if (tile.type === 'hq') {
       buildingSprite = faction === 'neutral'
-        ? this.realSprites.get('neutral/city-0.png')
+        ? this.realSprites.get('neutral/hq-0.png')
         : this.realSprites.get(`${faction}/hq-${anim3}.png`);
     } else if (tile.type === 'commtower') {
       buildingSprite = faction === 'neutral'
@@ -1289,24 +1452,24 @@ class TacticalAssetLoader {
 }
 
 export const UNIT_GREEN_SPRITE_PATHS: Record<string, string> = {
-  green_infantry: '/assets/units/green-earth/Infantry-0.png',
-  green_mech: '/assets/units/green-earth/Mech-0.png',
-  green_recon: '/assets/units/green-earth/Recon-0.png',
-  green_apc: '/assets/units/green-earth/APC-0.png',
-  green_tank: '/assets/units/green-earth/Tank-0.png',
-  green_md_tank: '/assets/units/green-earth/MdTank-0.png',
-  green_neotank: '/assets/units/green-earth/NeoTank-0.png',
-  green_megatank: '/assets/units/green-earth/MegaTank-0.png',
-  green_anti_air: '/assets/units/green-earth/Anti-Air-0.png',
-  green_artillery: '/assets/units/green-earth/Artillery-0.png',
-  green_rocket: '/assets/units/green-earth/Rocket-0.png',
-  green_missile: '/assets/units/green-earth/Missile-0.png',
-  green_b_copter: '/assets/units/green-earth/B-Copter-0.png',
-  green_t_copter: '/assets/units/green-earth/T-Copter-0.png',
-  green_fighter: '/assets/units/green-earth/Fighter-0.png',
-  green_bomber: '/assets/units/green-earth/Bomber-0.png',
-  green_black_bomb: '/assets/units/green-earth/BlackBomb-0.png',
-  green_battleship: '/assets/units/green-earth/Battleship-0.png',
+  green_infantry: '/assets/awbw/Units/GreenEarth/Infantry-0.png',
+  green_mech: '/assets/awbw/Units/GreenEarth/Mech-0.png',
+  green_recon: '/assets/awbw/Units/GreenEarth/Recon-0.png',
+  green_apc: '/assets/awbw/Units/GreenEarth/APC-0.png',
+  green_tank: '/assets/awbw/Units/GreenEarth/Tank-0.png',
+  green_md_tank: '/assets/awbw/Units/GreenEarth/MdTank-0.png',
+  green_neotank: '/assets/awbw/Units/GreenEarth/NeoTank-0.png',
+  green_megatank: '/assets/awbw/Units/GreenEarth/MegaTank-0.png',
+  green_anti_air: '/assets/awbw/Units/GreenEarth/Anti-Air-0.png',
+  green_artillery: '/assets/awbw/Units/GreenEarth/Artillery-0.png',
+  green_rocket: '/assets/awbw/Units/GreenEarth/Rocket-0.png',
+  green_missile: '/assets/awbw/Units/GreenEarth/Missile-0.png',
+  green_b_copter: '/assets/awbw/Units/GreenEarth/B-Copter-0.png',
+  green_t_copter: '/assets/awbw/Units/GreenEarth/T-Copter-0.png',
+  green_fighter: '/assets/awbw/Units/GreenEarth/Fighter-0.png',
+  green_bomber: '/assets/awbw/Units/GreenEarth/Bomber-0.png',
+  green_black_bomb: '/assets/awbw/Units/GreenEarth/BlackBomb-0.png',
+  green_battleship: '/assets/awbw/Units/GreenEarth/Battleship-0.png',
 };
 
 const UNIT_CODE_TO_GREEN_SPRITE: Record<string, string> = {

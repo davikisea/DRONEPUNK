@@ -330,7 +330,7 @@ try {
   assert(cabimasPort.type === 'port' && cabimasPort.defenseStars === 3 && cabimasPort.isOverridden === true, 'Celda [1,4] de Cabimas debe ser port (3★) del override piloto');
 
   const orinocoHq = spatialDeploymentService.resolveSectorCellTerrain([9881, 15432], [15, 8], 20);
-  assert(orinocoHq.type === 'hq' && orinocoHq.ownerId === 'p1' && orinocoHq.defenseStars === 4, 'Frente Oriental [9881,15432] debe contar con HQ Orange Star (p1, 4★)');
+  assert(orinocoHq.type === 'hq' && orinocoHq.ownerId === null && orinocoHq.defenseStars === 4, 'Frente Oriental [9881,15432] debe contar con HQ neutral gris (ownerId: null, 4★)');
 
   // 6.2 Edición desde MapBuilder (Delta disperso), propagación a getSpatialAssignment y RTS, y limpieza
   const testSector: [number, number] = [9880, 15432];

@@ -51,7 +51,6 @@ import {
 } from './map/tacticalMapStyle';
 import {
   registerGreenUnitSprites,
-  registerTerrainTileSprites,
 } from './map/tacticalTerrainSprites';
 import { createTacticalTerrainWebGLLayer } from './map/tacticalTerrainWebGLLayer';
 import {
@@ -61,6 +60,13 @@ import {
   computeFixedMacroBlockRange,
   computeViewportSectorRange,
 } from './map/tacticalGridGeoJson';
+import {
+  URBAN_BLUEPRINT_LAYER_IDS,
+  URBAN_BLUEPRINT_MIN_ZOOM,
+  URBAN_BLUEPRINT_SOURCE_ID,
+  buildViewportUrbanBlueprintGeoJSON,
+} from './map/urbanBlueprintGeoJson';
+import { isLandAtCabimasPolygon } from '../core/gbaMapPipeline';
 import {
   type TacticalUnit,
   type GridPosition,
@@ -290,6 +296,64 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
   const reachableDbOpTilesRef = useRef<Map<string, ReachableOpTileEntry>>(new Map());
   const activeOpArrowPathRef = useRef<GridPosition[] | null>(null);
   const isMovingDbOpUnitRef = useRef<boolean>(false);
+
+  // SPRITE-FORGE Urban Blueprint Overlay (Zonas verdes, distritos, flechas amarillas, puentes cian, SATs)
+  const [showUrbanBlueprint, setShowUrbanBlueprint] = useState<boolean>(false);
+  const showUrbanBlueprintRef = useRef<boolean>(false);
+  showUrbanBlueprintRef.current = showUrbanBlueprint;
+  const registeredBlueprintBadgesRef = useRef<Set<string>>(new Set());
+  const lastBlueprintKeyRef = useRef<string>('empty');
+
+  const syncViewportBlueprint = useCallback((map: MapLibreMap | null) => {
+    if (!map || !map.isStyleLoaded()) return;
+    const src = map.getSource(URBAN_BLUEPRINT_SOURCE_ID) as { setData: (data: GeoJSON.FeatureCollection) => void } | undefined;
+    if (!src) return;
+    if (!showUrbanBlueprintRef.current || map.getZoom() < URBAN_BLUEPRINT_MIN_ZOOM) {
+      if (lastBlueprintKeyRef.current !== 'empty') {
+        src.setData({ type: 'FeatureCollection', features: [] });
+        lastBlueprintKeyRef.current = 'empty';
+      }
+      return;
+    }
+    const rev = spatialDeploymentService.getTerrainRevision();
+    const { key, geojson } = buildViewportUrbanBlueprintGeoJSON(
+      map,
+      registeredBlueprintBadgesRef.current,
+      isLandAtCabimasPolygon,
+      rev
+    );
+    if (lastBlueprintKeyRef.current !== key) {
+      src.setData(geojson);
+      lastBlueprintKeyRef.current = key;
+    }
+  }, []);
+  const syncViewportBlueprintRef = useRef(syncViewportBlueprint);
+  syncViewportBlueprintRef.current = syncViewportBlueprint;
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    const vis = showUrbanBlueprint ? 'visible' : 'none';
+    for (const id of URBAN_BLUEPRINT_LAYER_IDS) {
+      if (map.getLayer(id)) {
+        map.setLayoutProperty(id, 'visibility', vis);
+      }
+    }
+    lastBlueprintKeyRef.current = showUrbanBlueprint ? 'dirty' : 'empty';
+    syncViewportBlueprintRef.current(map);
+  }, [showUrbanBlueprint]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.key === 'b' || e.key === 'B') {
+        setShowUrbanBlueprint((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const resolveDbUnitLngLat = useCallback((h3Index: number): [number, number] => {
     try {
@@ -565,7 +629,9 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
       }
 
       if (map.getSource('db-mmo-buildings')) {
-        const bldFeatures = worldBuildingsRef.current.map((b) => {
+        const bldFeatures = worldBuildingsRef.current
+          .filter((b) => !b.is_historical)
+          .map((b) => {
           const [lng, lat] = resolveDbUnitLngLat(b.h3_index);
           const infraState = b.infra_state ?? (b.is_disabled || b.hp <= 0 ? 'RUINED' : 'OPERATIONAL');
           const isOwn = Boolean(activeDbCorpIdRef.current && b.corp_id === activeDbCorpIdRef.current);
@@ -890,40 +956,72 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
 
   const [baseRegionsGeoJSON, setBaseRegionsGeoJSON] = useState<any>(null);
 
+  // FSM única y determinista de hidratación Browser === Node (0 condiciones de carrera):
+  // FETCHING_ASSETS -> HYDRATING_LAND -> HYDRATING_CITIES -> HYDRATING_ROADS -> FLUSHING_CACHES
   useEffect(() => {
-    let isSubscribed = true;
-    fetch('/map/theatre_regions.json')
-      .then((res) => res.json())
-      .then((data) => {
-        if (isSubscribed) setBaseRegionsGeoJSON(data);
-      })
-      .catch((err) => {
-        console.warn('[TacticalWorldMap] No se pudo cargar theatre_regions.json local:', err);
-      });
+    let cancelled = false;
+    const fetchJson = (url: string) =>
+      fetch(url)
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null);
+
+    void Promise.all([
+      fetchJson('/map/zulia_municipalities.json'),
+      fetchJson('/map/theatre_regions.json'),
+      fetchJson('/map/world_land.json'),
+      fetchJson('/map/theatre_cities.json'),
+      fetchJson('/map/theatre_roads.json'),
+    ]).then(([zuliaJson, regionsJson, worldLandJson, citiesJson, roadsJson]) => {
+      if (cancelled) return;
+      if (regionsJson) {
+        setBaseRegionsGeoJSON(regionsJson);
+      }
+
+      const wd = worldDomain as {
+        registerLandPolygons?: (fc: unknown, sourceId?: 'zulia_hd' | 'theatre_regions' | 'world_land') => number;
+        registerTheatreCitiesGeoJson?: (fc: unknown) => number;
+        registerYellowTrunkGeoJson?: (fc: unknown, lp?: (lng: number, lat: number) => boolean) => number;
+        isLandAtCabimasPolygon?: (lng: number, lat: number) => boolean;
+      };
+
+      try {
+        // Barrera 1: HYDRATING_LAND (precedencia exacta por entidad, paridad 100% Node === Chromium)
+        if (typeof wd.registerLandPolygons === 'function') {
+          if (zuliaJson) wd.registerLandPolygons(zuliaJson, 'zulia_hd');
+          if (regionsJson) wd.registerLandPolygons(regionsJson, 'theatre_regions');
+          if (worldLandJson) wd.registerLandPolygons(worldLandJson, 'world_land');
+        }
+
+        // Barrera 2: HYDRATING_CITIES
+        if (citiesJson && typeof wd.registerTheatreCitiesGeoJson === 'function') {
+          wd.registerTheatreCitiesGeoJson(citiesJson);
+        }
+
+        // Barrera 3: HYDRATING_ROADS (evalúa L(lng, lat) ya definitivo y ciudades cargadas)
+        if (roadsJson && typeof wd.registerYellowTrunkGeoJson === 'function') {
+          wd.registerYellowTrunkGeoJson(roadsJson, wd.isLandAtCabimasPolygon);
+        }
+
+        // Barrera 4: FLUSHING_CACHES (invalida CPU sectorLruCache + cityBlueprintCache + GPU sectorTextureCache)
+        spatialDeploymentService.bumpTerrainRevision({ clearProceduralCaches: true });
+        lastTerrainKeyRef.current = 'dirty';
+
+        const map = mapInstanceRef.current;
+        if (map && map.isStyleLoaded()) {
+          if (map.getSource('tactical-sector-terrain')) {
+            syncViewportGridRef.current?.(map);
+          }
+          map.triggerRepaint();
+        }
+      } catch (err) {
+        console.warn('[TacticalWorldMap] Error en FSM de hidratación cartográfica:', err);
+      }
+    });
+
     return () => {
-      isSubscribed = false;
+      cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (!baseRegionsGeoJSON) return;
-    const registerFn =
-      (worldDomain as { registerLandPolygons?: (fc: unknown) => void }).registerLandPolygons ??
-      (spatialDeploymentService as unknown as { registerLandPolygons?: (fc: unknown) => void })
-        .registerLandPolygons;
-    if (typeof registerFn !== 'function') return;
-
-    try {
-      registerFn(baseRegionsGeoJSON);
-      lastTerrainKeyRef.current = 'dirty';
-      const map = mapInstanceRef.current;
-      if (map && map.isStyleLoaded() && map.getSource('tactical-sector-terrain')) {
-        syncViewportGridRef.current?.(map);
-      }
-    } catch (err) {
-      console.warn('[TacticalWorldMap] Error registrando polígonos de tierra:', err);
-    }
-  }, [baseRegionsGeoJSON]);
 
   const [sovereignVersion, setSovereignVersion] = useState(0);
 
@@ -1282,6 +1380,7 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
             setHoveredCellGlobal(null);
           }
           syncViewportGridRef.current?.(map);
+          syncViewportBlueprintRef.current?.(map);
         });
 
         map.on('move', () => {
@@ -1292,16 +1391,21 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
         map.on('moveend', () => {
           if (!isMounted) return;
           syncViewportGridRef.current?.(map);
+          syncViewportBlueprintRef.current?.(map);
           void refreshDbOperationalUnitsRef.current();
         });
 
         map.on('resize', () => {
           if (!isMounted) return;
           syncViewportGridRef.current?.(map);
+          syncViewportBlueprintRef.current?.(map);
         });
 
         if (typeof window !== 'undefined') {
           (window as any).__TACTICAL_MAP_INSTANCE__ = map;
+          (window as any).__TOGGLE_URBAN_BLUEPRINT__ = (enabled?: boolean) => {
+            setShowUrbanBlueprint((prev) => (typeof enabled === 'boolean' ? enabled : !prev));
+          };
           (window as any).__SET_TACTICAL_ZOOM__ = (z: number) => {
             try { map.setZoom(z); } catch {}
             if (isMounted) {
@@ -1310,6 +1414,7 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
                 setHoveredCellGlobal(null);
               }
               syncViewportGridRef.current?.(map);
+              syncViewportBlueprintRef.current?.(map);
             }
           };
         }
@@ -1494,11 +1599,11 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
             paint: {
               'line-color': '#0A0B08',
               'line-width': ['interpolate', ['linear'], ['zoom'], 4, 1.8, 8, 4.2, 14, 7.0],
-              'line-opacity': ['interpolate', ['linear'], ['zoom'], 13.5, 0.78, 14.5, 0.0],
+              'line-opacity': ['interpolate', ['linear'], ['zoom'], 14.2, 0.78, 14.95, 0.0],
             },
           });
 
-          // Capa 2B: Resplandor Naranja/Ámbar C4ISR
+          // Capa 2B: Resplandor Naranja/Ámbar C4ISR (apagado temprano en z=14.55 para evitar blur sobre WebGL)
           map.addLayer({
             id: 'roads-glow',
             type: 'line',
@@ -1506,12 +1611,12 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
             paint: {
               'line-color': '#D97706',
               'line-width': ['interpolate', ['linear'], ['zoom'], 4, 1.4, 8, 3.6, 14, 6.0],
-              'line-opacity': ['interpolate', ['linear'], ['zoom'], 13.5, 0.30, 14.5, 0.0],
+              'line-opacity': ['interpolate', ['linear'], ['zoom'], 13.8, 0.30, 14.55, 0.0],
               'line-blur': 2.0,
             },
           });
 
-          // Capa 2C: Núcleo de Carretera Principal (desaturado y atenuado al entrar a Zoom Táctico)
+          // Capa 2C: Núcleo de Carretera Principal (cross-fade sincronizado con WebGL z=14.35..14.95)
           map.addLayer({
             id: 'roads-core',
             type: 'line',
@@ -1524,7 +1629,7 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
                 '#B45309',
               ],
               'line-width': ['interpolate', ['linear'], ['zoom'], 4, 0.8, 8, 1.8, 14, 3.2],
-              'line-opacity': ['interpolate', ['linear'], ['zoom'], 13.5, 0.85, 14.5, 0.0],
+              'line-opacity': ['interpolate', ['linear'], ['zoom'], 14.35, 0.85, 14.95, 0.0],
             },
           });
 
@@ -1542,7 +1647,6 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
             type: 'circle',
             source: 'tactical-cities',
             minzoom: 8.5,
-            maxzoom: 15.0,
             paint: {
               'circle-radius': ['interpolate', ['linear'], ['zoom'], 8.5, 6, 14, 12],
               'circle-color': [
@@ -1561,7 +1665,6 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
             type: 'circle',
             source: 'tactical-cities',
             minzoom: 8.5,
-            maxzoom: 15.0,
             paint: {
               'circle-radius': [
                 'interpolate',
@@ -1599,7 +1702,6 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
             type: 'symbol',
             source: 'tactical-cities',
             minzoom: 8.5,
-            maxzoom: 15.0,
             layout: {
               'text-field': ['get', 'name'],
               'text-size': ['interpolate', ['linear'], ['zoom'], 8.5, 10.5, 14, 15],
@@ -1697,6 +1799,134 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
             paint: {
               'line-color': '#FACC15',
               'line-width': 2.2,
+            },
+          });
+
+          // 6.5. Capa WebGL Zero-Raster del Plan de Diseño Urbano (SPRITE-FORGE-STUDIO Overlay)
+          registeredBlueprintBadgesRef.current.clear();
+          map.addSource(URBAN_BLUEPRINT_SOURCE_ID, {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] },
+            tolerance: 0,
+            buffer: 64,
+          });
+          const bpInitVis = showUrbanBlueprintRef.current ? 'visible' : 'none';
+          map.addLayer({
+            id: 'urban-blueprint-expansion-fill',
+            type: 'fill',
+            source: URBAN_BLUEPRINT_SOURCE_ID,
+            minzoom: URBAN_BLUEPRINT_MIN_ZOOM,
+            filter: ['==', ['get', 'kind'], 'expansion_zone'],
+            layout: { visibility: bpInitVis },
+            paint: { 'fill-color': '#2ECC71', 'fill-opacity': 0.28 },
+          });
+          map.addLayer({
+            id: 'urban-blueprint-expansion-line',
+            type: 'line',
+            source: URBAN_BLUEPRINT_SOURCE_ID,
+            minzoom: URBAN_BLUEPRINT_MIN_ZOOM,
+            filter: ['==', ['get', 'kind'], 'expansion_zone_line'],
+            layout: { visibility: bpInitVis },
+            paint: { 'line-color': '#2ECC71', 'line-width': 1.8, 'line-opacity': 0.92 },
+          });
+          map.addLayer({
+            id: 'urban-blueprint-district-fill',
+            type: 'fill',
+            source: URBAN_BLUEPRINT_SOURCE_ID,
+            minzoom: URBAN_BLUEPRINT_MIN_ZOOM,
+            filter: ['==', ['get', 'kind'], 'district_box'],
+            layout: { visibility: bpInitVis },
+            paint: { 'fill-color': ['get', 'fillColor'], 'fill-opacity': 0.12 },
+          });
+          map.addLayer({
+            id: 'urban-blueprint-district-line',
+            type: 'line',
+            source: URBAN_BLUEPRINT_SOURCE_ID,
+            minzoom: URBAN_BLUEPRINT_MIN_ZOOM,
+            filter: ['==', ['get', 'kind'], 'district_box'],
+            layout: { visibility: bpInitVis },
+            paint: { 'line-color': ['get', 'borderColor'], 'line-width': 1.8, 'line-opacity': 0.88 },
+          });
+          map.addLayer({
+            id: 'urban-blueprint-silhouette-line',
+            type: 'line',
+            source: URBAN_BLUEPRINT_SOURCE_ID,
+            minzoom: URBAN_BLUEPRINT_MIN_ZOOM,
+            filter: ['==', ['get', 'kind'], 'city_silhouette'],
+            layout: { visibility: bpInitVis },
+            paint: {
+              'line-color': ['get', 'strokeColor'],
+              'line-width': ['get', 'strokeWidth'],
+              'line-opacity': 0.96,
+            },
+          });
+          map.addLayer({
+            id: 'urban-blueprint-bridgehead-fill',
+            type: 'fill',
+            source: URBAN_BLUEPRINT_SOURCE_ID,
+            minzoom: URBAN_BLUEPRINT_MIN_ZOOM,
+            filter: ['==', ['get', 'kind'], 'bridgehead_box'],
+            layout: { visibility: bpInitVis },
+            paint: { 'fill-color': '#38BDF8', 'fill-opacity': 0.22 },
+          });
+          map.addLayer({
+            id: 'urban-blueprint-bridgehead-line',
+            type: 'line',
+            source: URBAN_BLUEPRINT_SOURCE_ID,
+            minzoom: URBAN_BLUEPRINT_MIN_ZOOM,
+            filter: ['==', ['get', 'kind'], 'bridgehead_box'],
+            layout: { visibility: bpInitVis },
+            paint: { 'line-color': '#38BDF8', 'line-width': 2.5, 'line-opacity': 0.95 },
+          });
+          map.addLayer({
+            id: 'urban-blueprint-arrow-shaft',
+            type: 'line',
+            source: URBAN_BLUEPRINT_SOURCE_ID,
+            minzoom: URBAN_BLUEPRINT_MIN_ZOOM,
+            filter: ['==', ['get', 'kind'], 'interchange_arrow_shaft'],
+            layout: { visibility: bpInitVis, 'line-cap': 'round' },
+            paint: { 'line-color': '#FFD646', 'line-width': 3.0 },
+          });
+          map.addLayer({
+            id: 'urban-blueprint-arrow-head',
+            type: 'fill',
+            source: URBAN_BLUEPRINT_SOURCE_ID,
+            minzoom: URBAN_BLUEPRINT_MIN_ZOOM,
+            filter: ['==', ['get', 'kind'], 'interchange_arrow_head'],
+            layout: { visibility: bpInitVis },
+            paint: { 'fill-color': '#FFD646', 'fill-opacity': 0.96 },
+          });
+          map.addLayer({
+            id: 'urban-blueprint-future-port-fill',
+            type: 'fill',
+            source: URBAN_BLUEPRINT_SOURCE_ID,
+            minzoom: URBAN_BLUEPRINT_MIN_ZOOM,
+            filter: ['==', ['get', 'kind'], 'future_port_box'],
+            layout: { visibility: bpInitVis },
+            paint: { 'fill-color': '#2563EB', 'fill-opacity': 0.28 },
+          });
+          map.addLayer({
+            id: 'urban-blueprint-future-port-line',
+            type: 'line',
+            source: URBAN_BLUEPRINT_SOURCE_ID,
+            minzoom: URBAN_BLUEPRINT_MIN_ZOOM,
+            filter: ['==', ['get', 'kind'], 'future_port_box'],
+            layout: { visibility: bpInitVis },
+            paint: { 'line-color': '#3B82F6', 'line-width': 2.5 },
+          });
+          map.addLayer({
+            id: 'urban-blueprint-labels',
+            type: 'symbol',
+            source: URBAN_BLUEPRINT_SOURCE_ID,
+            minzoom: URBAN_BLUEPRINT_MIN_ZOOM,
+            filter: ['==', ['get', 'kind'], 'blueprint_label'],
+            layout: {
+              visibility: bpInitVis,
+              'icon-image': ['get', 'badgeSpriteId'],
+              'icon-size': ['interpolate', ['linear'], ['zoom'], 11.5, 0.72, 14.0, 0.92, 15.5, 1.0],
+              'icon-allow-overlap': false,
+              'icon-padding': 3,
+              'symbol-sort-key': ['get', 'priority'],
             },
           });
 
@@ -2025,23 +2255,38 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
             map.getCanvas().style.cursor = '';
           });
 
-          const handleZuliaLayerClick = (e: MapMouseEvent) => {
-            if (map.getZoom() >= ZOOM_TACTICO - 1.0) return;
-            if ((e.originalEvent as any)?.__zuliaMunHandled) return;
-            const features = (e as any).features as any[] | undefined;
-            const matchedFeat = features?.find((f) => Boolean(resolveMunicipalityIdFromFeature(f)));
-            const munId = matchedFeat ? resolveMunicipalityIdFromFeature(matchedFeat) : null;
-            if (!munId) return;
-            if (e.originalEvent) (e.originalEvent as any).__zuliaMunHandled = true;
+          const selectMunicipalityFromFeature = (matchedFeat: any, originalEvent?: Event): boolean => {
+            const munId = resolveMunicipalityIdFromFeature(matchedFeat);
+            if (!munId) return false;
+            if ((originalEvent as any)?.__zuliaMunHandled) return true;
+            if (originalEvent) (originalEvent as any).__zuliaMunHandled = true;
             setSelectedMunicipalityId(munId);
             if (onSelectMunicipalityRef.current) {
+              const munName = matchedFeat?.properties?.municipalityName || matchedFeat?.properties?.name;
+              const cityName =
+                matchedFeat?.properties?.cityName ||
+                (matchedFeat?.properties?.municipalityName ? matchedFeat?.properties?.name : undefined);
               onSelectMunicipalityRef.current(munId, {
-                name: matchedFeat?.properties?.name || matchedFeat?.properties?.municipalityName,
-                cityName: matchedFeat?.properties?.cityName,
+                name: munName,
+                cityName,
                 stateId: matchedFeat?.properties?.stateId || 'REG_VE_02',
               });
             }
             try { audioManager.playHoverTick(); } catch {}
+            return true;
+          };
+
+          const handleZuliaLayerClick = (e: MapMouseEvent) => {
+            const features = (e as any).features as any[] | undefined;
+            const isCityMarkerHit = Boolean(
+              features?.some((f) => f?.layer?.id === 'cities-point' || f?.layer?.id === 'cities-labels')
+            );
+            if (!isCityMarkerHit && map.getZoom() >= ZOOM_TACTICO - 1.0) return;
+            if ((e.originalEvent as any)?.__zuliaMunHandled) return;
+            const matchedFeat = features?.find((f) => Boolean(resolveMunicipalityIdFromFeature(f)));
+            if (matchedFeat) {
+              selectMunicipalityFromFeature(matchedFeat, e.originalEvent);
+            }
           };
 
           for (const layerId of ['cities-labels', 'cities-point', 'zulia-municipalities-fill'] as const) {
@@ -2099,6 +2344,22 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
 
           map.on('click', (e: MapMouseEvent) => {
             wakeFromStandby();
+            if ((e.originalEvent as any)?.__zuliaMunHandled) return;
+
+            if (!edgeTraceModeRef.current && !selectedDbOpUnitRef.current) {
+              try {
+                const cityLayers = ['cities-labels', 'cities-point'].filter((id) => Boolean(map.getLayer(id)));
+                if (cityLayers.length > 0) {
+                  const cityHits = map.queryRenderedFeatures(e.point, { layers: cityLayers });
+                  const matchedCityFeat = cityHits.find((f: any) => Boolean(resolveMunicipalityIdFromFeature(f)));
+                  if (matchedCityFeat && selectMunicipalityFromFeature(matchedCityFeat, e.originalEvent)) {
+                    return;
+                  }
+                }
+              } catch {
+                // ignorar si las capas aún no están listas
+              }
+            }
 
             // 1. Selección / Movimiento / Infraestructura DB MMO (Zoom >= 8.5)
             if (map.getZoom() >= 8.5) {
@@ -2693,12 +2954,30 @@ export const TacticalWorldMap: React.FC<TacticalWorldMapProps> = ({
       <div
         className={
           hideLegacyMicroDeck
-            ? 'absolute top-14 left-1/2 -translate-x-1/2 z-20 pointer-events-none bg-[#0E100C]/88 border border-[#46521F] px-2.5 py-1 text-[9.5px] font-mono text-emerald-400 rounded shadow-[2px_2px_0px_#0A0B08] whitespace-nowrap'
-            : 'absolute bottom-16 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-3 sm:bottom-16 z-20 pointer-events-none bg-[#090D14]/88 border border-[#46521F] px-2.5 py-1 text-[10px] font-mono text-emerald-400 rounded shadow-[2px_2px_0px_#0A0B08]'
+            ? 'absolute top-14 left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex items-center gap-2 bg-[#0E100C]/90 border border-[#46521F] px-2.5 py-1 text-[9.5px] font-mono text-emerald-400 rounded shadow-[2px_2px_0px_#0A0B08] whitespace-nowrap'
+            : 'absolute bottom-16 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-3 sm:bottom-16 z-20 pointer-events-auto flex items-center gap-2 bg-[#090D14]/90 border border-[#46521F] px-2.5 py-1 text-[10px] font-mono text-emerald-400 rounded shadow-[2px_2px_0px_#0A0B08]'
         }
       >
-        <div>OPENPLACE WEBGL • ZOOM: {currentZoom.toFixed(2)}x • TEATRO VENEZUELA ({provinces.filter(p => !p.id.startsWith('BUF_')).length} SOBERANAS + {provinces.filter(p => p.id.startsWith('BUF_')).length} BUFFERS)</div>
-        {isStandbyUI && <div className="text-amber-500 font-bold">[MODO AHORRO C4ISR: 0% GPU STANDBY]</div>}
+        <div>
+          <div>OPENPLACE WEBGL • ZOOM: {currentZoom.toFixed(2)}x • TEATRO VENEZUELA ({provinces.filter(p => !p.id.startsWith('BUF_')).length} SOBERANAS + {provinces.filter(p => p.id.startsWith('BUF_')).length} BUFFERS)</div>
+          {isStandbyUI && <div className="text-amber-500 font-bold">[MODO AHORRO C4ISR: 0% GPU STANDBY]</div>}
+        </div>
+        <button
+          type="button"
+          data-testid="toggle-urban-blueprint-overlay"
+          title="Activar/Desactivar Plan de Diseño Urbano SPRITE-FORGE [Tecla B] (Z >= 11.5)"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowUrbanBlueprint((prev) => !prev);
+          }}
+          className={
+            showUrbanBlueprint
+              ? 'px-2 py-0.5 rounded border border-emerald-400 bg-emerald-500/20 text-emerald-300 font-bold tracking-wider cursor-pointer hover:bg-emerald-500/30 transition-colors'
+              : 'px-2 py-0.5 rounded border border-[#46521F] bg-[#0A0B08]/80 text-stone-300 font-bold tracking-wider cursor-pointer hover:border-emerald-500/60 hover:text-emerald-300 transition-colors'
+          }
+        >
+          PLAN URBANO: {showUrbanBlueprint ? 'ON' : 'OFF'} [B]
+        </button>
       </div>
 
       {/* Panel de Detalle del Microjuego Táctico C4ISR (Activo a Zoom >= 15.0 cuando no usa inspector unificado) */}

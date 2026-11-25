@@ -4,13 +4,15 @@ import { spatialDeploymentService } from '../../services/spatialDeploymentServic
 import { TACTICAL_GRID_DIMENSION } from './tacticalMapStyle';
 import {
   GBA_FACTION_SHEETS,
-  SYNTHETIC_TERRAIN_CANVASES,
-  ensureSyntheticCoastalCanvases16,
   getAllTerrainSpriteCatalog,
   isTerrainSheetsLoaded,
   markTerrainSheetsLoaded,
 } from './tacticalTerrainSprites';
-import { computeViewportSectorRange, resolveFastTileSpriteKey } from './tacticalGridGeoJson';
+import {
+  computeViewportSectorRange,
+  resolveFastTileSpriteKey,
+  type SectorCornerNeighbors,
+} from './tacticalGridGeoJson';
 
 export function createTacticalTerrainWebGLLayer(mapInstance: MapLibreMap): CustomLayerInterface {
   const catalogLookup = new Map<string, { sheet: string; frame: string }>();
@@ -47,26 +49,66 @@ export function createTacticalTerrainWebGLLayer(mapInstance: MapLibreMap): Custo
     const south = spatialDeploymentService.getSectorTerrainMatrix([sx, sy + 1], dim);
     const west = spatialDeploymentService.getSectorTerrainMatrix([sx - 1, sy], dim);
     const plainRaw = assetLoader.getRawSheetSprite('neutral', 'plain-normal.png');
+    const seaRaw = assetLoader.getRawSheetSprite('neutral', 'sea.png');
 
+    // Esquinas diagonales lazy (solo se cargan si una celda esquina del sector es sea/shoal)
+    let corners: SectorCornerNeighbors | undefined;
+    const ensureCorners = (): SectorCornerNeighbors => {
+      if (!corners) {
+        corners = {
+          nw: spatialDeploymentService.getSectorTerrainMatrix([sx - 1, sy - 1], dim),
+          ne: spatialDeploymentService.getSectorTerrainMatrix([sx + 1, sy - 1], dim),
+          se: spatialDeploymentService.getSectorTerrainMatrix([sx + 1, sy + 1], dim),
+          sw: spatialDeploymentService.getSectorTerrainMatrix([sx - 1, sy + 1], dim),
+        };
+      }
+      return corners;
+    };
+
+    // PASADA 1: Capa Base Terrestre/Acuática 16x16 (y = 0..19) con sprites oficiales AWBW (47 Sea + 81 Shoal)
+    const pass2Queue: Array<{ px: number; py: number; raw: HTMLCanvasElement }> = [];
     for (let y = 0; y < dim; y++) {
       for (let x = 0; x < dim; x++) {
-        const spriteKey = resolveFastTileSpriteKey(sx, sy, x, y, center, north, east, south, west);
+        const tile = center[y][x];
+        const isCornerCell = (x === 0 || x === dim - 1) && (y === 0 || y === dim - 1);
+        const cellCorners =
+          isCornerCell && (tile.type === 'sea' || tile.type === 'shoal') ? ensureCorners() : undefined;
+        const spriteKey = resolveFastTileSpriteKey(sx, sy, x, y, center, north, east, south, west, cellCorners);
         const px = x * cellPx;
         const py = y * cellPx;
-        const synth = SYNTHETIC_TERRAIN_CANVASES.get(spriteKey);
-        if (synth) {
-          ctx.drawImage(synth, px, py, cellPx, cellPx);
-          continue;
-        }
         const spec = catalogLookup.get(spriteKey);
         const raw = spec ? assetLoader.getRawSheetSprite(spec.sheet, spec.frame) : null;
         if (raw) {
-          if (raw.height > raw.width && plainRaw) {
-            ctx.drawImage(plainRaw, px, py, cellPx, cellPx);
+          if (raw.height > cellPx) {
+            const underlay = tile.type === 'port' && seaRaw ? seaRaw : plainRaw;
+            if (underlay) ctx.drawImage(underlay, px, py, cellPx, cellPx);
+            pass2Queue.push({ px, py, raw });
+          } else {
+            ctx.drawImage(raw, px, py, cellPx, cellPx);
           }
-          ctx.drawImage(raw, px, py + cellPx - raw.height, raw.width, raw.height);
         } else if (plainRaw) {
           ctx.drawImage(plainRaw, px, py, cellPx, cellPx);
+        }
+      }
+    }
+
+    // PASADA 2: Painter's Order de Montañas y Edificios con Overhang Vertical (y = 0..19 + south[0][x])
+    for (let i = 0; i < pass2Queue.length; i++) {
+      const item = pass2Queue[i];
+      ctx.drawImage(item.raw, item.px, item.py + cellPx - item.raw.height, item.raw.width, item.raw.height);
+    }
+
+    // Costura Trans-Sector Sur (y = 20): proyecta el overhang superior (2..15px) de south[0][x]
+    // sobre la fila inferior (y = 19) del sector actual para cero decapitación de edificios altos
+    if (south && south[0]) {
+      for (let x = 0; x < dim; x++) {
+        const sSpriteKey = resolveFastTileSpriteKey(sx, sy + 1, x, 0, south, center, null, null, null);
+        const sSpec = catalogLookup.get(sSpriteKey);
+        const sRaw = sSpec ? assetLoader.getRawSheetSprite(sSpec.sheet, sSpec.frame) : null;
+        if (sRaw && sRaw.height > cellPx) {
+          const px = x * cellPx;
+          const py = dim * cellPx;
+          ctx.drawImage(sRaw, px, py + cellPx - sRaw.height, sRaw.width, sRaw.height);
         }
       }
     }
@@ -83,7 +125,7 @@ export function createTacticalTerrainWebGLLayer(mapInstance: MapLibreMap): Custo
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
 
     const key = `${sx}_${sy}`;
-    if (sectorTextureCache.size >= 64) {
+    if (sectorTextureCache.size >= 96) {
       const oldestKey = sectorTextureCache.keys().next().value;
       if (oldestKey) {
         const old = sectorTextureCache.get(oldestKey);
@@ -101,6 +143,7 @@ export function createTacticalTerrainWebGLLayer(mapInstance: MapLibreMap): Custo
     renderingMode: '2d',
     onAdd(_map, gl) {
       const vsSource = `
+        precision highp float;
         attribute vec2 a_pos;
         attribute vec2 a_uv;
         uniform mat4 u_matrix;
@@ -113,7 +156,11 @@ export function createTacticalTerrainWebGLLayer(mapInstance: MapLibreMap): Custo
         }
       `;
       const fsSource = `
+        #ifdef GL_FRAGMENT_PRECISION_HIGH
+        precision highp float;
+        #else
         precision mediump float;
+        #endif
         uniform sampler2D u_tex;
         uniform float u_opacity;
         varying vec2 v_uv;
@@ -154,7 +201,6 @@ export function createTacticalTerrainWebGLLayer(mapInstance: MapLibreMap): Custo
           ...GBA_FACTION_SHEETS.map((f) => assetLoader.loadSheet(f.sheet)),
         ]).then(() => {
           markTerrainSheetsLoaded();
-          ensureSyntheticCoastalCanvases16();
           mapInstance.triggerRepaint();
         });
       }

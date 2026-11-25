@@ -55,6 +55,35 @@ export function getCellKey(cx: number, cy: number): number {
 }
 
 /**
+ * Distancia mínima analítica (en km) desde un punto P = [pLng, pLat] a un segmento AB
+ * en proyección equirrectangular local O(1) sin asignaciones en heap.
+ */
+export function pointToSegmentAnalyticalDistanceKm(
+  pLng: number,
+  pLat: number,
+  aLng: number,
+  aLat: number,
+  bLng: number,
+  bLat: number,
+  scaleX: number
+): number {
+  const px = (pLng - aLng) * scaleX;
+  const py = (pLat - aLat) * KM_PER_LAT_DEGREE;
+  const bx = (bLng - aLng) * scaleX;
+  const by = (bLat - aLat) * KM_PER_LAT_DEGREE;
+  const lenSq = bx * bx + by * by;
+  if (lenSq <= 1e-12) {
+    return Math.sqrt(px * px + py * py);
+  }
+  let t = (px * bx + py * by) / lenSq;
+  if (t < 0) t = 0;
+  else if (t > 1) t = 1;
+  const dx = px - t * bx;
+  const dy = py - t * by;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+/**
  * Calcula la distancia elipsoidal simplificada (proyección equirrectangular local)
  * idéntica a la fórmula canónica de RoadNetworkEngine.
  */
@@ -372,14 +401,16 @@ export class SpatialRoadIndex {
     const qLng = coords[0];
     const qLat = coords[1];
     const maxDSq = maxDistanceKm * maxDistanceKm;
+    const queryScaleX = BASE_KM_PER_LNG_DEGREE * Math.cos(qLat * DEG_TO_RAD);
 
     const cx = Math.floor(qLng / this.cellSize);
     const cy = Math.floor(qLat / this.cellSize);
 
     let bestNode: RoadNode | null = null;
+    let bestSegmentId: string | undefined = undefined;
     let minDSq = Infinity;
 
-    // Solo inspeccionar celdas inmediatas (un umbral de 150m jamás excede la celda contigua)
+    // 1. Inspeccionar nodos en las 9 celdas inmediatas
     for (let o = 0; o < 9; o++) {
       const off = NEIGHBOR_OFFSETS[o];
       const k = getCellKey(cx + off[0], cy + off[1]);
@@ -394,25 +425,84 @@ export class SpatialRoadIndex {
           if (dSq < minDSq) {
             minDSq = dSq;
             bestNode = item.node;
+            bestSegmentId = this.nodeToSegments.get(item.node.id)?.[0]?.id;
           }
         }
       }
     }
 
-    if (bestNode === null || minDSq > maxDSq) {
-      const distKm = bestNode !== null ? Math.sqrt(minDSq) : this.cellSize * KM_PER_LAT_DEGREE;
+    // 2. Inspeccionar geometría de segmentos (segmentBuckets) punto-a-polilínea O(1)
+    const visitedSegments = new Set<string>();
+    for (let o = 0; o < 9; o++) {
+      const off = NEIGHBOR_OFFSETS[o];
+      const k = getCellKey(cx + off[0], cy + off[1]);
+      const segBucket = this.segmentBuckets.get(k);
+      if (segBucket === undefined) continue;
+      for (let i = 0; i < segBucket.length; i++) {
+        const segItem = segBucket[i];
+        const seg = segItem.segment;
+        if (visitedSegments.has(seg.id)) continue;
+        visitedSegments.add(seg.id);
+
+        const coordsList = seg.coordinates;
+        if (coordsList && coordsList.length >= 2) {
+          for (let p = 0; p < coordsList.length - 1; p++) {
+            const a = coordsList[p];
+            const b = coordsList[p + 1];
+            const distKm = pointToSegmentAnalyticalDistanceKm(
+              qLng,
+              qLat,
+              a[0],
+              a[1],
+              b[0],
+              b[1],
+              queryScaleX
+            );
+            const dSq = distKm * distKm;
+            if (dSq < minDSq) {
+              minDSq = dSq;
+              bestSegmentId = seg.id;
+            }
+          }
+        } else {
+          const fromItem = this.nodes.get(seg.fromNodeId);
+          const toItem = this.nodes.get(seg.toNodeId);
+          if (fromItem && toItem) {
+            const distKm = pointToSegmentAnalyticalDistanceKm(
+              qLng,
+              qLat,
+              fromItem.lng,
+              fromItem.lat,
+              toItem.lng,
+              toItem.lat,
+              queryScaleX
+            );
+            const dSq = distKm * distKm;
+            if (dSq < minDSq) {
+              minDSq = dSq;
+              bestSegmentId = seg.id;
+            }
+          }
+        }
+      }
+    }
+
+    if ((bestNode === null && bestSegmentId === undefined) || minDSq > maxDSq) {
+      const distKm =
+        bestNode !== null || bestSegmentId !== undefined
+          ? Math.sqrt(minDSq)
+          : this.cellSize * KM_PER_LAT_DEGREE;
       return {
         isAdjacent: false,
-        nearestSegmentId: bestNode ? this.nodeToSegments.get(bestNode.id)?.[0]?.id : undefined,
+        nearestSegmentId: bestSegmentId,
         distanceMeters: Math.round(distKm * 1000),
       };
     }
 
     const distKm = Math.sqrt(minDSq);
-    const segs = this.nodeToSegments.get(bestNode.id);
     return {
       isAdjacent: true,
-      nearestSegmentId: segs && segs.length > 0 ? segs[0].id : undefined,
+      nearestSegmentId: bestSegmentId,
       distanceMeters: Math.round(distKm * 1000),
     };
   }

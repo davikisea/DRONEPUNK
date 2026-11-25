@@ -543,8 +543,20 @@ function findCarvingPath(
 
 function applyRoadOrBridge(grid: InternalCell[][], width: number, height: number, x: number, y: number): void {
   const current = grid[y][x];
-  // No sobreescribir HQs ni Fábricas
-  if (current.type === 'hq' || current.type === 'factory') return;
+  // No sobreescribir propiedades estratégicas (HQ, Fábricas, Ciudades, Puertos, Aeropuertos, Torres, Labs, Silos)
+  if (
+    current.type === 'hq' ||
+    current.type === 'factory' ||
+    current.type === 'city' ||
+    current.type === 'airport' ||
+    current.type === 'port' ||
+    current.type === 'commtower' ||
+    current.type === 'lab' ||
+    current.type === 'silo' ||
+    current.type === 'usedSilo'
+  ) {
+    return;
+  }
 
   const newType: TerrainType = current.type === 'river' ? 'bridge' : 'road';
   setSymmetricCell(grid, width, height, x, y, newType, current.ownerId, true);

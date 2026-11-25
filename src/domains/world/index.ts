@@ -23,6 +23,9 @@ export {
   MICRO_CELL_SIZE_METERS,
   H3_RES9_EDGE_METERS,
   lngLatToGridCoords,
+  lngLatToGlobalTacticalCell,
+  globalTacticalCellToLngLat,
+  traceWgs84SegmentTo4ConnectedCells,
   tileFractionToLngLat,
   gridCoordsToLngLat,
   getTileBounds,
@@ -37,15 +40,55 @@ export {
   type LngLat,
   type QuadLngLatBounds,
   type TacticalGridCoords,
+  type GlobalTacticalCell,
 } from './core/coordinates';
 export {
   SpatialRoadIndex,
   getCellKey,
   calculateAnalyticalDistanceKm,
+  pointToSegmentAnalyticalDistanceKm,
   type NearestNodeResult,
   type RoadAdjacencyResult,
   type SpatialBoundingBox,
 } from './core/spatialRoadIndex';
+export {
+  registerYellowTrunkGeoJson,
+  getSectorYellowTrunkMask,
+  isYellowTrunkAtGlobalCell,
+  getYellowTrunkBridgeAxisAtGlobalCell,
+  findNearestYellowTrunkCell,
+  getYellowTrunkSectorCount,
+  type SectorYellowTrunkMask,
+} from './core/yellowTrunkBackboneIndex';
+export {
+  registerTheatreCitiesGeoJson,
+  getAllCityScaleSpecs,
+  getCityScaleSpecById,
+  computeNormalizedPopulationIndex,
+  resolveCityScaleTier,
+  buildDeterministicCityScaleSpec,
+} from './core/urbanPopulationCatalog';
+export {
+  getOrCompileCityBlueprint,
+  getUrbanSectorOverlaySlice,
+  resetUrbanBlueprintCache,
+  getCompiledCityBlueprintCount,
+} from './core/urbanSectorBridge';
+export {
+  ZULIA_HYDRO_ENVELOPE,
+  isInsideZuliaHydroEnvelope,
+  registerMunicipalityContainmentPolygons,
+  isPointInMunicipality,
+} from './core/urbanContainmentMasks';
+export type {
+  CityScaleTierId,
+  SpriteForgePopulationScale,
+  YellowTrunkCityInteractionMode,
+  CityScaleSpec,
+  UrbanCityBlueprint,
+  UrbanBuildingPlacement,
+  UrbanSectorOverlaySlice,
+} from './types/urbanMorphologyTypes';
 export {
   roadNetworkEngine,
   RoadNetworkEngine,
@@ -117,6 +160,10 @@ export {
 // Services
 export {
   generateGbaSectorBlueprint,
+  clearGbaPipelineCache,
+  getLandHydrationSnapshot,
+  type LandPolygonSourceId,
+  type LandHydrationSnapshot,
   validateGbaSectorMatrix,
   getGbaPipelineCacheSize,
   isLandAtCabimasPolygon,
